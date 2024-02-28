@@ -169,7 +169,6 @@ ELP is useful for seeing which functions in a package are "hot".
   (elpaca-wait)
 #+end_src
 
-
 *** dependencies
 #+begin_src emacs-lisp :lexical t
 
@@ -231,13 +230,22 @@ ELP is useful for seeing which functions in a package are "hot".
 *** global keys
 
 #+begin_src emacs-lisp :lexical t
+  (defun comment-or-uncomment-region-or-line ()
+      "Comments or uncomments the region or the current line if there's no active region."
+      (interactive)
+      (let (beg end)
+          (if (region-active-p)
+              (setq beg (save-excursion (goto-char (region-beginning)) (line-beginning-position)) end (save-excursion (goto-char (region-end)) (line-end-position)))
+              (setq beg (line-beginning-position) end (line-end-position)))
+          (comment-or-uncomment-region beg end)
+          (next-line)))
 
-
-  (general-define-key
-   "H-r" 'revert-buffer
-   "H-l" 'scroll-lock-mode
-   "C-x e" 'eshell
-   )
+    (general-define-key
+     "H-r" 'revert-buffer
+     "H-l" 'scroll-lock-mode
+     "C-x e" 'eshell
+     "C-x C-;" 'comment-or-uncomment-region-or-line
+     )
 
 #+end_src
 
@@ -376,21 +384,6 @@ This is for when I accidentally make a column in org mode
     :config
     (with-eval-after-load "tramp" (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
     )
-
-#+end_src
-
-** local (things like scimax??)
-# TODO  (load "/opt/homebrew/opt/scimax/share/emacs/site-lisp/scimax/init.el")
-
-# (add-to-list 'org-babel-load-languages '(sql . t) t)
-# (org-babel-do-load-languages 'org-babel-load-languages org-babel-load-languages)
-
-#+begin_src emacs-lisp :lexical t
-
-  ;; (let ((default-directory "~/.emacs.d/lisp/"))
-  ;;   (when (file-exists-p default-directory)
-  ;;     (normal-top-level-add-to-load-path '("."))
-  ;;     (normal-top-level-add-subdirs-to-load-path)))
 
 #+end_src
 
@@ -612,7 +605,7 @@ This is for when I accidentally make a column in org mode
     )
 
 #+end_src
-**** 
+
 *** drag stuff
 
 #+begin_src emacs-lisp :lexical t
@@ -749,7 +742,9 @@ This is for when I accidentally make a column in org mode
 
 
 #+begin_src emacs-lisp :lexical t
-  (use-package hydra)
+    (use-package hydra)
+    (use-package pretty-hydra
+      :after hydra)
 #+end_src
 
 *** Ivy and Swiper
@@ -790,6 +785,47 @@ This is for when I accidentally make a column in org mode
              "C-s" 'swiper)
     )
 
+#+end_src
+
+*** Jupyter
+#+begin_src emacs-lisp :lexical t
+    (use-package jupyter
+      :after (zmq)
+
+      :config
+      (org-babel-do-load-languages
+       'org-babel-load-languages
+       '((emacs-lisp . t)
+         (julia . t)
+         (python . t)
+         (jupyter . t)))
+      (setq org-babel-jupyter-resource-directory '"./plots/")
+      )
+    ;; (use-package scimax-jupyter
+    ;;   :ensure (scimax-jupyter
+    ;;            :type git
+    ;;            :host github
+    ;;            :repo "jkitchin/scimax"
+    ;;            :local-repo "scimax-jupyter"
+    ;;            :files ("scimax-jupyter.el")
+    ;;            )
+    ;;   :after (scimax-ob pretty-hydra)
+    ;;   )
+
+    ;; (use-package scimax-ob
+    ;;   :ensure (scimax-ob
+    ;;            :type git
+    ;;            :host github
+    ;;            :repo "jkitchin/scimax"
+    ;;            :local-repo "scimax-ob"
+    ;;            :files ("scimax-ob.el")
+    ;;            )
+
+
+    ;;   )
+
+    (use-package zmq
+      :defer t)
 #+end_src
 
 *** magit
@@ -912,6 +948,7 @@ This is for when I accidentally make a column in org mode
     :hook (org-mode)
     :defer t
     :custom-face
+    (org-block   ((t (:background "gray10" :extend t))))
     (org-block-begin-line   ((t (:inherit org-block :background "#1d2021" :foreground "#d9b466" :extend t))))
     (org-block-end-line     ((t (:inherit org-block-begin-line :foreground "#6b7d70"))))
     (org-document-info      ((t (:foreground "#d5c4a1" :weight bold))))
