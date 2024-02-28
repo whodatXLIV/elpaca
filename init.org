@@ -105,10 +105,6 @@ ELP is useful for seeing which functions in a package are "hot".
 
   (tool-bar-mode -1)
   (menu-bar-mode -1)
-  ;; (push '(menu-bar-lines . -1) default-frame-alist)
-  ;; (push '(tool-bar-lines . -1) default-frame-alist)
-  ;; (push '(vertical-scroll-bars) default-frame-alist)
-
 #+end_src
 
 ** elpaca and preloads
@@ -217,7 +213,6 @@ ELP is useful for seeing which functions in a package are "hot".
 
 #+end_src
 
-
 ** my settings and my defs
 *** displays
 #+begin_src emacs-lisp :lexical t
@@ -233,13 +228,19 @@ ELP is useful for seeing which functions in a package are "hot".
 
 #+end_src
 
-*** mouse 
+*** global keys
+
 #+begin_src emacs-lisp :lexical t
-  (setq mouse-wheel-scroll-amount '(1 ((shift) . 1))) ;; one line at a time
-  (setq mouse-wheel-progressive-speed nil) ;; don't accelerate scrolling
-  (setq mouse-wheel-follow-mouse 't) ;; scroll window under mouse
+
+
+  (general-define-key
+   "H-r" 'revert-buffer
+   "H-l" 'scroll-lock-mode
+   "C-x e" 'eshell
+   )
 
 #+end_src
+
 *** Mac os use meta
 #+begin_src emacs-lisp :lexical t
 
@@ -256,31 +257,28 @@ ELP is useful for seeing which functions in a package are "hot".
 
 #+end_src
 
-*** tramp
-#+begin_src emacs-lisp :lexical t
-  (use-feature tramp
-    :config
-    (with-eval-after-load "tramp" (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
-    )
-
-#+end_src
-
-*** my gc
+*** misc.
 
 #+begin_src emacs-lisp :lexical t
 
-  (defun my-minibuffer-setup-hook ()
-    "Set high gc when minibuffer is open."
-    (setq gc-cons-threshold (* 256 1024 1024)))
+  (put 'upcase-region 'disabled nil)
+  (put 'downcase-region 'disabled nil)
 
-  (defun my-minibuffer-exit-hook ()
-    "Set low GC when minibuffer exits."
-    (setq gc-cons-threshold 800000))
+  (setq mark-ring-max 4)
+  (setq global-mark-ring-max 4)
 
-  (add-hook 'minibuffer-setup-hook 'my-minibuffer-setup-hook)
-  (add-hook 'minibuffer-exit-hook 'my-minibuffer-exit-hook)
+  (setq initial-buffer-choice t) ;;*scratch*
+
+
 #+end_src
 
+*** mouse 
+#+begin_src emacs-lisp :lexical t
+  (setq mouse-wheel-scroll-amount '(1 ((shift) . 1))) ;; one line at a time
+  (setq mouse-wheel-progressive-speed nil) ;; don't accelerate scrolling
+  (setq mouse-wheel-follow-mouse 't) ;; scroll window under mouse
+
+#+end_src
 *** my focus connections
 
 #+begin_src emacs-lisp :lexical t
@@ -326,6 +324,22 @@ ELP is useful for seeing which functions in a package are "hot".
 
 #+end_src
 
+*** my gc
+
+#+begin_src emacs-lisp :lexical t
+
+  (defun my-minibuffer-setup-hook ()
+    "Set high gc when minibuffer is open."
+    (setq gc-cons-threshold (* 256 1024 1024)))
+
+  (defun my-minibuffer-exit-hook ()
+    "Set low GC when minibuffer exits."
+    (setq gc-cons-threshold 800000))
+
+  (add-hook 'minibuffer-setup-hook 'my-minibuffer-setup-hook)
+  (add-hook 'minibuffer-exit-hook 'my-minibuffer-exit-hook)
+#+end_src
+
 *** recolor ansi
 #+begin_src emacs-lisp :lexical t
 
@@ -356,31 +370,12 @@ This is for when I accidentally make a column in org mode
 
 #+end_src
 
-*** global keys
-
+*** tramp
 #+begin_src emacs-lisp :lexical t
-
-
-  (general-define-key
-   "H-r" 'revert-buffer
-   "H-l" 'scroll-lock-mode
-   "C-x e" 'eshell
-   )
-
-#+end_src
-
-*** misc.
-
-#+begin_src emacs-lisp :lexical t
-
-  (put 'upcase-region 'disabled nil)
-  (put 'downcase-region 'disabled nil)
-
-  (setq mark-ring-max 4)
-  (setq global-mark-ring-max 4)
-
-  (setq initial-buffer-choice t) ;;*scratch*
-
+  (use-feature tramp
+    :config
+    (with-eval-after-load "tramp" (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
+    )
 
 #+end_src
 
@@ -400,286 +395,6 @@ This is for when I accidentally make a column in org mode
 #+end_src
 
 ** Install Packages
-*** tabbar
-
-#+begin_src emacs-lisp :lexical t
-  (use-package tabbar
-    :init (tabbar-mode t) 
-    :general-config
-    (:keymaps 'override 
-              "M-S-<up>" 'tabbar-press-home
-              "M-S-<left>" 'tabbar-backward-tab
-              "M-S-<right>" 'tabbar-forward-tab
-              "M-S-<down>" 'tabbar-local-mode
-              "C-S-<left>" 'tabbar-move-group-backward
-              "C-S-<right>" 'tabbar-move-group-forward   ) 
-
-    :config
-    (defun tabbar-buffer-groups ()
-      "Return the list of group names the current buffer belongs to.
-       This function is a custom function for tabbar-mode's tabbar-buffer-groups.
-       This function group all buffers into 3 groups:
-       Those Dired, those user buffer, and those emacs buffer.
-       Emacs buffer are those starting with “*”."
-      (list
-       (cond
-        ((eq major-mode 'dired-mode)
-         "Dired"
-         )
-        ((eq major-mode 'jupyter-repl-mode)
-         "Kernels"
-         )
-        ((eq major-mode 'js2-mode)
-         "js"
-         )
-        ((eq major-mode 'eshell-mode)
-         "Eshell"
-         )
-        ((eq major-mode 'vterm-mode)
-         "Term"
-         )
-        ((eq major-mode 'go-mode)
-         "Go"
-         )
-        ((eq major-mode 'org-mode)
-         "Org"
-         )
-        ((eq major-mode 'python-mode)
-         "Python"
-         )
-        ((string-equal "*ein:" (substring (buffer-name) 0 5))
-         "EIN"
-         )
-        ((string-equal "*Pyth" (substring (buffer-name) 0 5))
-         "Python"
-         )
-        ((eq major-mode 'php-mode)
-         "PHP"
-         )
-        ((eq major-mode 'csv-mode)
-         "CSV"
-         )
-        ((eq major-mode 'text-mode)
-         "TXT"
-         )
-        ((eq major-mode 'shell-script-mode)
-         "Script"
-         )
-        ((eq major-mode 'sh-mode)
-         "Script"
-         )
-        ((string-equal "*PHP*" (substring (buffer-name) 0 5))
-         "PHP"
-         )
-        ((string-equal "*" (substring (buffer-name) 0 1))
-         "Emacs Buffer"
-         )
-        ((string-equal "magit:" (substring (buffer-name) 0 6))
-         "Magit"
-         )
-        ((eq major-mode 'lispy-mode)
-         "Lisp"
-         )
-        ((eq major-mode 'lisp-mode)
-         "Lisp"
-         )
-        ((eq major-mode 'emacs-lisp-mode)
-         "Lisp"
-         )
-        ((eq major-mode 'image-mode)
-         "Images"
-         )
-        (t
-         "Misc"
-         )
-        )))
-
-    (defun tabbar-move-current-tab-one-place-left ()
-      "Move current tab one place left, unless it's already the leftmost."
-      (interactive)
-      (let* ((bufset (tabbar-current-tabset t))
-             (old-bufs (tabbar-tabs bufset))
-             (first-buf (car old-bufs))
-             (new-bufs (list)))
-        (if (string= (buffer-name) (format "%s" (car first-buf)))
-            old-bufs                     ; the current tab is the leftmost
-          (setq not-yet-this-buf first-buf)
-          (setq old-bufs (cdr old-bufs))
-          (while (and
-                  old-bufs
-                  (not (string= (buffer-name) (format "%s" (car (car old-bufs))))))
-            (push not-yet-this-buf new-bufs)
-            (setq not-yet-this-buf (car old-bufs))
-            (setq old-bufs (cdr old-bufs)))
-          (if old-bufs ; if this is false, then the current tab's buffer name is mysteriously missing
-              (progn
-                (push (car old-bufs) new-bufs) ; this is the tab that was to be moved
-                (push not-yet-this-buf new-bufs)
-                (setq new-bufs (reverse new-bufs))
-                (setq new-bufs (append new-bufs (cdr old-bufs))))
-            (error "Error: current buffer's name was not found in Tabbar's buffer list."))
-          (set bufset new-bufs)
-          (tabbar-set-template bufset nil)
-          (tabbar-display-update))))
-
-    (defun tabbar-move-current-tab-one-place-right ()
-      "Move current tab one place right, unless it's already the rightmost."
-      (interactive)
-      (let* ((bufset (tabbar-current-tabset t))
-             (old-bufs (tabbar-tabs bufset))
-             (first-buf (car old-bufs))
-             (new-bufs (list)))
-        (while (and
-                old-bufs
-                (not (string= (buffer-name) (format "%s" (car (car old-bufs))))))
-          (push (car old-bufs) new-bufs)
-          (setq old-bufs (cdr old-bufs)))
-        (if old-bufs ; if this is false, then the current tab's buffer name is mysteriously missing
-            (progn
-              (setq the-buffer (car old-bufs))
-              (setq old-bufs (cdr old-bufs))
-              (if old-bufs ; if this is false, then the current tab is the rightmost
-                  (push (car old-bufs) new-bufs))
-              (push the-buffer new-bufs)) ; this is the tab that was to be moved
-          (error "Error: current buffer's name was not found in Tabbar's buffer list."))
-        (setq new-bufs (reverse new-bufs))
-        (setq new-bufs (append new-bufs (cdr old-bufs)))
-        (set bufset new-bufs)
-        (tabbar-set-template bufset nil)
-        (tabbar-display-update)))
-
-    (setq tabbar-buffer-groups-function 'tabbar-buffer-groups)
-
-    (setq tabbar-use-images nil)
-
-    (defun tabbar-move-group-backward ()
-      "My version of keeping groups visible."
-      (interactive)
-      (tabbar-backward-tab)
-      (tabbar-press-home)
-      )
-    (defun tabbar-move-group-forward ()
-      "My version of keeping groups visible."
-      (interactive)
-      (tabbar-forward-tab)
-      (tabbar-press-home)
-      )
-
-    )
-#+end_src
-
-*** smartparens
-
-#+begin_src emacs-lisp :lexical t
-
-  (use-package smartparens
-    :config
-    (require 'smartparens-config)
-    (smartparens-global-mode t)
-
-    :general-config
-    (:keymaps 'override
-              "M-<up>"  'sp-beginning-of-sexp
-              "M-<down>"  'sp-end-of-sexp
-              "C-<right>"  'sp-forward-slurp-sexp
-              "M-<right>"  'sp-forward-barf-sexp
-              "C-<left>"   'sp-backward-slurp-sexp
-              "M-<left>"   'sp-backward-barf-sexp
-              "C-M-k"  'sp-kill-sexp
-              "C-k"    'sp-kill-hybrid-sexp
-              "M-k"    'sp-backward-kill-sexp
-              "C-M-w"  'sp-copy-sexp
-              "M-s s"  'sp-split-sexp
-              "M-s j"  'sp-join-sexp
-              "M-]"  'sp-backward-unwrap-sexp
-              "M-["  'sp-unwrap-sexp
-              "C-x C-t"  'sp-transpose-hybrid-sexp)
-    )
-
-#+end_src
-
-*** zoom
-#+begin_src emacs-lisp :lexical t
-  (use-package zoom
-    :custom
-    (zoom-mode t)
-    (zoom-size '(0.618 . 0.618))
-    )
-#+end_src
-
-*** auto-tangle-mode
-
-#+begin_src emacs-lisp :lexical t
-
-  (use-package auto-tangle-mode
-    :ensure (auto-tangle-mode
-             :host github
-             :repo "progfolio/auto-tangle-mode.el"
-             :local-repo "auto-tangle-mode")
-    :commands (auto-tangle-mode))
-
-#+end_src
-
-*** vterm
-#+begin_src emacs-lisp :lexical t
-  (use-package vterm
-    :ensure t
-
-    )
-  (use-package multi-vterm
-    :after vterm
-    :init
-    (setq vterm-tramp-shells '(("ssh" "/usr/bin/zsh")))
-    (setq shell-file-name "/bin/bash")
-    (setq vterm-shell "/usr/local/bin/zsh")
-    :general
-    (:keymaps 'override
-              "C-x t" 'multi-vterm-project
-              "C-x M-t" 'multi-vterm)
-    )
-
-
-#+end_src
-
-*** projectile
-#+begin_src emacs-lisp :lexical t
-
-  (use-package projectile
-    :config
-    (projectile-mode t)
-    )
-
-#+end_src
-
-*** dashboard
-
-#+begin_src emacs-lisp :lexical t
-  (use-package dashboard
-
-    :config
-    (use-package page-break-lines
-      :config
-      (global-page-break-lines-mode)
-      )
-
-    (dashboard-setup-startup-hook)
-    (setq initial-buffer-choice (lambda () (get-buffer "*dashboard*")))
-    (setq dashboard-banner-logo-title "It's Emacs time!")
-    (setq dashboard-startup-banner 'logo)
-    (setq dashboard-items '((recents  . 15)
-                            (projects . 5)
-                            ))
-    )
-
-  
-  ;; Value can be
-  ;; 'official which displays the official emacs logo
-  ;; 'logo which displays an alternative emacs logo
-  ;; 1, 2 or 3 which displays one of the text banners
-
-
-#+end_src
-
 *** ace
 **** window
 #+begin_src emacs-lisp :lexical t
@@ -730,33 +445,174 @@ This is for when I accidentally make a column in org mode
     )
 #+end_src
 
-*** undo-tree
+*** auto-tangle-mode
+
 #+begin_src emacs-lisp :lexical t
 
-  (use-package undo-tree
-    :custom
-    (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
-    (backup-directory-alist `(("." . "~/.emacs.d/.saves")))
-    (backup-by-copying t)
-    (delete-old-versions t)
-    (kept-new-versions 2)
-    (kept-old-versions 6)
-    (version-control t)       ; use versioned backups
-    (undo-tree-enable-undo-in-region t)
+  (use-package auto-tangle-mode
+    :ensure (auto-tangle-mode
+             :host github
+             :repo "progfolio/auto-tangle-mode.el"
+             :local-repo "auto-tangle-mode")
+    :commands (auto-tangle-mode))
 
+#+end_src
+
+*** company
+#+begin_src emacs-lisp :lexical t
+  (use-package company
+    :custom
+    (company-idle-delay 0.5)
+    (company-minimum-prefix-length 2)
+    (company-require-match 'never)
+    (company-show-numbers t)
+    (company-tooltip-limit 20)
+    (company-dabbrev-downcase nil)
+    (company-dabbrev-ignore-case t)
+    (company-dabbrev-code-ignore-case t)
+    (company-dabbrev-code-everywhere t)
+    (company-etags-ignore-case t)
+
+    :general-config
+    (:keymap 'override
+             "C-<tab>" #'company-other-backend)
     :config
-    (global-undo-tree-mode)
+    (global-company-mode 1)
     )
 
 #+end_src
 
-*** hydra
-
+*** counsel
 
 #+begin_src emacs-lisp :lexical t
-  (use-package hydra)
+  (use-package counsel)
 #+end_src
 
+*** dashboard
+
+#+begin_src emacs-lisp :lexical t
+  (use-package dashboard
+
+    :config
+    (use-package page-break-lines
+      :config
+      (global-page-break-lines-mode)
+      )
+
+    (dashboard-setup-startup-hook)
+    (setq initial-buffer-choice (lambda () (get-buffer "*dashboard*")))
+    (setq dashboard-banner-logo-title "It's Emacs time!")
+    (setq dashboard-startup-banner 'logo)
+    (setq dashboard-items '((recents  . 15)
+                            (projects . 5)
+                            ))
+    )
+
+  
+  ;; Value can be
+  ;; 'official which displays the official emacs logo
+  ;; 'logo which displays an alternative emacs logo
+  ;; 1, 2 or 3 which displays one of the text banners
+
+
+#+end_src
+
+*** dired
+
+#+begin_src emacs-lisp :lexical t
+  (use-package all-the-icons
+    :defer t
+    ;;      :hook dired-mode
+    )
+  (use-package all-the-icons-dired
+    :custom
+    (all-the-icons-dired-monochrome nil)
+    :hook dired-mode
+    :defer t)
+  ;; (all-the-icons-install-fonts)
+  (use-package dired-subtree
+    :after dired
+
+    :config
+    (define-key dired-mode-map (kbd "H-r") 'dired-subtree-remove)
+    (define-key dired-mode-map (kbd "<tab>") 'dired-subtree-toggle)
+    (define-key dired-mode-map (kbd "H-p") 'dired-subtree-up)
+    (define-key dired-mode-map (kbd "H-n") 'dired-subtree-down)
+    (define-key dired-mode-map (kbd "H-<up>") 'dired-subtree-beginning)
+    (define-key dired-mode-map (kbd "H-<down>") 'dired-subtree-end)
+    (define-key dired-mode-map (kbd "H-m") 'dired-subtree-mark-subtree)
+    (define-key dired-mode-map (kbd "H-u") 'dired-subtree-unmark-subtree)
+
+
+    )
+
+  (use-package dired-filter
+    :hook dired-mode
+    :defer t
+    :custom
+    (dired-listing-switches "-alogh")
+    )
+
+  (use-feature dired
+    :defer t
+    :general-config
+    (:keymap 'override
+             "C-x d" 'seth/dired-side-vc)
+    :config
+    (when (string= system-type "darwin")       
+      (setq dired-use-ls-dired nil))
+    (defun seth/dired-side--vc (directory)
+      "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
+      (let* (
+             (backend (vc-responsible-backend directory t))
+             (dir (if (eq backend nil)
+                      directory
+                    (expand-file-name (vc-call-backend backend 'root directory))))
+             (dired_dir (dired-noselect dir))
+             (path-list (split-string (first (last (split-string directory dir))) "/"))
+             )
+        (display-buffer-in-side-window
+         dired_dir `((side . left)
+                     (slot . 0)
+                     (window-width . 0.3)
+                     (window-parameters) . ((no-other-window . t)
+                                            (no-delete-other-windows . t)
+                                            (mode-line-format . (" " "%b"))
+                                            )
+                     )
+         )
+        (with-current-buffer dired_dir
+          (setq window-size-fixed 'width)
+          (switch-to-buffer-other-frame dired_dir)
+          (revert-buffer)
+          (dired-hide-details-mode)
+          (goto-char 0)
+          (cl-loop for p in path-list do
+                   (goto-char (search-forward p))
+                   (dired-subtree-insert)
+                   )
+          )
+        )
+      )
+
+    (defun seth/dired-side-vc (&optional initial-input)
+      "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
+      (interactive) 
+
+      (ivy-read "Dired: " #'read-file-name-internal
+                :matcher #'counsel--find-file-matcher
+                :initial-input initial-input
+                :action (lambda (d) (seth/dired-side--vc (expand-file-name d)))
+                :preselect (counsel--preselect-file)
+                :require-match 'confirm-after-completion
+                :history 'file-name-history
+                :keymap counsel-find-file-map
+                :caller 'counsel-dired)
+      )    
+    )
+
+#+end_src
+**** 
 *** drag stuff
 
 #+begin_src emacs-lisp :lexical t
@@ -795,165 +651,6 @@ This is for when I accidentally make a column in org mode
              "H-h ." 'dumb-jump-hydra/body)
     )
 
-#+end_src
-
-*** Multiple cursors
-#+begin_src emacs-lisp :lexical t
-  (use-package multiple-cursors
-
-    :general-config
-    (:keymap 'override
-             "H-<return> e" 'mc/edit-lines
-             "H-<return> m" 'mc/mark-more-like-this-extended
-             "H-<return> a" 'mc/mark-all-like-this
-             "H-<return> n" 'mc/insert-numbers
-             "H-<return> l" 'mc/insert-letters
-             )
-    ("C-;" 'mc-hide-unmatched-lines-mode)
-    )
-
-#+end_src
-
-*** HL todo
-
-#+begin_src emacs-lisp :lexical t
-  (use-package hl-todo
-    :custom
-    (hl-todo-keyword-faces
-     '(("TODO"   . "#934b9c")
-       ("NOTE"  . "#1E90FF")
-       ("HACK"  . "#CC6200")
-       ("BUG"  . "#FF0000")
-       ))
-    :config
-    (global-hl-todo-mode)
-    :general-config
-    (:keymap 'override
-             "H-t t" 'hl-todo-insert
-             "H-t n" 'hl-todo-next
-             "H-t p" 'hl-todo-previous
-             )
-    )
-#+end_src
-
-*** highlight indend guides
-
-#+begin_src emacs-lisp :lexical t
-  (use-package indent-bars
-    :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
-    :hook (prog-mode . indent-bars-mode)
-    :config
-    (setq
-     indent-bars-color '(highlight :face-bg t :blend 0.5)
-     indent-bars-pattern ". . . . . . . . ." ; play with the number of dots for your usual font size
-     indent-bars-width-frac 0.3
-     indent-bars-pad-frac 0.1
-     indent-bars-display-on-blank-lines t
-     indent-tabs-mode nil)  
-    ) ; or whichever modes you prefer
-
-  ;; (use-package highlight-indent-guides
-  ;; :hook (prog-mode . highlight-indent-guides-mode)
-  ;;    :init
-  ;;  (setq highlight-indent-guides-method 'bitmap)
-  ;;      (setq highlight-indent-guides-responsive 'top)
-
-  ;;    )
-#+end_src
-
-*** magit
-
-#+begin_src emacs-lisp :lexical t
-
-  (use-package magit
-    :defer t
-    :general-config
-    (:keymap 'override
-             "C-x g" 'magit-status
-             )
-    :config
-    (setenv "GIT_ASKPASS" "git-gui--askpass")
-    )
-
-
-#+end_src
-
-*** yas
-#+begin_src emacs-lisp :lexical t
-
-  (use-package yasnippet
-    :config
-    (yas-global-mode 1)
-    )
-
-  (use-package yasnippet-snippets
-    :defer t
-    :after yasnippet)
-  ;; (require-package 'ivy-yasnippet)
-  ;; (global-set-key (kbd "H-,") 'ivy-yasnippet)
-
-#+end_src
-
-*** popper
-#+begin_src emacs-lisp :lexical t
-
-  (use-package popper
-    :init
-    (setq popper-group-function 'nil) ; projectile projects #'popper-group-by-projectile
-    (setq popper-reference-buffers
-          '("\\*Messages\\*"
-            "Output\\*$"
-            "\\*Async Shell Command\\*"
-            help-mode
-            compilation-mode
-            image-mode
-            ))
-
-    ;; Match eshell, shell, term and/or vterm buffers
-    (setq popper-reference-buffers
-          (append popper-reference-buffers
-                  '("^\\*eshell.*\\*$" eshell-mode ;eshell as a popup
-                    "^\\*shell.*\\*$"  shell-mode  ;shell as a popup
-                    "^\\*term.*\\*$"   term-mode   ;term as a popup
-                    "^\\*vterm.*\\*$"  vterm-mode  ;vterm as a popup
-                    "^\\*jupyter-repl*\\*$" jupyter-repl-mode
-                    )))
-
-    :general-config
-    (:keymap 'override
-             "s-;" 'popper-toggle
-             "s-M-;" 'popper-cycle
-             "s-C-;" 'popper-toggle-type
-             )
-
-    :config
-    (popper-mode)
-    (popper-echo-mode)                ; For echo area hints
-    )
-
-
-#+end_src
-
-*** python
-**** python
-#+begin_src emacs-lisp :lexical t
-
-  (use-feature python
-    :defer t
-    :config
-    :general-config
-    (:keymaps 'python-mode-map
-              "H-<left>" 'python-indent-shift-left
-              "H-<right>" 'python-indent-shift-right
-              )
-    )
-#+end_src
-
-**** yapify
-#+begin_src emacs-lisp :lexical t
-  (use-package yapfify
-    :hook (python-mode . yapf-mode))
-  ;; (add-hook 'python-mode-hook 'yapf-mode)
 #+end_src
 
 *** eglot
@@ -1001,6 +698,60 @@ This is for when I accidentally make a column in org mode
 
 #+end_src
 
+*** highlight indend guides
+
+#+begin_src emacs-lisp :lexical t
+  (use-package indent-bars
+    :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
+    :hook (prog-mode . indent-bars-mode)
+    :config
+    (setq
+     indent-bars-color '(highlight :face-bg t :blend 0.5)
+     indent-bars-pattern ". . . . . . . . ." ; play with the number of dots for your usual font size
+     indent-bars-width-frac 0.3
+     indent-bars-pad-frac 0.1
+     indent-bars-display-on-blank-lines t
+     indent-tabs-mode nil)  
+    ) ; or whichever modes you prefer
+
+  ;; (use-package highlight-indent-guides
+  ;; :hook (prog-mode . highlight-indent-guides-mode)
+  ;;    :init
+  ;;  (setq highlight-indent-guides-method 'bitmap)
+  ;;      (setq highlight-indent-guides-responsive 'top)
+
+  ;;    )
+#+end_src
+
+*** HL todo
+
+#+begin_src emacs-lisp :lexical t
+  (use-package hl-todo
+    :custom
+    (hl-todo-keyword-faces
+     '(("TODO"   . "#934b9c")
+       ("NOTE"  . "#1E90FF")
+       ("HACK"  . "#CC6200")
+       ("BUG"  . "#FF0000")
+       ))
+    :config
+    (global-hl-todo-mode)
+    :general-config
+    (:keymap 'override
+             "H-t t" 'hl-todo-insert
+             "H-t n" 'hl-todo-next
+             "H-t p" 'hl-todo-previous
+             )
+    )
+#+end_src
+
+*** hydra
+
+
+#+begin_src emacs-lisp :lexical t
+  (use-package hydra)
+#+end_src
+
 *** Ivy and Swiper
 #+begin_src emacs-lisp :lexical t
 
@@ -1041,10 +792,38 @@ This is for when I accidentally make a column in org mode
 
 #+end_src
 
-*** counsel
+*** magit
 
 #+begin_src emacs-lisp :lexical t
-  (use-package counsel)
+
+  (use-package magit
+    :defer t
+    :general-config
+    (:keymap 'override
+             "C-x g" 'magit-status
+             )
+    :config
+    (setenv "GIT_ASKPASS" "git-gui--askpass")
+    )
+
+
+#+end_src
+
+*** Multiple cursors
+#+begin_src emacs-lisp :lexical t
+  (use-package multiple-cursors
+
+    :general-config
+    (:keymap 'override
+             "H-<return> e" 'mc/edit-lines
+             "H-<return> m" 'mc/mark-more-like-this-extended
+             "H-<return> a" 'mc/mark-all-like-this
+             "H-<return> n" 'mc/insert-numbers
+             "H-<return> l" 'mc/insert-letters
+             )
+    ("C-;" 'mc-hide-unmatched-lines-mode)
+    )
+
 #+end_src
 
 *** org
@@ -1220,127 +999,342 @@ This is for when I accidentally make a column in org mode
 #+end_src
 
 **** org jupyter
-*** company
+*** popper
 #+begin_src emacs-lisp :lexical t
-  (use-package company
-    :custom
-    (company-idle-delay 0.5)
-    (company-minimum-prefix-length 2)
-    (company-require-match 'never)
-    (company-show-numbers t)
-    (company-tooltip-limit 20)
-    (company-dabbrev-downcase nil)
-    (company-dabbrev-ignore-case t)
-    (company-dabbrev-code-ignore-case t)
-    (company-dabbrev-code-everywhere t)
-    (company-etags-ignore-case t)
+
+  (use-package popper
+    :init
+    (setq popper-group-function 'nil) ; projectile projects #'popper-group-by-projectile
+    (setq popper-reference-buffers
+          '("\\*Messages\\*"
+            "Output\\*$"
+            "\\*Async Shell Command\\*"
+            help-mode
+            compilation-mode
+            image-mode
+            ))
+
+    ;; Match eshell, shell, term and/or vterm buffers
+    (setq popper-reference-buffers
+          (append popper-reference-buffers
+                  '("^\\*eshell.*\\*$" eshell-mode ;eshell as a popup
+                    "^\\*shell.*\\*$"  shell-mode  ;shell as a popup
+                    "^\\*term.*\\*$"   term-mode   ;term as a popup
+                    "^\\*vterm.*\\*$"  vterm-mode  ;vterm as a popup
+                    "^\\*jupyter-repl*\\*$" jupyter-repl-mode
+                    )))
 
     :general-config
     (:keymap 'override
-             "C-<tab>" #'company-other-backend)
+             "s-;" 'popper-toggle
+             "s-M-;" 'popper-cycle
+             "s-C-;" 'popper-toggle-type
+             )
+
     :config
-    (global-company-mode 1)
+    (popper-mode)
+    (popper-echo-mode)                ; For echo area hints
+    )
+
+
+#+end_src
+
+*** projectile
+#+begin_src emacs-lisp :lexical t
+
+  (use-package projectile
+    :config
+    (projectile-mode t)
     )
 
 #+end_src
 
+*** python
+**** python
+#+begin_src emacs-lisp :lexical t
 
-*** dired
+  (use-feature python
+    :defer t
+    :config
+    :general-config
+    (:keymaps 'python-mode-map
+              "H-<left>" 'python-indent-shift-left
+              "H-<right>" 'python-indent-shift-right
+              )
+    )
+#+end_src
+
+**** yapify
+#+begin_src emacs-lisp :lexical t
+  (use-package yapfify
+    :hook (python-mode . yapf-mode))
+  ;; (add-hook 'python-mode-hook 'yapf-mode)
+#+end_src
+
+*** smartparens
 
 #+begin_src emacs-lisp :lexical t
-  (use-package all-the-icons
-    :defer t
-    ;;      :hook dired-mode
-    )
-  (use-package all-the-icons-dired
-    :custom
-    (all-the-icons-dired-monochrome nil)
-    :hook dired-mode
-    :defer t)
-  ;; (all-the-icons-install-fonts)
-  (use-package dired-subtree
-    :after dired
 
+  (use-package smartparens
     :config
-    (define-key dired-mode-map (kbd "H-r") 'dired-subtree-remove)
-    (define-key dired-mode-map (kbd "<tab>") 'dired-subtree-toggle)
-    (define-key dired-mode-map (kbd "H-p") 'dired-subtree-up)
-    (define-key dired-mode-map (kbd "H-n") 'dired-subtree-down)
-    (define-key dired-mode-map (kbd "H-<up>") 'dired-subtree-beginning)
-    (define-key dired-mode-map (kbd "H-<down>") 'dired-subtree-end)
-    (define-key dired-mode-map (kbd "H-m") 'dired-subtree-mark-subtree)
-    (define-key dired-mode-map (kbd "H-u") 'dired-subtree-unmark-subtree)
+    (require 'smartparens-config)
+    (smartparens-global-mode t)
 
-
-    )
-
-  (use-package dired-filter
-    :hook dired-mode
-    :defer t
-    :custom
-    (dired-listing-switches "-alogh")
-    )
-
-  (use-feature dired
-    :defer t
     :general-config
-    (:keymap 'override
-             "C-x d" 'seth/dired-side-vc)
+    (:keymaps 'override
+              "M-<up>"  'sp-beginning-of-sexp
+              "M-<down>"  'sp-end-of-sexp
+              "C-<right>"  'sp-forward-slurp-sexp
+              "M-<right>"  'sp-forward-barf-sexp
+              "C-<left>"   'sp-backward-slurp-sexp
+              "M-<left>"   'sp-backward-barf-sexp
+              "C-M-k"  'sp-kill-sexp
+              "C-k"    'sp-kill-hybrid-sexp
+              "M-k"    'sp-backward-kill-sexp
+              "C-M-w"  'sp-copy-sexp
+              "M-s s"  'sp-split-sexp
+              "M-s j"  'sp-join-sexp
+              "M-]"  'sp-backward-unwrap-sexp
+              "M-["  'sp-unwrap-sexp
+              "C-x C-t"  'sp-transpose-hybrid-sexp)
+    )
+
+#+end_src
+
+*** tabbar
+
+#+begin_src emacs-lisp :lexical t
+  (use-package tabbar
+    :init (tabbar-mode t) 
+    :general-config
+    (:keymaps 'override 
+              "M-S-<up>" 'tabbar-press-home
+              "M-S-<left>" 'tabbar-backward-tab
+              "M-S-<right>" 'tabbar-forward-tab
+              "M-S-<down>" 'tabbar-local-mode
+              "C-S-<left>" 'tabbar-move-group-backward
+              "C-S-<right>" 'tabbar-move-group-forward   ) 
+
     :config
-    (when (string= system-type "darwin")       
-      (setq dired-use-ls-dired nil))
-    (defun seth/dired-side--vc (directory)
-      "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
-      (let* (
-             (backend (vc-responsible-backend directory t))
-             (dir (if (eq backend nil)
-                      directory
-                    (expand-file-name (vc-call-backend backend 'root directory))))
-             (dired_dir (dired-noselect dir))
-             (path-list (split-string (first (last (split-string directory dir))) "/"))
-             )
-        (display-buffer-in-side-window
-         dired_dir `((side . left)
-                     (slot . 0)
-                     (window-width . 0.3)
-                     (window-parameters) . ((no-other-window . t)
-                                            (no-delete-other-windows . t)
-                                            (mode-line-format . (" " "%b"))
-                                            )
-                     )
+    (defun tabbar-buffer-groups ()
+      "Return the list of group names the current buffer belongs to.
+       This function is a custom function for tabbar-mode's tabbar-buffer-groups.
+       This function group all buffers into 3 groups:
+       Those Dired, those user buffer, and those emacs buffer.
+       Emacs buffer are those starting with “*”."
+      (list
+       (cond
+        ((eq major-mode 'dired-mode)
+         "Dired"
          )
-        (with-current-buffer dired_dir
-          (setq window-size-fixed 'width)
-          (switch-to-buffer-other-frame dired_dir)
-          (revert-buffer)
-          (dired-hide-details-mode)
-          (goto-char 0)
-          (cl-loop for p in path-list do
-                   (goto-char (search-forward p))
-                   (dired-subtree-insert)
-                   )
-          )
-        )
+        ((eq major-mode 'jupyter-repl-mode)
+         "Kernels"
+         )
+        ((eq major-mode 'js2-mode)
+         "js"
+         )
+        ((eq major-mode 'eshell-mode)
+         "Eshell"
+         )
+        ((eq major-mode 'vterm-mode)
+         "Term"
+         )
+        ((eq major-mode 'go-mode)
+         "Go"
+         )
+        ((eq major-mode 'org-mode)
+         "Org"
+         )
+        ((eq major-mode 'python-mode)
+         "Python"
+         )
+        ((string-equal "*ein:" (substring (buffer-name) 0 5))
+         "EIN"
+         )
+        ((string-equal "*Pyth" (substring (buffer-name) 0 5))
+         "Python"
+         )
+        ((eq major-mode 'php-mode)
+         "PHP"
+         )
+        ((eq major-mode 'csv-mode)
+         "CSV"
+         )
+        ((eq major-mode 'text-mode)
+         "TXT"
+         )
+        ((eq major-mode 'shell-script-mode)
+         "Script"
+         )
+        ((eq major-mode 'sh-mode)
+         "Script"
+         )
+        ((string-equal "*PHP*" (substring (buffer-name) 0 5))
+         "PHP"
+         )
+        ((string-equal "*" (substring (buffer-name) 0 1))
+         "Emacs Buffer"
+         )
+        ((string-equal "magit:" (substring (buffer-name) 0 6))
+         "Magit"
+         )
+        ((eq major-mode 'lispy-mode)
+         "Lisp"
+         )
+        ((eq major-mode 'lisp-mode)
+         "Lisp"
+         )
+        ((eq major-mode 'emacs-lisp-mode)
+         "Lisp"
+         )
+        ((eq major-mode 'image-mode)
+         "Images"
+         )
+        (t
+         "Misc"
+         )
+        )))
+
+    (defun tabbar-move-current-tab-one-place-left ()
+      "Move current tab one place left, unless it's already the leftmost."
+      (interactive)
+      (let* ((bufset (tabbar-current-tabset t))
+             (old-bufs (tabbar-tabs bufset))
+             (first-buf (car old-bufs))
+             (new-bufs (list)))
+        (if (string= (buffer-name) (format "%s" (car first-buf)))
+            old-bufs                     ; the current tab is the leftmost
+          (setq not-yet-this-buf first-buf)
+          (setq old-bufs (cdr old-bufs))
+          (while (and
+                  old-bufs
+                  (not (string= (buffer-name) (format "%s" (car (car old-bufs))))))
+            (push not-yet-this-buf new-bufs)
+            (setq not-yet-this-buf (car old-bufs))
+            (setq old-bufs (cdr old-bufs)))
+          (if old-bufs ; if this is false, then the current tab's buffer name is mysteriously missing
+              (progn
+                (push (car old-bufs) new-bufs) ; this is the tab that was to be moved
+                (push not-yet-this-buf new-bufs)
+                (setq new-bufs (reverse new-bufs))
+                (setq new-bufs (append new-bufs (cdr old-bufs))))
+            (error "Error: current buffer's name was not found in Tabbar's buffer list."))
+          (set bufset new-bufs)
+          (tabbar-set-template bufset nil)
+          (tabbar-display-update))))
+
+    (defun tabbar-move-current-tab-one-place-right ()
+      "Move current tab one place right, unless it's already the rightmost."
+      (interactive)
+      (let* ((bufset (tabbar-current-tabset t))
+             (old-bufs (tabbar-tabs bufset))
+             (first-buf (car old-bufs))
+             (new-bufs (list)))
+        (while (and
+                old-bufs
+                (not (string= (buffer-name) (format "%s" (car (car old-bufs))))))
+          (push (car old-bufs) new-bufs)
+          (setq old-bufs (cdr old-bufs)))
+        (if old-bufs ; if this is false, then the current tab's buffer name is mysteriously missing
+            (progn
+              (setq the-buffer (car old-bufs))
+              (setq old-bufs (cdr old-bufs))
+              (if old-bufs ; if this is false, then the current tab is the rightmost
+                  (push (car old-bufs) new-bufs))
+              (push the-buffer new-bufs)) ; this is the tab that was to be moved
+          (error "Error: current buffer's name was not found in Tabbar's buffer list."))
+        (setq new-bufs (reverse new-bufs))
+        (setq new-bufs (append new-bufs (cdr old-bufs)))
+        (set bufset new-bufs)
+        (tabbar-set-template bufset nil)
+        (tabbar-display-update)))
+
+    (setq tabbar-buffer-groups-function 'tabbar-buffer-groups)
+
+    (setq tabbar-use-images nil)
+
+    (defun tabbar-move-group-backward ()
+      "My version of keeping groups visible."
+      (interactive)
+      (tabbar-backward-tab)
+      (tabbar-press-home)
+      )
+    (defun tabbar-move-group-forward ()
+      "My version of keeping groups visible."
+      (interactive)
+      (tabbar-forward-tab)
+      (tabbar-press-home)
       )
 
-    (defun seth/dired-side-vc (&optional initial-input)
-      "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
-      (interactive) 
+    )
+#+end_src
 
-      (ivy-read "Dired: " #'read-file-name-internal
-                :matcher #'counsel--find-file-matcher
-                :initial-input initial-input
-                :action (lambda (d) (seth/dired-side--vc (expand-file-name d)))
-                :preselect (counsel--preselect-file)
-                :require-match 'confirm-after-completion
-                :history 'file-name-history
-                :keymap counsel-find-file-map
-                :caller 'counsel-dired)
-      )    
+*** undo-tree
+#+begin_src emacs-lisp :lexical t
+
+  (use-package undo-tree
+    :custom
+    (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
+    (backup-directory-alist `(("." . "~/.emacs.d/.saves")))
+    (backup-by-copying t)
+    (delete-old-versions t)
+    (kept-new-versions 2)
+    (kept-old-versions 6)
+    (version-control t)       ; use versioned backups
+    (undo-tree-enable-undo-in-region t)
+
+    :config
+    (global-undo-tree-mode)
     )
 
 #+end_src
-**** 
+
+*** vterm
+#+begin_src emacs-lisp :lexical t
+  (use-package vterm
+    :ensure t
+
+    )
+  (use-package multi-vterm
+    :after vterm
+    :init
+    (setq vterm-tramp-shells '(("ssh" "/usr/bin/zsh")))
+    (setq shell-file-name "/bin/bash")
+    (setq vterm-shell "/usr/local/bin/zsh")
+    :general
+    (:keymaps 'override
+              "C-x t" 'multi-vterm-project
+              "C-x M-t" 'multi-vterm)
+    )
+
+
+#+end_src
+
+*** yas
+#+begin_src emacs-lisp :lexical t
+
+  (use-package yasnippet
+    :config
+    (yas-global-mode 1)
+    )
+
+  (use-package yasnippet-snippets
+    :defer t
+    :after yasnippet)
+  ;; (require-package 'ivy-yasnippet)
+  ;; (global-set-key (kbd "H-,") 'ivy-yasnippet)
+
+#+end_src
+
+*** zoom
+#+begin_src emacs-lisp :lexical t
+  (use-package zoom
+    :custom
+    (zoom-mode t)
+    (zoom-size '(0.618 . 0.618))
+    )
+#+end_src
+
 * End 
 
 #+begin_src emacs-lisp :lexical t
