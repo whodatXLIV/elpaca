@@ -17,48 +17,44 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t
     ;;; early-init.el --- Emacs pre package.el & GUI configuration -*- lexical-binding: t; -*-
     ;;; Code:
-    (setq package-enable-at-startup nil)
-    (setq inhibit-default-init nil)
+  (setq package-enable-at-startup nil)
+  (setq inhibit-default-init nil)
 
-    (setq native-comp-async-report-warnings-errors nil)
+  (setq native-comp-async-report-warnings-errors nil)
 
-    (defvar default-file-name-handler-alist file-name-handler-alist)
-    (setq file-name-handler-alist nil)
+  (defvar default-file-name-handler-alist file-name-handler-alist)
+  (setq file-name-handler-alist nil)
 
-    (setq gc-cons-threshold most-positive-fixnum
-      gc-cons-percentage 1)
+  (setq gc-cons-threshold most-positive-fixnum
+        gc-cons-percentage 1)
 
-    (defun +gc-after-focus-change ()
-      "Run GC when frame loses focus."
-      (run-with-idle-timer
-       5 nil
-       (lambda () (unless (frame-focus-state) (garbage-collect)))))
+  (defun +gc-after-focus-change ()
+    "Run GC when frame loses focus."
+    (run-with-idle-timer
+     5 nil
+     (lambda () (unless (frame-focus-state) (garbage-collect)))))
 
-    (defun +reset-init-values ()
-      (run-with-idle-timer
-       1 nil
-       (lambda ()
-         (setq file-name-handler-alist default-file-name-handler-alist
-           gc-cons-percentage 0.1
-           gc-cons-threshold 100000000)
-         (message "gc-cons-threshold & file-name-handler-alist restored")
-         (when (boundp 'after-focus-change-function)
-       (add-function :after after-focus-change-function #'+gc-after-focus-change)))))
+  (defun +reset-init-values ()
+    (run-with-idle-timer
+     1 nil
+     (lambda ()
+       (setq file-name-handler-alist default-file-name-handler-alist
+             gc-cons-percentage 0.1
+             gc-cons-threshold 100000000)
+       (message "gc-cons-threshold & file-name-handler-alist restored")
+       (when (boundp 'after-focus-change-function)
+         (add-function :after after-focus-change-function #'+gc-after-focus-change)))))
 
-    (push '(menu-bar-lines . 0) default-frame-alist)
-    (push '(tool-bar-lines . 0) default-frame-alist)
-    (push '(vertical-scroll-bars) default-frame-alist)
+  (setq server-client-instructions nil)
+  (setq frame-inhibit-implied-resize t)
 
-    (setq server-client-instructions nil)
-    (setq frame-inhibit-implied-resize t)
-
-    (advice-add #'x-apply-session-resources :override #'ignore)
-    (setq desktop-restore-forces-onscreen nil)
+  (advice-add #'x-apply-session-resources :override #'ignore)
+  (setq desktop-restore-forces-onscreen nil)
 
 
-    (setq ring-bell-function #'ignore
-      inhibit-startup-screen t
-      inhibit-startup-message t)
+  (setq ring-bell-function #'ignore
+        inhibit-startup-screen t
+        inhibit-startup-message t)
 
   (provide 'early-init)
   ;;; early-init.el ends here
@@ -68,7 +64,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 ** lexical binding
 The following line turns on lexical binding for performance reasons.
 #+begin_src emacs-lisp :lexical t
-;; -*- lexical-binding: t; -*-
+  ;; -*- lexical-binding: t; -*-
 #+end_src
 
 ** profiling
@@ -86,22 +82,16 @@ It's a rough way of knowing when/if I need to optimize my init file.
 #+end_src
 We can also enable the profiler to view a report after init.
 #+begin_src emacs-lisp :lexical t :tangle no
-(profiler-start 'cpu+mem)
-(add-hook 'elpaca-after-init-hook (lambda () (profiler-stop)))
+  (profiler-start 'cpu+mem)
+  (add-hook 'elpaca-after-init-hook (lambda () (profiler-stop)))
 #+end_src
 ELP is useful for seeing which functions in a package are "hot".
 #+begin_src emacs-lisp :var file="elpaca" :lexical t :tangle no
-(require 'elp)
-(with-eval-after-load file
-  (elp-instrument-package file))
-(add-hook 'elpaca-after-init-hook
-          (lambda () (elp-results) (elp-restore-package (intern file))))
-#+end_src
-
-** initial buffer choice
-
-#+begin_src emacs-lisp :lexical t
-
+  (require 'elp)
+  (with-eval-after-load file
+    (elp-instrument-package file))
+  (add-hook 'elpaca-after-init-hook
+            (lambda () (elp-results) (elp-restore-package (intern file))))
 #+end_src
 
 ** theme and font
@@ -112,51 +102,56 @@ ELP is useful for seeing which functions in a package are "hot".
   (global-hl-line-mode 1)
   (set-face-attribute 'hl-line nil :inherit nil :background "gray6")
 
-    (add-to-list 'default-frame-alist
-	       '(font . "Hack-12"))
+  (add-to-list 'default-frame-alist
+               '(font . "Hack-12"))
 
+  (tool-bar-mode -1)
+  (menu-bar-mode -1)
+  ;; (push '(menu-bar-lines . -1) default-frame-alist)
+  ;; (push '(tool-bar-lines . -1) default-frame-alist)
+  ;; (push '(vertical-scroll-bars) default-frame-alist)
 
 #+end_src
 
 ** elpaca and preloads
 *** installer
 #+begin_src emacs-lisp :lexical t
-(defvar elpaca-installer-version 0.6)
-(defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
-(defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
-(defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
-(defvar elpaca-order '(elpaca :repo "https://github.com/progfolio/elpaca.git"
-                              :ref nil
-                              :files (:defaults "elpaca-test.el" (:exclude "extensions"))
-                              :build (:not elpaca--activate-package)))
-(let* ((repo  (expand-file-name "elpaca/" elpaca-repos-directory))
-       (build (expand-file-name "elpaca/" elpaca-builds-directory))
-       (order (cdr elpaca-order))
-       (default-directory repo))
-  (add-to-list 'load-path (if (file-exists-p build) build repo))
-  (unless (file-exists-p repo)
-    (make-directory repo t)
-    (when (< emacs-major-version 28) (require 'subr-x))
-    (condition-case-unless-debug err
-        (if-let ((buffer (pop-to-buffer-same-window "*elpaca-bootstrap*"))
-                 ((zerop (call-process "git" nil buffer t "clone"
-                                       (plist-get order :repo) repo)))
-                 ((zerop (call-process "git" nil buffer t "checkout"
-                                       (or (plist-get order :ref) "--"))))
-                 (emacs (concat invocation-directory invocation-name))
-                 ((zerop (call-process emacs nil buffer nil "-Q" "-L" "." "--batch"
-                                       "--eval" "(byte-recompile-directory \".\" 0 'force)")))
-                 ((require 'elpaca))
-                 ((elpaca-generate-autoloads "elpaca" repo)))
-            (progn (message "%s" (buffer-string)) (kill-buffer buffer))
-          (error "%s" (with-current-buffer buffer (buffer-string))))
-      ((error) (warn "%s" err) (delete-directory repo 'recursive))))
-  (unless (require 'elpaca-autoloads nil t)
-    (require 'elpaca)
-    (elpaca-generate-autoloads "elpaca" repo)
-    (load "./elpaca-autoloads")))
-(add-hook 'after-init-hook #'elpaca-process-queues)
-(elpaca `(,@elpaca-order))
+  (defvar elpaca-installer-version 0.6)
+  (defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
+  (defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
+  (defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
+  (defvar elpaca-order '(elpaca :repo "https://github.com/progfolio/elpaca.git"
+                                :ref nil
+                                :files (:defaults "elpaca-test.el" (:exclude "extensions"))
+                                :build (:not elpaca--activate-package)))
+  (let* ((repo  (expand-file-name "elpaca/" elpaca-repos-directory))
+         (build (expand-file-name "elpaca/" elpaca-builds-directory))
+         (order (cdr elpaca-order))
+         (default-directory repo))
+    (add-to-list 'load-path (if (file-exists-p build) build repo))
+    (unless (file-exists-p repo)
+      (make-directory repo t)
+      (when (< emacs-major-version 28) (require 'subr-x))
+      (condition-case-unless-debug err
+          (if-let ((buffer (pop-to-buffer-same-window "*elpaca-bootstrap*"))
+                   ((zerop (call-process "git" nil buffer t "clone"
+                                         (plist-get order :repo) repo)))
+                   ((zerop (call-process "git" nil buffer t "checkout"
+                                         (or (plist-get order :ref) "--"))))
+                   (emacs (concat invocation-directory invocation-name))
+                   ((zerop (call-process emacs nil buffer nil "-Q" "-L" "." "--batch"
+                                         "--eval" "(byte-recompile-directory \".\" 0 'force)")))
+                   ((require 'elpaca))
+                   ((elpaca-generate-autoloads "elpaca" repo)))
+              (progn (message "%s" (buffer-string)) (kill-buffer buffer))
+            (error "%s" (with-current-buffer buffer (buffer-string))))
+        ((error) (warn "%s" err) (delete-directory repo 'recursive))))
+    (unless (require 'elpaca-autoloads nil t)
+      (require 'elpaca)
+      (elpaca-generate-autoloads "elpaca" repo)
+      (load "./elpaca-autoloads")))
+  (add-hook 'after-init-hook #'elpaca-process-queues)
+  (elpaca `(,@elpaca-order))
 
 
 #+end_src
@@ -164,20 +159,20 @@ ELP is useful for seeing which functions in a package are "hot".
 *** use package 
 
 #+begin_src emacs-lisp :lexical t
-(defmacro use-feature (name &rest args)
-  "Like `use-package' but accounting for asynchronous installation.
-  NAME and ARGS are in `use-package'."
-  (declare (indent defun))
-  `(use-package ,name
-     :ensure nil
-     ,@args))
+  (defmacro use-feature (name &rest args)
+    "Like `use-package' but accounting for asynchronous installation.
+    NAME and ARGS are in `use-package'."
+    (declare (indent defun))
+    `(use-package ,name
+       :ensure nil
+       ,@args))
 
-(elpaca elpaca-use-package
-  (require 'elpaca-use-package)
-  (elpaca-use-package-mode)
-  (setq elpaca-use-package-by-default t))
+  (elpaca elpaca-use-package
+    (require 'elpaca-use-package)
+    (elpaca-use-package-mode)
+    (setq elpaca-use-package-by-default t))
 
-(elpaca-wait)
+  (elpaca-wait)
 #+end_src
 
 
@@ -235,39 +230,74 @@ ELP is useful for seeing which functions in a package are "hot".
   (global-hl-line-mode 1)
   (set-face-attribute 'hl-line nil :inherit nil :background "gray6")
 
-;;  (setq-default indent-tabs-mode nil)
-;;  (setq-default tab-width 4)
+  (setq-default indent-tabs-mode nil)
+  (setq-default tab-width 4)
 
 #+end_src
 
 *** mouse 
 #+begin_src emacs-lisp :lexical t
-(setq mouse-wheel-scroll-amount '(1 ((shift) . 1))) ;; one line at a time
-(setq mouse-wheel-progressive-speed nil) ;; don't accelerate scrolling
-(setq mouse-wheel-follow-mouse 't) ;; scroll window under mouse
+  (setq mouse-wheel-scroll-amount '(1 ((shift) . 1))) ;; one line at a time
+  (setq mouse-wheel-progressive-speed nil) ;; don't accelerate scrolling
+  (setq mouse-wheel-follow-mouse 't) ;; scroll window under mouse
 
 #+end_src
 *** Mac os use meta
 #+begin_src emacs-lisp :lexical t
-
-  (use-package exec-path-from-shell
-    :config
-    (when (memq window-system '(mac ns x))
-    (exec-path-from-shell-initialize)
+  (when (memq window-system '(mac ns x))
     (setq ns-command-modifier 'meta
           ns-option-modifier 'hyper
           ns-right-option-modifier 'super
           )
     )
-  )
+
+  ;; (use-package exec-path-from-shell
+  ;;   :config
+  ;;   (when (memq window-system '(mac ns x))
+  ;;   (exec-path-from-shell-initialize)
+  ;;   (setq ns-command-modifier 'meta
+  ;;         ns-option-modifier 'hyper
+  ;;         ns-right-option-modifier 'super
+  ;;         )
+  ;;   )
+  ;; )
+
+  ;; Keybonds
+  ;; (global-set-key [(hyper a)] 'mark-whole-buffer)
+  ;; (global-set-key [(hyper v)] 'yank)
+  ;; (global-set-key [(hyper c)] 'kill-ring-save)
+  ;; (global-set-key [(hyper s)] 'save-buffer)
+  ;; (global-set-key [(hyper l)] 'goto-line)
+  ;; (global-set-key [(hyper w)]
+  ;;                 (lambda () (interactive) (delete-window)))
+  ;; (global-set-key [(hyper z)] 'undo)
+
+  ;; mac switch meta key
+  ;; (defun mac-switch-meta nil 
+  ;;   "switch meta between Option and Command"
+  ;;   (interactive)
+  ;;   (if (eq mac-option-modifier nil)
+  ;;       (progn
+  ;;         (setq mac-option-modifier 'meta)
+  ;;         (setq mac-command-modifier 'hyper)
+  ;;         )
+  ;;     (progn 
+  ;;       (setq mac-option-modifier nil)
+  ;;       (setq mac-command-modifier 'meta)
+  ;;       )
+  ;;     )
+  ;;   )
+
+
+
 #+end_src
 
 *** tramp
 #+begin_src emacs-lisp :lexical t
-    (use-feature tramp
-      :config
-      (with-eval-after-load "tramp" (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
-      )
+  (use-feature tramp
+    :config
+    (with-eval-after-load "tramp" (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
+    )
 
 #+end_src
 
@@ -275,53 +305,53 @@ ELP is useful for seeing which functions in a package are "hot".
 
 #+begin_src emacs-lisp :lexical t
 
-(defun my-minibuffer-setup-hook ()
-  "Set high gc when minibuffer is open."
-  (setq gc-cons-threshold (* 256 1024 1024)))
+  (defun my-minibuffer-setup-hook ()
+    "Set high gc when minibuffer is open."
+    (setq gc-cons-threshold (* 256 1024 1024)))
 
-(defun my-minibuffer-exit-hook ()
-  "Set low GC when minibuffer exits."
-  (setq gc-cons-threshold 800000))
+  (defun my-minibuffer-exit-hook ()
+    "Set low GC when minibuffer exits."
+    (setq gc-cons-threshold 800000))
 
-(add-hook 'minibuffer-setup-hook 'my-minibuffer-setup-hook)
-(add-hook 'minibuffer-exit-hook 'my-minibuffer-exit-hook)
+  (add-hook 'minibuffer-setup-hook 'my-minibuffer-setup-hook)
+  (add-hook 'minibuffer-exit-hook 'my-minibuffer-exit-hook)
 #+end_src
 
 *** my focus connections
 
 #+begin_src emacs-lisp :lexical t
 
-      (defun connect-focusvq-home ()
-        (interactive)
-        (dired "/ssh:sfigueroa@dev.focusvq.com:~"))
+  (defun connect-focusvq-home ()
+    (interactive)
+    (dired "/ssh:sfigueroa@dev.focusvq.com:~"))
 
-      (defun connect-focusvq-ceph ()
-        (interactive)
-        (dired "/ssh:sfigueroa@dev.focusvq.com:/ceph/var/users/sfigueroa"))
+  (defun connect-focusvq-ceph ()
+    (interactive)
+    (dired "/ssh:sfigueroa@dev.focusvq.com:/ceph/var/users/sfigueroa"))
 
-      (defun connect-focusvq-elcano ()
-        (interactive)
-        (dired "/ssh:sfigueroa@dev.focusvq.com:/ceph/var/elcano"))
+  (defun connect-focusvq-elcano ()
+    (interactive)
+    (dired "/ssh:sfigueroa@dev.focusvq.com:/ceph/var/elcano"))
 
 
 
-    (setq sql-connection-alist
-          '(
-            (mysql-fds (sql-product 'mysql)
-                        (sql-port 0)
-                        (sql-server "db.internal.focusvq.com")
-                        (sql-user "fds")
-                        (sql-password "WnJSuqmND9i0ePYw")
-                        (sql-database "fds"))
+  (setq sql-connection-alist
+        '(
+          (mysql-fds (sql-product 'mysql)
+                     (sql-port 0)
+                     (sql-server "db.internal.focusvq.com")
+                     (sql-user "fds")
+                     (sql-password "WnJSuqmND9i0ePYw")
+                     (sql-database "fds"))
 
-            (mysql-elcano (sql-product 'mysql)
+          (mysql-elcano (sql-product 'mysql)
                         (sql-port 0)
                         (sql-server "db.internal.focusvq.com")
                         (sql-user "fds")
                         (sql-password "WnJSuqmND9i0ePYw")
                         (sql-database "elcano"))
-            )
           )
+        )
 
 
   (general-define-key
@@ -344,21 +374,21 @@ ELP is useful for seeing which functions in a package are "hot".
     (replace-string-in-region "[34m" "[33m" (point-min) (point-max) ) ;; replace blue text
     (replace-string-in-region ";34m" ";33m" (point-min) (point-max) )
     (ansi-color-apply-on-region (point-min) (point-max)))
-  
+
 #+end_src
 
 *** set region writable
 This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
-(defun set-region-writeable (begin end)
-  "Removes the read-only text property from the marked region."
-  ;; See http://stackoverflow.com/questions/7410125
-  (interactive "r")
-  (let ((modified (buffer-modified-p))
-        (inhibit-read-only t))
-    (remove-text-properties begin end '(read-only t))
-    (set-buffer-modified-p modified)))
+  (defun set-region-writeable (begin end)
+    "Removes the read-only text property from the marked region."
+    ;; See http://stackoverflow.com/questions/7410125
+    (interactive "r")
+    (let ((modified (buffer-modified-p))
+          (inhibit-read-only t))
+      (remove-text-properties begin end '(read-only t))
+      (set-buffer-modified-p modified)))
 
 #+end_src
 
@@ -367,11 +397,11 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 
-   (general-define-key
-    "H-r" 'revert-buffer
-    "H-l" 'scroll-lock-mode
-    "C-x e" 'eshell
-    )
+  (general-define-key
+   "H-r" 'revert-buffer
+   "H-l" 'scroll-lock-mode
+   "C-x e" 'eshell
+   )
 
 #+end_src
 
@@ -381,10 +411,6 @@ This is for when I accidentally make a column in org mode
 
   (put 'upcase-region 'disabled nil)
   (put 'downcase-region 'disabled nil)
-
-  (tool-bar-mode -1)
-  (scroll-bar-mode -1)
-  (menu-bar-mode t)
 
   (setq mark-ring-max 4)
   (setq global-mark-ring-max 4)
@@ -406,7 +432,7 @@ This is for when I accidentally make a column in org mode
   ;;   (when (file-exists-p default-directory)
   ;;     (normal-top-level-add-to-load-path '("."))
   ;;     (normal-top-level-add-subdirs-to-load-path)))
-  
+
 #+end_src
 
 ** Install Packages
@@ -589,21 +615,21 @@ This is for when I accidentally make a column in org mode
 
     :general-config
     (:keymaps 'override
-    "M-<up>"  'sp-beginning-of-sexp
-    "M-<down>"  'sp-end-of-sexp
-    "C-<right>"  'sp-forward-slurp-sexp
-    "M-<right>"  'sp-forward-barf-sexp
-    "C-<left>"   'sp-backward-slurp-sexp
-    "M-<left>"   'sp-backward-barf-sexp
-    "C-M-k"  'sp-kill-sexp
-    "C-k"    'sp-kill-hybrid-sexp
-    "M-k"    'sp-backward-kill-sexp
-    "C-M-w"  'sp-copy-sexp
-    "M-s s"  'sp-split-sexp
-    "M-s j"  'sp-join-sexp
-    "M-]"  'sp-backward-unwrap-sexp
-    "M-["  'sp-unwrap-sexp
-    "C-x C-t"  'sp-transpose-hybrid-sexp)
+              "M-<up>"  'sp-beginning-of-sexp
+              "M-<down>"  'sp-end-of-sexp
+              "C-<right>"  'sp-forward-slurp-sexp
+              "M-<right>"  'sp-forward-barf-sexp
+              "C-<left>"   'sp-backward-slurp-sexp
+              "M-<left>"   'sp-backward-barf-sexp
+              "C-M-k"  'sp-kill-sexp
+              "C-k"    'sp-kill-hybrid-sexp
+              "M-k"    'sp-backward-kill-sexp
+              "C-M-w"  'sp-copy-sexp
+              "M-s s"  'sp-split-sexp
+              "M-s j"  'sp-join-sexp
+              "M-]"  'sp-backward-unwrap-sexp
+              "M-["  'sp-unwrap-sexp
+              "C-x C-t"  'sp-transpose-hybrid-sexp)
     )
 
 #+end_src
@@ -614,19 +640,19 @@ This is for when I accidentally make a column in org mode
     :custom
     (zoom-mode t)
     (zoom-size '(0.618 . 0.618))
-  )
+    )
 #+end_src
 
 *** auto-tangle-mode
 
 #+begin_src emacs-lisp :lexical t
 
-(use-package auto-tangle-mode
-  :ensure (auto-tangle-mode
-           :host github
-           :repo "progfolio/auto-tangle-mode.el"
-           :local-repo "auto-tangle-mode")
-  :commands (auto-tangle-mode))
+  (use-package auto-tangle-mode
+    :ensure (auto-tangle-mode
+             :host github
+             :repo "progfolio/auto-tangle-mode.el"
+             :local-repo "auto-tangle-mode")
+    :commands (auto-tangle-mode))
 
 #+end_src
 
@@ -669,22 +695,22 @@ This is for when I accidentally make a column in org mode
     :config
     (use-package page-break-lines
       :config
-          (global-page-break-lines-mode)
-          )
+      (global-page-break-lines-mode)
+      )
 
     (dashboard-setup-startup-hook)
     (setq initial-buffer-choice (lambda () (get-buffer "*dashboard*")))
     (setq dashboard-banner-logo-title "It's Emacs time!")
     (setq dashboard-startup-banner 'logo)
     (setq dashboard-items '((recents  . 15)
-                           (projects . 5)
-                          ))
+                            (projects . 5)
+                            ))
     )
 
-    ;; Value can be
-    ;; 'official which displays the official emacs logo
-    ;; 'logo which displays an alternative emacs logo
-    ;; 1, 2 or 3 which displays one of the text banners
+  ;; Value can be
+  ;; 'official which displays the official emacs logo
+  ;; 'logo which displays an alternative emacs logo
+  ;; 1, 2 or 3 which displays one of the text banners
 
 
 #+end_src
@@ -698,18 +724,18 @@ This is for when I accidentally make a column in org mode
     (aw-dispatch-always t)
     :init
     (defvar aw-dispatch-alist
-    '((?d aw-delete-window "Delete Window")
-      (?s aw-swap-window "Swap Windows")
-      (?m aw-move-window "Move Window")
-      (?b aw-switch-buffer-in-window "Select Buffer")
-      (?n aw-flip-window)
-      (?B aw-switch-buffer-other-window "Switch Buffer Other Window")
-      (?c aw-split-window-fair "Split Fair Window")
-      (?h aw-split-window-vert "Split Vert Window")
-      (?v aw-split-window-horz "Split Horz Window")
-      (?o delete-other-windows "Delete Other Windows")
-      (?? aw-show-dispatch-help))
-    "List of actions for `aw-dispatch-default'.")
+      '((?d aw-delete-window "Delete Window")
+        (?s aw-swap-window "Swap Windows")
+        (?m aw-move-window "Move Window")
+        (?b aw-switch-buffer-in-window "Select Buffer")
+        (?n aw-flip-window)
+        (?B aw-switch-buffer-other-window "Switch Buffer Other Window")
+        (?c aw-split-window-fair "Split Fair Window")
+        (?h aw-split-window-vert "Split Vert Window")
+        (?v aw-split-window-horz "Split Horz Window")
+        (?o delete-other-windows "Delete Other Windows")
+        (?? aw-show-dispatch-help))
+      "List of actions for `aw-dispatch-default'.")
     :general-config
     (:keymap 'override
              "H-SPC" 'ace-window)
@@ -763,7 +789,7 @@ This is for when I accidentally make a column in org mode
 
 
 #+begin_src emacs-lisp :lexical t
-(use-package hydra)
+  (use-package hydra)
 #+end_src
 
 *** drag stuff
@@ -791,14 +817,14 @@ This is for when I accidentally make a column in org mode
     :config
     (add-to-list 'dumb-jump-language-file-exts '(:language "python" :ext "org" :agtype "python" :rgtype "py"))
     (defhydra dumb-jump-hydra (:color blue :columns 3)
-              "Dumb Jump"
-              ("j" dumb-jump-go "Jump")
-              ("o" dumb-jump-go-other-window "Other window")
-              ("e" dumb-jump-go-prefer-external "Go external")
-              ("x" dumb-jump-go-prefer-external-other-window "Go external other window")
-              ("i" dumb-jump-go-prompt "Prompt")
-              ("l" dumb-jump-quick-look "Quick look")
-              ("b" dumb-jump-back "Back"))
+      "Dumb Jump"
+      ("j" dumb-jump-go "Jump")
+      ("o" dumb-jump-go-other-window "Other window")
+      ("e" dumb-jump-go-prefer-external "Go external")
+      ("x" dumb-jump-go-prefer-external-other-window "Go external other window")
+      ("i" dumb-jump-go-prompt "Prompt")
+      ("l" dumb-jump-quick-look "Quick look")
+      ("b" dumb-jump-back "Back"))
     :general-config
     (:keymap 'override
              "H-h ." 'dumb-jump-hydra/body)
@@ -837,12 +863,12 @@ This is for when I accidentally make a column in org mode
     :config
     (global-hl-todo-mode)
     :general-config
-  (:keymap 'override
-           "H-t t" 'hl-todo-insert
-           "H-t n" 'hl-todo-next
-           "H-t p" 'hl-todo-previous
-           )
-  )
+    (:keymap 'override
+             "H-t t" 'hl-todo-insert
+             "H-t n" 'hl-todo-next
+             "H-t p" 'hl-todo-previous
+             )
+    )
 #+end_src
 
 *** highlight indend guides
@@ -850,14 +876,24 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
   (use-package indent-bars
     :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
-    :hook (prog-mode . indent-bars-mode)) ; or whichever modes you prefer
+    :hook (prog-mode . indent-bars-mode)
+    :config
+    (setq
+     indent-bars-color '(highlight :face-bg t :blend 0.5)
+     indent-bars-pattern ". . . . . . . . ." ; play with the number of dots for your usual font size
+     indent-bars-width-frac 0.3
+     indent-bars-pad-frac 0.1
+     indent-bars-display-on-blank-lines t
+     indent-tabs-mode nil)  
+    ) ; or whichever modes you prefer
 
-       ;; (use-package highlight-indent-guides
-       ;; :hook (prog-mode . highlight-indent-guides-mode)
-   ;;    :init
-     ;  (setq highlight-indent-guides-method 'bitmap)
-     ;  (setq highlight-indent-guides-responsive 'top)  
-     ;;    )
+  ;; (use-package highlight-indent-guides
+  ;; :hook (prog-mode . highlight-indent-guides-mode)
+  ;;    :init
+  ;;  (setq highlight-indent-guides-method 'bitmap)
+  ;;      (setq highlight-indent-guides-responsive 'top)
+
+  ;;    )
 #+end_src
 
 *** magit
@@ -953,7 +989,7 @@ This is for when I accidentally make a column in org mode
   (use-package yapfify
     :defer t
     :hook (python-mode . yapf-mode))
-    ;; (add-hook 'python-mode-hook 'yapf-mode)
+  ;; (add-hook 'python-mode-hook 'yapf-mode)
 #+end_src
 
 *** eglot
@@ -1044,84 +1080,84 @@ This is for when I accidentally make a column in org mode
 *** counsel
 
 #+begin_src emacs-lisp :lexical t
-(use-package counsel)
+  (use-package counsel)
 #+end_src
 
 *** org
 **** org general
 
 #+begin_src emacs-lisp :lexical t
-    (use-feature org
-      :defer t
-      :custom
-      (enable-local-variables t)
-      (org-display-remote-inline-images 'cache)
-      (org-startup-folded t)
-      (org-startup-indented t)
-      (org-log-done t)
+  (use-feature org
+    :defer t
+    :custom
+    (enable-local-variables t)
+    (org-display-remote-inline-images 'cache)
+    (org-startup-folded t)
+    (org-startup-indented t)
+    (org-log-done t)
 
-      :general-config
-      (:keymap 'org-mode-map
-               "C-M-<up>" 'org-shiftmetaup
-               "C-M-<down>" 'org-shiftmetadown
-               "C-M-<left>" 'org-shiftmetaleft
-               "C-M-<right>" 'org-shiftmetaright
-               "C-M-S-<left>" 'org-shiftcontrolleft
-               "C-M-S-<right>" 'org-shiftcontrolright
-               )
+    :general-config
+    (:keymap 'org-mode-map
+             "C-M-<up>" 'org-shiftmetaup
+             "C-M-<down>" 'org-shiftmetadown
+             "C-M-<left>" 'org-shiftmetaleft
+             "C-M-<right>" 'org-shiftmetaright
+             "C-M-S-<left>" 'org-shiftcontrolleft
+             "C-M-S-<right>" 'org-shiftcontrolright
+             )
 
-      :config
-  ;;      (visual-line-mode)
-  ;;  (display-line-numbers-mode)
-      ;; (add-hook 'org-mode-hook (lambda ()
-      ;;                            (visual-line-mode)))
+    :config
+    ;;      (visual-line-mode)
+    ;;  (display-line-numbers-mode)
+    ;; (add-hook 'org-mode-hook (lambda ()
+    ;;                            (visual-line-mode)))
 
-      (add-hook 'org-mode-hook (lambda ()
-                                 (setq-local seth-jupyter-execution-count 1)))
-      (setq seth-jupyter-execution-count 1)
-      (defun org-babel-add-time-stamp-after-execute-before-src-block ()
-        ;; (sleep-for 2)
-        (end-of-line)
-        (save-excursion
-          (search-backward "#+BEGIN_SRC" 0 t)
-          (forward-line -1)
-          (beginning-of-line)
+    (add-hook 'org-mode-hook (lambda ()
+                               (setq-local seth-jupyter-execution-count 1)))
+    (setq seth-jupyter-execution-count 1)
+    (defun org-babel-add-time-stamp-after-execute-before-src-block ()
+      ;; (sleep-for 2)
+      (end-of-line)
+      (save-excursion
+        (search-backward "#+BEGIN_SRC" 0 t)
+        (forward-line -1)
+        (beginning-of-line)
 
-          (when (not (or
-                      (looking-at "[[:space:]]*$")
-                      (looking-at "#\\+LASTRUN:")))
-            (forward-line 1)
-            (newline)
-            (forward-line -1))
-          (when (looking-at "#\\+LASTRUN:")
-            (delete-region (pos-bol) (1- (pos-bol 2)))
-            )
-          (insert (concat
-                   "#+LASTRUN: "
-                   (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
-                   " ["
-                   (int-to-string seth-jupyter-execution-count)
-                   "]"
-                   ))
-          (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))    
-          ))
+        (when (not (or
+                    (looking-at "[[:space:]]*$")
+                    (looking-at "#\\+LASTRUN:")))
+          (forward-line 1)
+          (newline)
+          (forward-line -1))
+        (when (looking-at "#\\+LASTRUN:")
+          (delete-region (pos-bol) (1- (pos-bol 2)))
+          )
+        (insert (concat
+                 "#+LASTRUN: "
+                 (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
+                 " ["
+                 (int-to-string seth-jupyter-execution-count)
+                 "]"
+                 ))
+        (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))    
+        ))
 
-      (add-hook 'org-babel-after-execute-hook
-                'org-babel-add-time-stamp-after-execute-before-src-block)
-      )
+    (add-hook 'org-babel-after-execute-hook
+              'org-babel-add-time-stamp-after-execute-before-src-block)
+    )
 
-    ;; Backend for HTML Table export
+  ;; Backend for HTML Table export
 
-    ;;(require 'ox-html)
-    ;;(defun ox-mrkup-filter-bold
-    ;;    (text back-end info)
-    ;;  "Markup TEXT as <bold>TEXT</bold>. Ignore BACK-END and INFO."
-    ;;  (format "<bold>%s</bold>" text))
-    ;;
-    ;;(org-export-define-derived-backend 'htmlTable 'html
-    ;;  :filters-alist
-    ;;  '((:filter-body . ox-mrkup-filter-body)
-    ;;    ))
+  ;;(require 'ox-html)
+  ;;(defun ox-mrkup-filter-bold
+  ;;    (text back-end info)
+  ;;  "Markup TEXT as <bold>TEXT</bold>. Ignore BACK-END and INFO."
+  ;;  (format "<bold>%s</bold>" text))
+  ;;
+  ;;(org-export-define-derived-backend 'htmlTable 'html
+  ;;  :filters-alist
+  ;;  '((:filter-body . ox-mrkup-filter-body)
+  ;;    ))
 
 #+end_src
 
@@ -1244,48 +1280,6 @@ This is for when I accidentally make a column in org mode
 
 #+end_src
 
-*** lsp-bridge
-
-#+begin_src emacs-lisp :lexical t
-
-  ;;;  (use-package lsp-bridge
-  ;;;    :after (yasnippet)
-  ;;;    :ensure (lsp-bridge :type git :host github :repo "manateelazycat/lsp-bridge" 
-  ;;;                        :files (:defaults "*.el" "*.py" "acm" "core" "langserver" "multiserver" "resources")
-  ;;;                        :build (:not elpaca--byte-compile))
-  ;;;    :init
-  ;;;    (setq lsp-bridge-complete-manually t)
-  ;;;    (setq lsp-bridge-enable-with-tramp t)
-  ;;;    (setq lsp-bridge-python-lsp-server "pylsp")
-  ;;;
-  ;;;    (setq lsp-bridge-remote-start-automatically t)
-  ;;;
-  ;;;
-  ;;;    (setq lsp-bridge-remote-python-command "/home/sfigueroa/python_envs/envs/seth-py311-dev/bin/python3")
-  ;;;    (setq lsp-bridge-remote-python-file "/home/sfigueroa/.emacs.d/elpaca/builds/lsp-bridge/lsp-bridge.py")
-  ;;;    (setq lsp-bridge-remote-log "/home/sfigueroa/.emacs.d/elpaca/builds/lsp-bridge/lbr_log.txt")
-  ;;;
-  ;;;
-  ;;;    ;; (setq lsp-bridge-remote-start-automatically t)
-  ;;;
-  ;;;
-  ;;;    (global-lsp-bridge-mode)
-  ;;;
-  ;;;    :general-config
-  ;;;    (:keymap 'override
-  ;;;             "C-<tab>" 'lsp-bridge-popup-complete-menu)
-  ;;;    )
-  ;;;
-    ;; :hook (prog-mode . indent-bars-mode)) ; or whichever modes you prefer
-
-    ;; (use-package highlight-indent-guides
-    ;; :hook (prog-mode . highlight-indent-guides-mode)
-    ;;    :init
-                                            ;  (setq highlight-indent-guides-method 'bitmap)
-                                            ;  (setq highlight-indent-guides-responsive 'top)  
-    ;;    )
-
-#+end_src
 
 *** dired
 
@@ -1394,3 +1388,5 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 #+end_src
+
+
