@@ -1,0 +1,1396 @@
+;-*- eval: (load-file "./init-dev.el"); -*-
+#+title: My Emacs Configuration
+#+options: ^:{} html-postamble:nil
+#+property: header-args :mkdirp yes :tangle yes :tangle-mode: #o444 :results silent :noweb yes
+#+archive: archives/%s::datetree/
+#+startup: indent
+* An Explanation
+This is a literate configuration for =Emacs=.
+Tangling this file creates an Elisp file, =~/.emacs.d/lisp/init.el=.
+* Bootstrapping
+** early-init
+:PROPERTIES:
+:header-args: :tangle-mode o444 :results silent :tangle ~/.emacs.d/early-init.el
+:END:
+Emacs 27.0 introduced an early-init file. It allows customization before package and UI initialization.
+
+#+begin_src emacs-lisp :lexical t
+    ;;; early-init.el --- Emacs pre package.el & GUI configuration -*- lexical-binding: t; -*-
+    ;;; Code:
+    (setq package-enable-at-startup nil)
+    (setq inhibit-default-init nil)
+
+    (setq native-comp-async-report-warnings-errors nil)
+
+    (defvar default-file-name-handler-alist file-name-handler-alist)
+    (setq file-name-handler-alist nil)
+
+    (setq gc-cons-threshold most-positive-fixnum
+      gc-cons-percentage 1)
+
+    (defun +gc-after-focus-change ()
+      "Run GC when frame loses focus."
+      (run-with-idle-timer
+       5 nil
+       (lambda () (unless (frame-focus-state) (garbage-collect)))))
+
+    (defun +reset-init-values ()
+      (run-with-idle-timer
+       1 nil
+       (lambda ()
+         (setq file-name-handler-alist default-file-name-handler-alist
+           gc-cons-percentage 0.1
+           gc-cons-threshold 100000000)
+         (message "gc-cons-threshold & file-name-handler-alist restored")
+         (when (boundp 'after-focus-change-function)
+       (add-function :after after-focus-change-function #'+gc-after-focus-change)))))
+
+    (push '(menu-bar-lines . 0) default-frame-alist)
+    (push '(tool-bar-lines . 0) default-frame-alist)
+    (push '(vertical-scroll-bars) default-frame-alist)
+
+    (setq server-client-instructions nil)
+    (setq frame-inhibit-implied-resize t)
+
+    (advice-add #'x-apply-session-resources :override #'ignore)
+    (setq desktop-restore-forces-onscreen nil)
+
+
+    (setq ring-bell-function #'ignore
+      inhibit-startup-screen t
+      inhibit-startup-message t)
+
+  (provide 'early-init)
+  ;;; early-init.el ends here
+#+end_src
+
+* Init File
+** lexical binding
+The following line turns on lexical binding for performance reasons.
+#+begin_src emacs-lisp :lexical t
+;; -*- lexical-binding: t; -*-
+#+end_src
+
+** profiling
+This function displays how long Emacs took to start.
+It's a rough way of knowing when/if I need to optimize my init file.
+#+begin_src emacs-lisp :lexical t
+  (add-hook 'elpaca-after-init-hook
+            (lambda ()
+              (message "Emacs loaded in %s with %d garbage collections."
+                       (format "%.3f seconds"
+                               (float-time
+                                (time-subtract (current-time) before-init-time)))
+                       gcs-done)))
+
+#+end_src
+We can also enable the profiler to view a report after init.
+#+begin_src emacs-lisp :lexical t :tangle no
+(profiler-start 'cpu+mem)
+(add-hook 'elpaca-after-init-hook (lambda () (profiler-stop)))
+#+end_src
+ELP is useful for seeing which functions in a package are "hot".
+#+begin_src emacs-lisp :var file="elpaca" :lexical t :tangle no
+(require 'elp)
+(with-eval-after-load file
+  (elp-instrument-package file))
+(add-hook 'elpaca-after-init-hook
+          (lambda () (elp-results) (elp-restore-package (intern file))))
+#+end_src
+
+** initial buffer choice
+
+#+begin_src emacs-lisp :lexical t
+
+#+end_src
+
+** theme and font
+#+begin_src emacs-lisp :lexical t
+  (setq custom-theme-directory "~/.emacs.d/themes/")
+  (add-to-list 'load-path custom-theme-directory)
+  (load-theme 'base16-chalk t)
+  (global-hl-line-mode 1)
+  (set-face-attribute 'hl-line nil :inherit nil :background "gray6")
+
+    (add-to-list 'default-frame-alist
+	       '(font . "Hack-12"))
+
+
+#+end_src
+
+** elpaca and preloads
+*** installer
+#+begin_src emacs-lisp :lexical t
+(defvar elpaca-installer-version 0.6)
+(defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
+(defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
+(defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
+(defvar elpaca-order '(elpaca :repo "https://github.com/progfolio/elpaca.git"
+                              :ref nil
+                              :files (:defaults "elpaca-test.el" (:exclude "extensions"))
+                              :build (:not elpaca--activate-package)))
+(let* ((repo  (expand-file-name "elpaca/" elpaca-repos-directory))
+       (build (expand-file-name "elpaca/" elpaca-builds-directory))
+       (order (cdr elpaca-order))
+       (default-directory repo))
+  (add-to-list 'load-path (if (file-exists-p build) build repo))
+  (unless (file-exists-p repo)
+    (make-directory repo t)
+    (when (< emacs-major-version 28) (require 'subr-x))
+    (condition-case-unless-debug err
+        (if-let ((buffer (pop-to-buffer-same-window "*elpaca-bootstrap*"))
+                 ((zerop (call-process "git" nil buffer t "clone"
+                                       (plist-get order :repo) repo)))
+                 ((zerop (call-process "git" nil buffer t "checkout"
+                                       (or (plist-get order :ref) "--"))))
+                 (emacs (concat invocation-directory invocation-name))
+                 ((zerop (call-process emacs nil buffer nil "-Q" "-L" "." "--batch"
+                                       "--eval" "(byte-recompile-directory \".\" 0 'force)")))
+                 ((require 'elpaca))
+                 ((elpaca-generate-autoloads "elpaca" repo)))
+            (progn (message "%s" (buffer-string)) (kill-buffer buffer))
+          (error "%s" (with-current-buffer buffer (buffer-string))))
+      ((error) (warn "%s" err) (delete-directory repo 'recursive))))
+  (unless (require 'elpaca-autoloads nil t)
+    (require 'elpaca)
+    (elpaca-generate-autoloads "elpaca" repo)
+    (load "./elpaca-autoloads")))
+(add-hook 'after-init-hook #'elpaca-process-queues)
+(elpaca `(,@elpaca-order))
+
+
+#+end_src
+
+*** use package 
+
+#+begin_src emacs-lisp :lexical t
+(defmacro use-feature (name &rest args)
+  "Like `use-package' but accounting for asynchronous installation.
+  NAME and ARGS are in `use-package'."
+  (declare (indent defun))
+  `(use-package ,name
+     :ensure nil
+     ,@args))
+
+(elpaca elpaca-use-package
+  (require 'elpaca-use-package)
+  (elpaca-use-package-mode)
+  (setq elpaca-use-package-by-default t))
+
+(elpaca-wait)
+#+end_src
+
+
+*** dependencies
+#+begin_src emacs-lisp :lexical t
+
+
+  (setq custom-delayed-init-variables '())
+  (unload-feature 'eldoc t)
+  (use-package eldoc
+    :demand t
+    :config
+    (global-eldoc-mode))
+  (elpaca-wait)
+
+  (setq custom-delayed-init-variables '())
+  (unload-feature 'seq t)
+  (use-package seq
+    :demand t
+    )
+  (elpaca-wait)
+
+  (use-package transient
+    :demand t
+    :after seq
+    )
+  (use-package git-commit
+    :demand t
+    :after transient
+    )
+
+  (elpaca-wait)
+#+end_src
+
+*** general for keybindings
+#+begin_src emacs-lisp :lexical t
+  (use-package general
+    :demand t
+    :config
+    (general-override-mode)
+    (general-auto-unbind-keys)
+    )
+  (elpaca-wait)
+
+#+end_src
+
+
+** my settings and my defs
+*** displays
+#+begin_src emacs-lisp :lexical t
+  (global-display-line-numbers-mode t)
+  (show-paren-mode 1)
+
+  ;; highlight line with the cursor, preserving the colours.
+  (global-hl-line-mode 1)
+  (set-face-attribute 'hl-line nil :inherit nil :background "gray6")
+
+;;  (setq-default indent-tabs-mode nil)
+;;  (setq-default tab-width 4)
+
+#+end_src
+
+*** mouse 
+#+begin_src emacs-lisp :lexical t
+(setq mouse-wheel-scroll-amount '(1 ((shift) . 1))) ;; one line at a time
+(setq mouse-wheel-progressive-speed nil) ;; don't accelerate scrolling
+(setq mouse-wheel-follow-mouse 't) ;; scroll window under mouse
+
+#+end_src
+*** Mac os use meta
+#+begin_src emacs-lisp :lexical t
+
+  (use-package exec-path-from-shell
+    :config
+    (when (memq window-system '(mac ns x))
+    (exec-path-from-shell-initialize)
+    (setq ns-command-modifier 'meta
+          ns-option-modifier 'hyper
+          ns-right-option-modifier 'super
+          )
+    )
+  )
+#+end_src
+
+*** tramp
+#+begin_src emacs-lisp :lexical t
+    (use-feature tramp
+      :config
+      (with-eval-after-load "tramp" (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
+      )
+
+#+end_src
+
+*** my gc
+
+#+begin_src emacs-lisp :lexical t
+
+(defun my-minibuffer-setup-hook ()
+  "Set high gc when minibuffer is open."
+  (setq gc-cons-threshold (* 256 1024 1024)))
+
+(defun my-minibuffer-exit-hook ()
+  "Set low GC when minibuffer exits."
+  (setq gc-cons-threshold 800000))
+
+(add-hook 'minibuffer-setup-hook 'my-minibuffer-setup-hook)
+(add-hook 'minibuffer-exit-hook 'my-minibuffer-exit-hook)
+#+end_src
+
+*** my focus connections
+
+#+begin_src emacs-lisp :lexical t
+
+      (defun connect-focusvq-home ()
+        (interactive)
+        (dired "/ssh:sfigueroa@dev.focusvq.com:~"))
+
+      (defun connect-focusvq-ceph ()
+        (interactive)
+        (dired "/ssh:sfigueroa@dev.focusvq.com:/ceph/var/users/sfigueroa"))
+
+      (defun connect-focusvq-elcano ()
+        (interactive)
+        (dired "/ssh:sfigueroa@dev.focusvq.com:/ceph/var/elcano"))
+
+
+
+    (setq sql-connection-alist
+          '(
+            (mysql-fds (sql-product 'mysql)
+                        (sql-port 0)
+                        (sql-server "db.internal.focusvq.com")
+                        (sql-user "fds")
+                        (sql-password "WnJSuqmND9i0ePYw")
+                        (sql-database "fds"))
+
+            (mysql-elcano (sql-product 'mysql)
+                        (sql-port 0)
+                        (sql-server "db.internal.focusvq.com")
+                        (sql-user "fds")
+                        (sql-password "WnJSuqmND9i0ePYw")
+                        (sql-database "elcano"))
+            )
+          )
+
+
+  (general-define-key
+   :prefix "H-c"
+   "h" 'connect-focusvq-home
+   "c" 'connect-focusvq-ceph
+   "e" 'connect-focusvq-elcano)
+
+#+end_src
+
+*** recolor ansi
+#+begin_src emacs-lisp :lexical t
+
+  (defun ansi-color-on-buffer ()
+    "..."
+    (interactive)
+
+    (replace-string-in-region "[43m" "[45m" (point-min) (point-max) ) ;; replace yellow highlights
+    (replace-string-in-region ";43m" ";45m" (point-min) (point-max) )
+    (replace-string-in-region "[34m" "[33m" (point-min) (point-max) ) ;; replace blue text
+    (replace-string-in-region ";34m" ";33m" (point-min) (point-max) )
+    (ansi-color-apply-on-region (point-min) (point-max)))
+  
+#+end_src
+
+*** set region writable
+This is for when I accidentally make a column in org mode
+#+begin_src emacs-lisp :lexical t
+
+(defun set-region-writeable (begin end)
+  "Removes the read-only text property from the marked region."
+  ;; See http://stackoverflow.com/questions/7410125
+  (interactive "r")
+  (let ((modified (buffer-modified-p))
+        (inhibit-read-only t))
+    (remove-text-properties begin end '(read-only t))
+    (set-buffer-modified-p modified)))
+
+#+end_src
+
+*** global keys
+
+#+begin_src emacs-lisp :lexical t
+
+
+   (general-define-key
+    "H-r" 'revert-buffer
+    "H-l" 'scroll-lock-mode
+    "C-x e" 'eshell
+    )
+
+#+end_src
+
+*** misc.
+
+#+begin_src emacs-lisp :lexical t
+
+  (put 'upcase-region 'disabled nil)
+  (put 'downcase-region 'disabled nil)
+
+  (tool-bar-mode -1)
+  (scroll-bar-mode -1)
+  (menu-bar-mode t)
+
+  (setq mark-ring-max 4)
+  (setq global-mark-ring-max 4)
+
+  (setq initial-buffer-choice t) ;;*scratch*
+
+
+#+end_src
+
+** local (things like scimax??)
+# TODO  (load "/opt/homebrew/opt/scimax/share/emacs/site-lisp/scimax/init.el")
+
+# (add-to-list 'org-babel-load-languages '(sql . t) t)
+# (org-babel-do-load-languages 'org-babel-load-languages org-babel-load-languages)
+
+#+begin_src emacs-lisp :lexical t
+
+  ;; (let ((default-directory "~/.emacs.d/lisp/"))
+  ;;   (when (file-exists-p default-directory)
+  ;;     (normal-top-level-add-to-load-path '("."))
+  ;;     (normal-top-level-add-subdirs-to-load-path)))
+  
+#+end_src
+
+** Install Packages
+*** tabbar
+
+#+begin_src emacs-lisp :lexical t
+  (use-package tabbar
+    :init (tabbar-mode t) 
+    :general-config
+    (:keymaps 'override 
+              "M-S-<up>" 'tabbar-press-home
+              "M-S-<left>" 'tabbar-backward-tab
+              "M-S-<right>" 'tabbar-forward-tab
+              "M-S-<down>" 'tabbar-local-mode
+              "C-S-<left>" 'tabbar-move-group-backward
+              "C-S-<right>" 'tabbar-move-group-forward   ) 
+
+    :config
+    (defun tabbar-buffer-groups ()
+      "Return the list of group names the current buffer belongs to.
+       This function is a custom function for tabbar-mode's tabbar-buffer-groups.
+       This function group all buffers into 3 groups:
+       Those Dired, those user buffer, and those emacs buffer.
+       Emacs buffer are those starting with “*”."
+      (list
+       (cond
+        ((eq major-mode 'dired-mode)
+         "Dired"
+         )
+        ((eq major-mode 'jupyter-repl-mode)
+         "Kernels"
+         )
+        ((eq major-mode 'js2-mode)
+         "js"
+         )
+        ((eq major-mode 'eshell-mode)
+         "Eshell"
+         )
+        ((eq major-mode 'vterm-mode)
+         "Term"
+         )
+        ((eq major-mode 'go-mode)
+         "Go"
+         )
+        ((eq major-mode 'org-mode)
+         "Org"
+         )
+        ((eq major-mode 'python-mode)
+         "Python"
+         )
+        ((string-equal "*ein:" (substring (buffer-name) 0 5))
+         "EIN"
+         )
+        ((string-equal "*Pyth" (substring (buffer-name) 0 5))
+         "Python"
+         )
+        ((eq major-mode 'php-mode)
+         "PHP"
+         )
+        ((eq major-mode 'csv-mode)
+         "CSV"
+         )
+        ((eq major-mode 'text-mode)
+         "TXT"
+         )
+        ((eq major-mode 'shell-script-mode)
+         "Script"
+         )
+        ((eq major-mode 'sh-mode)
+         "Script"
+         )
+        ((string-equal "*PHP*" (substring (buffer-name) 0 5))
+         "PHP"
+         )
+        ((string-equal "*" (substring (buffer-name) 0 1))
+         "Emacs Buffer"
+         )
+        ((string-equal "magit:" (substring (buffer-name) 0 6))
+         "Magit"
+         )
+        ((eq major-mode 'lispy-mode)
+         "Lisp"
+         )
+        ((eq major-mode 'lisp-mode)
+         "Lisp"
+         )
+        ((eq major-mode 'emacs-lisp-mode)
+         "Lisp"
+         )
+        ((eq major-mode 'image-mode)
+         "Images"
+         )
+        (t
+         "Misc"
+         )
+        )))
+
+    (defun tabbar-move-current-tab-one-place-left ()
+      "Move current tab one place left, unless it's already the leftmost."
+      (interactive)
+      (let* ((bufset (tabbar-current-tabset t))
+             (old-bufs (tabbar-tabs bufset))
+             (first-buf (car old-bufs))
+             (new-bufs (list)))
+        (if (string= (buffer-name) (format "%s" (car first-buf)))
+            old-bufs                     ; the current tab is the leftmost
+          (setq not-yet-this-buf first-buf)
+          (setq old-bufs (cdr old-bufs))
+          (while (and
+                  old-bufs
+                  (not (string= (buffer-name) (format "%s" (car (car old-bufs))))))
+            (push not-yet-this-buf new-bufs)
+            (setq not-yet-this-buf (car old-bufs))
+            (setq old-bufs (cdr old-bufs)))
+          (if old-bufs ; if this is false, then the current tab's buffer name is mysteriously missing
+              (progn
+                (push (car old-bufs) new-bufs) ; this is the tab that was to be moved
+                (push not-yet-this-buf new-bufs)
+                (setq new-bufs (reverse new-bufs))
+                (setq new-bufs (append new-bufs (cdr old-bufs))))
+            (error "Error: current buffer's name was not found in Tabbar's buffer list."))
+          (set bufset new-bufs)
+          (tabbar-set-template bufset nil)
+          (tabbar-display-update))))
+
+    (defun tabbar-move-current-tab-one-place-right ()
+      "Move current tab one place right, unless it's already the rightmost."
+      (interactive)
+      (let* ((bufset (tabbar-current-tabset t))
+             (old-bufs (tabbar-tabs bufset))
+             (first-buf (car old-bufs))
+             (new-bufs (list)))
+        (while (and
+                old-bufs
+                (not (string= (buffer-name) (format "%s" (car (car old-bufs))))))
+          (push (car old-bufs) new-bufs)
+          (setq old-bufs (cdr old-bufs)))
+        (if old-bufs ; if this is false, then the current tab's buffer name is mysteriously missing
+            (progn
+              (setq the-buffer (car old-bufs))
+              (setq old-bufs (cdr old-bufs))
+              (if old-bufs ; if this is false, then the current tab is the rightmost
+                  (push (car old-bufs) new-bufs))
+              (push the-buffer new-bufs)) ; this is the tab that was to be moved
+          (error "Error: current buffer's name was not found in Tabbar's buffer list."))
+        (setq new-bufs (reverse new-bufs))
+        (setq new-bufs (append new-bufs (cdr old-bufs)))
+        (set bufset new-bufs)
+        (tabbar-set-template bufset nil)
+        (tabbar-display-update)))
+
+    (setq tabbar-buffer-groups-function 'tabbar-buffer-groups)
+
+    (setq tabbar-use-images nil)
+
+    (defun tabbar-move-group-backward ()
+      "My version of keeping groups visible."
+      (interactive)
+      (tabbar-backward-tab)
+      (tabbar-press-home)
+      )
+    (defun tabbar-move-group-forward ()
+      "My version of keeping groups visible."
+      (interactive)
+      (tabbar-forward-tab)
+      (tabbar-press-home)
+      )
+
+    )
+#+end_src
+
+*** smartparens
+
+#+begin_src emacs-lisp :lexical t
+
+  (use-package smartparens
+    :config
+    (require 'smartparens-config)
+    (smartparens-global-mode t)
+
+    :general-config
+    (:keymaps 'override
+    "M-<up>"  'sp-beginning-of-sexp
+    "M-<down>"  'sp-end-of-sexp
+    "C-<right>"  'sp-forward-slurp-sexp
+    "M-<right>"  'sp-forward-barf-sexp
+    "C-<left>"   'sp-backward-slurp-sexp
+    "M-<left>"   'sp-backward-barf-sexp
+    "C-M-k"  'sp-kill-sexp
+    "C-k"    'sp-kill-hybrid-sexp
+    "M-k"    'sp-backward-kill-sexp
+    "C-M-w"  'sp-copy-sexp
+    "M-s s"  'sp-split-sexp
+    "M-s j"  'sp-join-sexp
+    "M-]"  'sp-backward-unwrap-sexp
+    "M-["  'sp-unwrap-sexp
+    "C-x C-t"  'sp-transpose-hybrid-sexp)
+    )
+
+#+end_src
+
+*** zoom
+#+begin_src emacs-lisp :lexical t
+  (use-package zoom
+    :custom
+    (zoom-mode t)
+    (zoom-size '(0.618 . 0.618))
+  )
+#+end_src
+
+*** auto-tangle-mode
+
+#+begin_src emacs-lisp :lexical t
+
+(use-package auto-tangle-mode
+  :ensure (auto-tangle-mode
+           :host github
+           :repo "progfolio/auto-tangle-mode.el"
+           :local-repo "auto-tangle-mode")
+  :commands (auto-tangle-mode))
+
+#+end_src
+
+*** vterm
+#+begin_src emacs-lisp :lexical t
+  (use-package vterm
+    :ensure t
+
+    )
+  (use-package multi-vterm
+    :after vterm
+    :init
+    (setq vterm-tramp-shells '(("ssh" "/usr/bin/zsh")))
+    (setq shell-file-name "/bin/bash")
+    (setq vterm-shell "/usr/local/bin/zsh")
+    :general
+    (:keymaps 'override
+              "C-x t" 'multi-vterm-project
+              "C-x M-t" 'multi-vterm)
+    )
+
+
+#+end_src
+
+*** projectile
+#+begin_src emacs-lisp :lexical t
+
+  (use-package projectile
+    :config
+    (projectile-mode t)
+    )
+
+#+end_src
+
+*** dashboard
+
+#+begin_src emacs-lisp :lexical t
+  (use-package dashboard
+
+    :config
+    (use-package page-break-lines
+      :config
+          (global-page-break-lines-mode)
+          )
+
+    (dashboard-setup-startup-hook)
+    (setq initial-buffer-choice (lambda () (get-buffer "*dashboard*")))
+    (setq dashboard-banner-logo-title "It's Emacs time!")
+    (setq dashboard-startup-banner 'logo)
+    (setq dashboard-items '((recents  . 15)
+                           (projects . 5)
+                          ))
+    )
+
+    ;; Value can be
+    ;; 'official which displays the official emacs logo
+    ;; 'logo which displays an alternative emacs logo
+    ;; 1, 2 or 3 which displays one of the text banners
+
+
+#+end_src
+
+*** ace
+**** window
+#+begin_src emacs-lisp :lexical t
+
+  (use-package ace-window
+    :custom
+    (aw-dispatch-always t)
+    :init
+    (defvar aw-dispatch-alist
+    '((?d aw-delete-window "Delete Window")
+      (?s aw-swap-window "Swap Windows")
+      (?m aw-move-window "Move Window")
+      (?b aw-switch-buffer-in-window "Select Buffer")
+      (?n aw-flip-window)
+      (?B aw-switch-buffer-other-window "Switch Buffer Other Window")
+      (?c aw-split-window-fair "Split Fair Window")
+      (?h aw-split-window-vert "Split Vert Window")
+      (?v aw-split-window-horz "Split Horz Window")
+      (?o delete-other-windows "Delete Other Windows")
+      (?? aw-show-dispatch-help))
+    "List of actions for `aw-dispatch-default'.")
+    :general-config
+    (:keymap 'override
+             "H-SPC" 'ace-window)
+    )
+
+
+
+
+
+#+end_src
+
+**** jump mode
+#+begin_src emacs-lisp :lexical t
+  (use-package ace-jump-mode
+    :general-config
+    (:keymap 'override
+             "H-j" 'ace-jump-mode)
+    )
+#+end_src
+
+**** multiple cursors
+#+begin_src emacs-lisp :lexical t
+  (use-package ace-mc
+    :after (ace-jump-mode multiple-cursors)
+    :general-config
+    ("H-;" 'ace-mc-add-multiple-cursors)
+    )
+#+end_src
+
+*** undo-tree
+#+begin_src emacs-lisp :lexical t
+
+  (use-package undo-tree
+    :custom
+    (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
+    (backup-directory-alist `(("." . "~/.emacs.d/.saves")))
+    (backup-by-copying t)
+    (delete-old-versions t)
+    (kept-new-versions 2)
+    (kept-old-versions 6)
+    (version-control t)       ; use versioned backups
+    (undo-tree-enable-undo-in-region t)
+
+    :config
+    (global-undo-tree-mode)
+    )
+
+#+end_src
+
+*** hydra
+
+
+#+begin_src emacs-lisp :lexical t
+(use-package hydra)
+#+end_src
+
+*** drag stuff
+
+#+begin_src emacs-lisp :lexical t
+  (use-package drag-stuff
+    :config
+    (drag-stuff-global-mode 1)
+    :general-config
+    (:keymap 'override             
+             "<C-M-down>" 'drag-stuff-down
+             "<C-M-up>" 'drag-stuff-up
+             )
+    )
+#+end_src
+
+*** dumb jump
+
+#+begin_src emacs-lisp :lexical t
+  (use-package dumb-jump
+    :custom
+    (xref-show-definitions-function #'xref-show-definitions-completing-read)
+    :after hydra
+    :init (add-hook 'xref-backend-functions #'dumb-jump-xref-activate)
+    :config
+    (add-to-list 'dumb-jump-language-file-exts '(:language "python" :ext "org" :agtype "python" :rgtype "py"))
+    (defhydra dumb-jump-hydra (:color blue :columns 3)
+              "Dumb Jump"
+              ("j" dumb-jump-go "Jump")
+              ("o" dumb-jump-go-other-window "Other window")
+              ("e" dumb-jump-go-prefer-external "Go external")
+              ("x" dumb-jump-go-prefer-external-other-window "Go external other window")
+              ("i" dumb-jump-go-prompt "Prompt")
+              ("l" dumb-jump-quick-look "Quick look")
+              ("b" dumb-jump-back "Back"))
+    :general-config
+    (:keymap 'override
+             "H-h ." 'dumb-jump-hydra/body)
+    )
+
+#+end_src
+
+*** Multiple cursors
+#+begin_src emacs-lisp :lexical t
+  (use-package multiple-cursors
+
+    :general-config
+    (:keymap 'override
+             "H-<return> e" 'mc/edit-lines
+             "H-<return> m" 'mc/mark-more-like-this-extended
+             "H-<return> a" 'mc/mark-all-like-this
+             "H-<return> n" 'mc/insert-numbers
+             "H-<return> l" 'mc/insert-letters
+             )
+    ("C-;" 'mc-hide-unmatched-lines-mode)
+    )
+
+#+end_src
+
+*** HL todo
+
+#+begin_src emacs-lisp :lexical t
+  (use-package hl-todo
+    :custom
+    (hl-todo-keyword-faces
+     '(("TODO"   . "#934b9c")
+       ("NOTE"  . "#1E90FF")
+       ("HACK"  . "#CC6200")
+       ("BUG"  . "#FF0000")
+       ))
+    :config
+    (global-hl-todo-mode)
+    :general-config
+  (:keymap 'override
+           "H-t t" 'hl-todo-insert
+           "H-t n" 'hl-todo-next
+           "H-t p" 'hl-todo-previous
+           )
+  )
+#+end_src
+
+*** highlight indend guides
+
+#+begin_src emacs-lisp :lexical t
+  (use-package indent-bars
+    :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
+    :hook (prog-mode . indent-bars-mode)) ; or whichever modes you prefer
+
+       ;; (use-package highlight-indent-guides
+       ;; :hook (prog-mode . highlight-indent-guides-mode)
+   ;;    :init
+     ;  (setq highlight-indent-guides-method 'bitmap)
+     ;  (setq highlight-indent-guides-responsive 'top)  
+     ;;    )
+#+end_src
+
+*** magit
+
+#+begin_src emacs-lisp :lexical t
+
+  (use-package magit
+    :defer t
+    :general-config
+    (:keymap 'override
+             "C-x g" 'magit-status
+             )
+    :config
+    (setenv "GIT_ASKPASS" "git-gui--askpass")
+    )
+
+
+#+end_src
+
+*** yas
+#+begin_src emacs-lisp :lexical t
+
+  (use-package yasnippet
+    :config
+    (yas-global-mode 1)
+    )
+
+  (use-package yasnippet-snippets
+    :defer t
+    :after yasnippet)
+  ;; (require-package 'ivy-yasnippet)
+  ;; (global-set-key (kbd "H-,") 'ivy-yasnippet)
+
+#+end_src
+
+*** popper
+#+begin_src emacs-lisp :lexical t
+
+  (use-package popper
+    :init
+    (setq popper-group-function 'nil) ; projectile projects #'popper-group-by-projectile
+    (setq popper-reference-buffers
+          '("\\*Messages\\*"
+            "Output\\*$"
+            "\\*Async Shell Command\\*"
+            help-mode
+            compilation-mode
+            image-mode
+            ))
+
+    ;; Match eshell, shell, term and/or vterm buffers
+    (setq popper-reference-buffers
+          (append popper-reference-buffers
+                  '("^\\*eshell.*\\*$" eshell-mode ;eshell as a popup
+                    "^\\*shell.*\\*$"  shell-mode  ;shell as a popup
+                    "^\\*term.*\\*$"   term-mode   ;term as a popup
+                    "^\\*vterm.*\\*$"  vterm-mode  ;vterm as a popup
+                    "^\\*jupyter-repl*\\*$" jupyter-repl-mode
+                    )))
+
+    :general-config
+    (:keymap 'override
+             "s-;" 'popper-toggle
+             "s-M-;" 'popper-cycle
+             "s-C-;" 'popper-toggle-type
+             )
+
+    :config
+    (popper-mode)
+    (popper-echo-mode)                ; For echo area hints
+    )
+
+
+#+end_src
+
+*** python
+**** python
+#+begin_src emacs-lisp :lexical t
+
+  (use-feature python
+    :defer t
+    :config
+    :general-config
+    (:keymaps 'python-mode-map
+              "H-<left>" 'python-indent-shift-left
+              "H-<right>" 'python-indent-shift-right
+              )
+    )
+#+end_src
+
+**** yapify
+#+begin_src emacs-lisp :lexical t
+  (use-package yapfify
+    :defer t
+    :hook (python-mode . yapf-mode))
+    ;; (add-hook 'python-mode-hook 'yapf-mode)
+#+end_src
+
+*** eglot
+#+begin_src emacs-lisp :lexical t
+  (use-package eglot
+    :hook (python-mode . eglot)
+    :config
+    (defun start-eglot-python (env)
+      (interactive "sPython env: ")
+      (let* (
+             (mypath (concat
+                      (shell-command-to-string "conda info --base | tr -d '\n'")
+                      (concat "/envs/" env "/bin/pylsp")
+                      )
+                     )
+             )
+        (kill-new mypath)
+        (call-interactively 'eglot)
+        )
+      )
+    (setq-default eglot-workspace-configuration
+                  '(:pylsp (:plugins (
+                                      :pylint (:enabled :json-false)
+                                      :autopep8 (:enabled :json-false)
+                                      :yapf (:enabled :json-false)
+                                      ))
+                           ))
+    )
+
+  (use-package jsonrpc
+    :defer t
+    )
+
+  (use-package flycheck-eglot
+    :config
+    (global-flycheck-eglot-mode 1))
+
+#+end_src
+
+*** flycheck
+#+begin_src emacs-lisp :lexical t
+
+  (use-package flycheck
+    :defer t)  
+
+#+end_src
+
+*** Ivy and Swiper
+#+begin_src emacs-lisp :lexical t
+
+  (use-package ivy
+    :init
+    (setq ivy-use-virtual-buffers t)
+    (setq ivy-virtual-abbreviate 'full)
+    (setq ivy-re-builders-alist '((t . ivy--regex-ignore-order)))
+    (setq ivy-height 12)
+    (setq ivy-display-style 'fancy)
+    (setq ivy-count-format "[%d/%d] ")
+    (setq ivy-initial-inputs-alist nil)
+    (setq ivy-use-selectable-prompt t)
+    (setq ivy-magic-slash-non-match-action 'ivy-magic-slash-non-match-create)
+    :after (counsel)
+    :config  
+    (ivy-mode t)
+    ;; (require-package 'ivy-hydra)
+    :general-config
+    (:keymap 'override
+             "C-x C-f" 'counsel-find-file
+             "C-c f" 'counsel-describe-function
+             "C-c u" 'counsel-unicode-char
+             )
+    )
+
+  (use-package swiper
+    :config
+    (defadvice swiper (before dotemacs activate)
+      (setq gc-cons-threshold most-positive-fixnum))
+    (defadvice swiper-all (before dotemacs activate)
+      (setq gc-cons-threshold most-positive-fixnum))
+
+    :general-config
+    (:keymap 'override
+             "C-s" 'swiper)
+    )
+
+#+end_src
+
+*** counsel
+
+#+begin_src emacs-lisp :lexical t
+(use-package counsel)
+#+end_src
+
+*** org
+**** org general
+
+#+begin_src emacs-lisp :lexical t
+    (use-feature org
+      :defer t
+      :custom
+      (enable-local-variables t)
+      (org-display-remote-inline-images 'cache)
+      (org-startup-folded t)
+      (org-startup-indented t)
+      (org-log-done t)
+
+      :general-config
+      (:keymap 'org-mode-map
+               "C-M-<up>" 'org-shiftmetaup
+               "C-M-<down>" 'org-shiftmetadown
+               "C-M-<left>" 'org-shiftmetaleft
+               "C-M-<right>" 'org-shiftmetaright
+               "C-M-S-<left>" 'org-shiftcontrolleft
+               "C-M-S-<right>" 'org-shiftcontrolright
+               )
+
+      :config
+  ;;      (visual-line-mode)
+  ;;  (display-line-numbers-mode)
+      ;; (add-hook 'org-mode-hook (lambda ()
+      ;;                            (visual-line-mode)))
+
+      (add-hook 'org-mode-hook (lambda ()
+                                 (setq-local seth-jupyter-execution-count 1)))
+      (setq seth-jupyter-execution-count 1)
+      (defun org-babel-add-time-stamp-after-execute-before-src-block ()
+        ;; (sleep-for 2)
+        (end-of-line)
+        (save-excursion
+          (search-backward "#+BEGIN_SRC" 0 t)
+          (forward-line -1)
+          (beginning-of-line)
+
+          (when (not (or
+                      (looking-at "[[:space:]]*$")
+                      (looking-at "#\\+LASTRUN:")))
+            (forward-line 1)
+            (newline)
+            (forward-line -1))
+          (when (looking-at "#\\+LASTRUN:")
+            (delete-region (pos-bol) (1- (pos-bol 2)))
+            )
+          (insert (concat
+                   "#+LASTRUN: "
+                   (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
+                   " ["
+                   (int-to-string seth-jupyter-execution-count)
+                   "]"
+                   ))
+          (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))    
+          ))
+
+      (add-hook 'org-babel-after-execute-hook
+                'org-babel-add-time-stamp-after-execute-before-src-block)
+      )
+
+    ;; Backend for HTML Table export
+
+    ;;(require 'ox-html)
+    ;;(defun ox-mrkup-filter-bold
+    ;;    (text back-end info)
+    ;;  "Markup TEXT as <bold>TEXT</bold>. Ignore BACK-END and INFO."
+    ;;  (format "<bold>%s</bold>" text))
+    ;;
+    ;;(org-export-define-derived-backend 'htmlTable 'html
+    ;;  :filters-alist
+    ;;  '((:filter-body . ox-mrkup-filter-body)
+    ;;    ))
+
+#+end_src
+
+**** org modern
+
+#+begin_src emacs-lisp :lexical t
+
+  (use-package org-modern
+    :hook (org-mode)
+    :defer t
+    :custom-face
+    (org-block-begin-line   ((t (:inherit org-block :background "#1d2021" :foreground "#d9b466" :extend t))))
+    (org-block-end-line     ((t (:inherit org-block-begin-line :foreground "#6b7d70"))))
+    (org-document-info      ((t (:foreground "#d5c4a1" :weight bold))))
+    (org-document-info-keyword    ((t (:inherit shadow))))
+    (org-document-title     ((t (:foreground "#fbf1c7" :weight bold :height 1.4))))
+    (org-meta-line          ((t (:inherit shadow))))
+    (org-target             ((t (:height 0.7 :inherit shadow))))
+    (org-link               ((t (:foreground "#b8bb26" :background "#32302f" :overline nil))))  ;; 
+    (org-indent             ((t (:inherit org-hide))))
+    (org-indent             ((t (:inherit (org-hide fixed-pitch)))))
+    (org-footnote           ((t (:foreground "#8ec07c" :background "#32302f" :overline nil))))
+    (org-ref-cite-face      ((t (:foreground "#fabd2f" :background "#32302f" :overline nil))))  ;; 
+    (org-ref-ref-face       ((t (:foreground "#83a598" :background "#32302f" :overline nil))))
+    (org-ref-label-face     ((t (:inherit shadow :box t))))
+    (org-drawer             ((t (:inherit shadow))))
+    (org-property-value     ((t (:inherit org-document-info))) t)
+    (org-tag                ((t (:inherit shadow))))
+    (org-date               ((t (:foreground "#83a598" :underline t))))
+    (org-verbatim           ((t (:inherit org-block :background "#3c3836" :foreground "#d5c4a1"))))
+    (org-code               ((t (:inherit org-verbatim :background "#181818" :foreground "#90d1fc"))))
+    (org-quote              ((t (:inherit org-block :slant italic))))
+    (org-level-1            ((t (:background "#181818" :weight bold :height 1.3 :overline nil :underline t :extend t)))) ;; Blue :foreground "#3375a8"
+    (org-level-2            ((t (:foreground "#8ec07c" :background "#181818" :weight bold :height 1.2 :overline nil :extend t)))) ;; Aqua
+    (org-level-3            ((t (:foreground "#b8bb26" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Green
+    (org-level-4            ((t (:foreground "#fabd2f" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Yellow
+    (org-level-5            ((t (:foreground "#fe8019" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Orange
+    (org-level-6            ((t (:foreground "#fb4934" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Red
+    (org-level-7            ((t (:foreground "#d3869b" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Blue
+    (org-level-8            ((t (:background "#181818" :weight bold :height 1.1 :overline nil :extend t))))
+    (org-headline-done      ((t (:foreground "#5ca637" :background "#181818" :weight bold :overline nil :extend t)))) ;; Gray
+    (org-headline-todo      ((t (:foreground "#d45555" :background "#181818" :weight bold :overline nil :extend t)))) ;; Gray
+    (org-ellipsis           ((t (:inherit shadow :height 1.0 :weight bold :extend t))))
+    (org-latex-and-related  ((t (:inherit org-block :extend t))))                                                   
+    (org-table              ((t (:foreground "#d5c4a1" ))))
+    (org-checkbox           ((t (:foreground "#ffc4a1" :height 1.3))))
+  ;;;                                )
+    :config
+    (setq-local line-spacing 0.1)
+    (font-lock-add-keywords
+     'org-mode
+     `(("^[ \t]*\\(?:[-+*]\\|[0-9]+[).]\\)[ \t]+\\(\\(?:\\[@\\(?:start:\\)?[0-9]+\\][ \t]*\\)?\\[\\(?:X\\|\\([0-9]+\\)/\\2\\)\\][^\n]*\n\\)" 1 'org-headline-done prepend))
+     'append)
+
+    (font-lock-add-keywords
+     'org-mode
+     `(("^[ \t]*\\(?:[-+*]\\|[0-9]+[).]\\)[ \t]+\\(\\(?:\\[@\\(?:start:\\)?[0-9]+\\][ \t]*\\)?\\[\\(?:-\\|\\([0-9]+\\)/\\2\\)\\][^\n]*\n\\)" 1 'org-headline-todo prepend))
+     'append)
+
+    (setq
+     ;; Edit settings
+     org-babel-min-lines-for-block-output 1
+     org-auto-align-tags nil
+     org-tags-column 0
+     org-catch-invisible-edits 'show-and-error
+     org-special-ctrl-a/e t
+     org-insert-heading-respect-content t
+
+     ;; Org styling, hide markup etc.
+     org-hide-emphasis-markers t
+     org-pretty-entities nil
+
+     ;; Agenda styling
+     org-agenda-tags-column 0
+     org-agenda-block-separator ?─
+     org-agenda-time-grid
+     '((daily today require-timed)
+       (800 1000 1200 1400 1600 1800 2000)
+       " ┄┄┄┄┄ " "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄")
+     org-agenda-current-time-string
+     "⭠ now ─────────────────────────────────────────────────"
+
+     org-agenda-ndays 7
+     org-deadline-warning-days 10
+     org-agenda-show-all-dates t
+     org-agenda-start-on-weekday nil
+     org-reverse-note-order t
+     org-fast-tag-selection-single-key (quote expert)
+     org-log-into-drawer t
+     org-image-actual-width nil
+     org-export-with-drawers t
+     )
+    )
+
+
+#+end_src
+
+**** org jupyter
+*** company
+#+begin_src emacs-lisp :lexical t
+  (use-package company
+    :custom
+    (company-idle-delay 0.5)
+    (company-minimum-prefix-length 2)
+    (company-require-match 'never)
+    (company-show-numbers t)
+    (company-tooltip-limit 20)
+    (company-dabbrev-downcase nil)
+    (company-dabbrev-ignore-case t)
+    (company-dabbrev-code-ignore-case t)
+    (company-dabbrev-code-everywhere t)
+    (company-etags-ignore-case t)
+
+    :general-config
+    (:keymap 'override
+             "C-<tab>" #'company-other-backend)
+    :config
+    (global-company-mode 1)
+    )
+
+#+end_src
+
+*** lsp-bridge
+
+#+begin_src emacs-lisp :lexical t
+
+  ;;;  (use-package lsp-bridge
+  ;;;    :after (yasnippet)
+  ;;;    :ensure (lsp-bridge :type git :host github :repo "manateelazycat/lsp-bridge" 
+  ;;;                        :files (:defaults "*.el" "*.py" "acm" "core" "langserver" "multiserver" "resources")
+  ;;;                        :build (:not elpaca--byte-compile))
+  ;;;    :init
+  ;;;    (setq lsp-bridge-complete-manually t)
+  ;;;    (setq lsp-bridge-enable-with-tramp t)
+  ;;;    (setq lsp-bridge-python-lsp-server "pylsp")
+  ;;;
+  ;;;    (setq lsp-bridge-remote-start-automatically t)
+  ;;;
+  ;;;
+  ;;;    (setq lsp-bridge-remote-python-command "/home/sfigueroa/python_envs/envs/seth-py311-dev/bin/python3")
+  ;;;    (setq lsp-bridge-remote-python-file "/home/sfigueroa/.emacs.d/elpaca/builds/lsp-bridge/lsp-bridge.py")
+  ;;;    (setq lsp-bridge-remote-log "/home/sfigueroa/.emacs.d/elpaca/builds/lsp-bridge/lbr_log.txt")
+  ;;;
+  ;;;
+  ;;;    ;; (setq lsp-bridge-remote-start-automatically t)
+  ;;;
+  ;;;
+  ;;;    (global-lsp-bridge-mode)
+  ;;;
+  ;;;    :general-config
+  ;;;    (:keymap 'override
+  ;;;             "C-<tab>" 'lsp-bridge-popup-complete-menu)
+  ;;;    )
+  ;;;
+    ;; :hook (prog-mode . indent-bars-mode)) ; or whichever modes you prefer
+
+    ;; (use-package highlight-indent-guides
+    ;; :hook (prog-mode . highlight-indent-guides-mode)
+    ;;    :init
+                                            ;  (setq highlight-indent-guides-method 'bitmap)
+                                            ;  (setq highlight-indent-guides-responsive 'top)  
+    ;;    )
+
+#+end_src
+
+*** dired
+
+#+begin_src emacs-lisp :lexical t
+  (use-package all-the-icons
+    :defer t
+    ;;      :hook dired-mode
+    )
+  (use-package all-the-icons-dired
+    :custom
+    (all-the-icons-dired-monochrome nil)
+    :hook dired-mode
+    :defer t)
+  ;; (all-the-icons-install-fonts)
+  (use-package dired-subtree
+    :after dired
+
+    :config
+    (define-key dired-mode-map (kbd "H-r") 'dired-subtree-remove)
+    (define-key dired-mode-map (kbd "<tab>") 'dired-subtree-toggle)
+    (define-key dired-mode-map (kbd "H-p") 'dired-subtree-up)
+    (define-key dired-mode-map (kbd "H-n") 'dired-subtree-down)
+    (define-key dired-mode-map (kbd "H-<up>") 'dired-subtree-beginning)
+    (define-key dired-mode-map (kbd "H-<down>") 'dired-subtree-end)
+    (define-key dired-mode-map (kbd "H-m") 'dired-subtree-mark-subtree)
+    (define-key dired-mode-map (kbd "H-u") 'dired-subtree-unmark-subtree)
+
+
+    )
+
+  (use-package dired-filter
+    :hook dired-mode
+    :defer t
+    :custom
+    (dired-listing-switches "-alogh")
+    )
+
+  (use-feature dired
+    :defer t
+    :general-config
+    (:keymap 'override
+             "C-x d" 'seth/dired-side-vc)
+    :config
+    (when (string= system-type "darwin")       
+      (setq dired-use-ls-dired nil))
+    (defun seth/dired-side--vc (directory)
+      "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
+      (let* (
+             (backend (vc-responsible-backend directory t))
+             (dir (if (eq backend nil)
+                      directory
+                    (expand-file-name (vc-call-backend backend 'root directory))))
+             (dired_dir (dired-noselect dir))
+             (path-list (split-string (first (last (split-string directory dir))) "/"))
+             )
+        (display-buffer-in-side-window
+         dired_dir `((side . left)
+                     (slot . 0)
+                     (window-width . 0.3)
+                     (window-parameters) . ((no-other-window . t)
+                                            (no-delete-other-windows . t)
+                                            (mode-line-format . (" " "%b"))
+                                            )
+                     )
+         )
+        (with-current-buffer dired_dir
+          (setq window-size-fixed 'width)
+          (switch-to-buffer-other-frame dired_dir)
+          (revert-buffer)
+          (dired-hide-details-mode)
+          (goto-char 0)
+          (cl-loop for p in path-list do
+                   (goto-char (search-forward p))
+                   (dired-subtree-insert)
+                   )
+          )
+        )
+      )
+
+    (defun seth/dired-side-vc (&optional initial-input)
+      "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
+      (interactive) 
+
+      (ivy-read "Dired: " #'read-file-name-internal
+                :matcher #'counsel--find-file-matcher
+                :initial-input initial-input
+                :action (lambda (d) (seth/dired-side--vc (expand-file-name d)))
+                :preselect (counsel--preselect-file)
+                :require-match 'confirm-after-completion
+                :history 'file-name-history
+                :keymap counsel-find-file-map
+                :caller 'counsel-dired)
+      )    
+    )
+
+#+end_src
+**** 
+* End 
+
+#+begin_src emacs-lisp :lexical t
+
+
+#+end_src
+
+
+#+begin_src emacs-lisp :lexical t
+
+#+end_src

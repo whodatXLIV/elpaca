@@ -1,0 +1,12 @@
+.mc-lists.el
+.saves/
+auto-save-list/
+early-init.el
+elpaca/
+init.el
+init.el~
+init.org~
+projectile-bookmarks.eld
+recentf
+tramp
+transient
