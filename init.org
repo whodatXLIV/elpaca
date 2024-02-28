@@ -70,21 +70,19 @@ The following line turns on lexical binding for performance reasons.
 ** profiling
 This function displays how long Emacs took to start.
 It's a rough way of knowing when/if I need to optimize my init file.
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
   (add-hook 'elpaca-after-init-hook
             (lambda ()
               (message "Emacs loaded in %s with %d garbage collections."
-                       (format "%.3f seconds"
+                       (format "%.2f seconds"
                                (float-time
                                 (time-subtract (current-time) before-init-time)))
                        gcs-done)))
 
+(profiler-start 'cpu+mem)
+(add-hook 'elpaca-after-init-hook (lambda () (profiler-stop) (profiler-report)))
 #+end_src
-We can also enable the profiler to view a report after init.
-#+begin_src emacs-lisp :lexical t :tangle no
-  (profiler-start 'cpu+mem)
-  (add-hook 'elpaca-after-init-hook (lambda () (profiler-stop)))
-#+end_src
+
 ELP is useful for seeing which functions in a package are "hot".
 #+begin_src emacs-lisp :var file="elpaca" :lexical t :tangle no
   (require 'elp)
@@ -244,50 +242,16 @@ ELP is useful for seeing which functions in a package are "hot".
 #+end_src
 *** Mac os use meta
 #+begin_src emacs-lisp :lexical t
-  (when (memq window-system '(mac ns x))
-    (setq ns-command-modifier 'meta
-          ns-option-modifier 'hyper
-          ns-right-option-modifier 'super
-          )
-    )
 
-  ;; (use-package exec-path-from-shell
-  ;;   :config
-  ;;   (when (memq window-system '(mac ns x))
-  ;;   (exec-path-from-shell-initialize)
-  ;;   (setq ns-command-modifier 'meta
-  ;;         ns-option-modifier 'hyper
-  ;;         ns-right-option-modifier 'super
-  ;;         )
-  ;;   )
-  ;; )
-
-  ;; Keybonds
-  ;; (global-set-key [(hyper a)] 'mark-whole-buffer)
-  ;; (global-set-key [(hyper v)] 'yank)
-  ;; (global-set-key [(hyper c)] 'kill-ring-save)
-  ;; (global-set-key [(hyper s)] 'save-buffer)
-  ;; (global-set-key [(hyper l)] 'goto-line)
-  ;; (global-set-key [(hyper w)]
-  ;;                 (lambda () (interactive) (delete-window)))
-  ;; (global-set-key [(hyper z)] 'undo)
-
-  ;; mac switch meta key
-  ;; (defun mac-switch-meta nil 
-  ;;   "switch meta between Option and Command"
-  ;;   (interactive)
-  ;;   (if (eq mac-option-modifier nil)
-  ;;       (progn
-  ;;         (setq mac-option-modifier 'meta)
-  ;;         (setq mac-command-modifier 'hyper)
-  ;;         )
-  ;;     (progn 
-  ;;       (setq mac-option-modifier nil)
-  ;;       (setq mac-command-modifier 'meta)
-  ;;       )
-  ;;     )
-  ;;   )
-
+  (use-package exec-path-from-shell
+    :config
+    (when (memq window-system '(mac ns x))
+      (setq exec-path-from-shell-arguments (list "-l" "-i"))
+      (exec-path-from-shell-initialize)
+      (setq mac-option-modifier 'hyper)
+      (setq mac-command-modifier 'meta)
+      (setq mac-right-option-modifier 'super)
+      ))
 
 
 #+end_src
@@ -707,6 +671,7 @@ This is for when I accidentally make a column in org mode
                             ))
     )
 
+  
   ;; Value can be
   ;; 'official which displays the official emacs logo
   ;; 'logo which displays an alternative emacs logo
@@ -987,7 +952,6 @@ This is for when I accidentally make a column in org mode
 **** yapify
 #+begin_src emacs-lisp :lexical t
   (use-package yapfify
-    :defer t
     :hook (python-mode . yapf-mode))
   ;; (add-hook 'python-mode-hook 'yapf-mode)
 #+end_src
