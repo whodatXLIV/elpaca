@@ -1,7 +1,6 @@
 **/*.elc
 elpaca/cache
 elpaca/builds
-elpaca/repos
 .saves/
 auto-save-list/
 early-init.el
