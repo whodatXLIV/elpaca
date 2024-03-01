@@ -13,3 +13,5 @@ tramp
 transient
 /smex-items
 /eln-cache/
+/eshell/
+/tree-sitter/

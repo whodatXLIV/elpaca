@@ -202,7 +202,6 @@ ELP is useful for seeing which functions in a package are "hot".
   :after transient
   )
 
-(use-package diminish)
 (use-package delight)
   
 #+end_src
@@ -212,6 +211,7 @@ ELP is useful for seeing which functions in a package are "hot".
 #+begin_src emacs-lisp :lexical t
 (use-package general
   :demand t
+  :delight
   :config
   (general-override-mode)
   (general-auto-unbind-keys)
@@ -232,6 +232,8 @@ ELP is useful for seeing which functions in a package are "hot".
 
 (setq-default indent-tabs-mode nil)
 (setq-default tab-width 4)
+
+(setq font-lock-maximum-decoration 2)
 
 #+end_src
 
@@ -406,6 +408,7 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 (use-package ace-window
+  :delight
   :custom
   (aw-dispatch-always t)
   :init
@@ -436,6 +439,7 @@ This is for when I accidentally make a column in org mode
 **** jump mode
 #+begin_src emacs-lisp :lexical t
 (use-package ace-jump-mode
+  :delight
   :general-config
   (:keymap 'override
            "H-j" 'ace-jump-mode)
@@ -445,6 +449,7 @@ This is for when I accidentally make a column in org mode
 **** multiple cursors
 #+begin_src emacs-lisp :lexical t
 (use-package ace-mc
+  :delight
   :after (ace-jump-mode multiple-cursors)
   :general-config
   ("H-;" 'ace-mc-add-multiple-cursors)
@@ -456,6 +461,7 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 (use-package auto-tangle-mode
+  :delight
   :ensure (auto-tangle-mode
            :host github
            :repo "progfolio/auto-tangle-mode.el"
@@ -633,6 +639,7 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 (use-package drag-stuff
+  :delight
   :config
   (drag-stuff-global-mode 1)
   :general-config
@@ -647,6 +654,7 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 (use-package dumb-jump
+  :delight
   :custom
   (xref-show-definitions-function #'xref-show-definitions-completing-read)
   :after hydra
@@ -672,7 +680,6 @@ This is for when I accidentally make a column in org mode
 *** eglot
 #+begin_src emacs-lisp :lexical t
 (use-package eglot
-  :hook (python-mode . eglot)
   :defer t
   :config
   (defun start-eglot-python (env)
@@ -701,11 +708,9 @@ This is for when I accidentally make a column in org mode
   )
 
 (use-package jsonrpc
-  :defer t
   )
 
 (use-package flycheck-eglot
-  :defer t
   )
 
 #+end_src
@@ -722,6 +727,7 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 ;; google-this
 (use-package google-this
+  :delight
   :config
   (google-this-mode 1))  
 #+end_src
@@ -756,6 +762,7 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 (use-package hl-todo
+  :delight
   :custom
   (hl-todo-keyword-faces
    '(("TODO"   . "#934b9c")
@@ -836,6 +843,7 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 (use-package magit
+  :delight
   :defer t
   :init (setq magit-completing-read-function 'ivy-completing-read)
   :general-config
@@ -852,7 +860,6 @@ This is for when I accidentally make a column in org mode
 *** Multiple cursors
 #+begin_src emacs-lisp :lexical t
 (use-package multiple-cursors
-
   :general-config
   (:keymap 'override
            "H-<return> e" 'mc/edit-lines
@@ -1044,6 +1051,7 @@ This is for when I accidentally make a column in org mode
 *** page-break lines
 #+begin_src emacs-lisp :lexical t
   (use-package page-break-lines
+    :delight
     :config
     (global-page-break-lines-mode)
     )
@@ -1095,6 +1103,7 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 (use-package projectile
+  :delight '(:eval (concat " [" (projectile-project-name) "]"))
   :config
   (projectile-mode t)
   )
@@ -1453,12 +1462,45 @@ This is for when I accidentally make a column in org mode
 
 #+end_src
 
+*** sideline mode
+#+begin_src emacs-lisp :lexical t
+(use-package sideline
+  :hook (
+         (flycheck-mode . sideline-mode)  
+         (flymake-mode  . sideline-mode)
+         )
+
+  :init
+  (setq sideline-backends-left-skip-current-line nil   ; don't display on current line (left)
+        sideline-backends-right-skip-current-line nil  ; don't display on current line (right)
+        sideline-order-left 'down                    ; or 'up
+        sideline-order-right 'up                     ; or 'down
+        sideline-format-left "%s"                 ; format for left aligment
+        sideline-format-right "%s"                ; format for right aligment
+        sideline-priority 100                        ; overlays' priority
+        sideline-display-backend-name t)             ; display the backend name
+  (setq sideline-backends-right '(sideline-flycheck)
+        )
+  
+  )
+
+(use-package sideline-flycheck
+  :hook (flycheck-mode . sideline-flycheck-setup))
+
+
+#+end_src
+
+
 *** smart-mode-line
 #+begin_src emacs-lisp :lexical t
 
 (use-package smart-mode-line
+  :delight
   :config
-  (sml/setup))
+  (sml/setup)
+  (setq sml/name-width 50
+        sml/mode-width 50)
+  )
   
 #+end_src
 
@@ -1467,6 +1509,7 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 (use-package smartparens
+  :diminish 
   :config
   (require 'smartparens-config)
   (smartparens-global-mode t)
@@ -1685,10 +1728,38 @@ This is for when I accidentally make a column in org mode
   )
 #+end_src
 
+*** tree-sitter
+#+begin_src emacs-lisp :lexical t
+(use-package tree-sitter
+  :delight
+  :hook
+  ((lua-mode
+    python-mode
+    org-mode
+    emacs-lisp-mode
+    csv-mode
+    json-mode
+    sh-mode
+    typescript-mode
+    yaml-mode
+    ) . siren-tree-sitter-mode-enable)
+
+  :preface
+  (defun siren-tree-sitter-mode-enable ()
+    (tree-sitter-mode t)
+    (tree-sitter-hl-mode)
+    )
+
+  :defer t)
+
+(use-package tree-sitter-langs)
+#+end_src
+
 *** undo-tree
 #+begin_src emacs-lisp :lexical t
 
 (use-package undo-tree
+  :delight
   :custom
   (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
   (backup-directory-alist `(("." . "~/.emacs.d/.saves")))
@@ -1726,6 +1797,7 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 (use-package yasnippet
+  :delight yas-minor-mode
   :config
   (yas-global-mode 1)
   )
@@ -1745,6 +1817,7 @@ This is for when I accidentally make a column in org mode
 *** zoom
 #+begin_src emacs-lisp :lexical t
 (use-package zoom
+  :delight
   :custom
   (zoom-mode t)
   (zoom-size '(0.618 . 0.618))
