@@ -40,7 +40,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
    (lambda ()
      (setq file-name-handler-alist default-file-name-handler-alist
            gc-cons-percentage 0.1
-           gc-cons-threshold 100000000)
+           gc-cons-threshold 800000)
      (message "gc-cons-threshold & file-name-handler-alist restored")
      (when (boundp 'after-focus-change-function)
        (add-function :after after-focus-change-function #'+gc-after-focus-change)))))
@@ -349,11 +349,13 @@ ELP is useful for seeing which functions in a package are "hot".
 
 (defun my-minibuffer-setup-hook ()
   "Set high gc when minibuffer is open."
-  (setq gc-cons-threshold (* 256 1024 1024)))
+  (setq gc-cons-threshold (* 256 1024 1024))
+  (setq gc-cons-percentage 1))
 
 (defun my-minibuffer-exit-hook ()
   "Set low GC when minibuffer exits."
-  (setq gc-cons-threshold 800000))
+  (setq gc-cons-threshold 800000)
+  (setq gc-cons-percentage 0.1))
 
 (add-hook 'minibuffer-setup-hook 'my-minibuffer-setup-hook)
 (add-hook 'minibuffer-exit-hook 'my-minibuffer-exit-hook)
@@ -516,6 +518,11 @@ This is for when I accidentally make a column in org mode
   :config
   (counsel-mode)
   )
+#+end_src
+
+*** csv
+#+begin_src emacs-lisp :lexical t 
+  (use-package csv-mode)
 #+end_src
 
 *** dashboard
@@ -736,6 +743,24 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 (use-package indent-bars
+  :custom
+  (indent-bars-treesit-support t)
+  (indent-bars-no-descend-string t)
+ ;; (indent-bars-treesit-ignore-blank-lines-types '("module"))
+  (indent-bars-treesit-wrap '((python
+                               argument_list
+                               attribute
+                               assignment
+                               identifier
+                               parameters
+                               list
+                               list_comprehension
+                               dictionary
+                               dictionary_comprehension
+                               parenthesized_expression
+                               call
+                               expression_statement
+                               subscript)))
   :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
   :defer t
   :hook (prog-mode . indent-bars-mode)
@@ -746,7 +771,7 @@ This is for when I accidentally make a column in org mode
    indent-bars-width-frac 0.3
    indent-bars-pad-frac 0.1
    indent-bars-display-on-blank-lines t
-   indent-tabs-mode nil)  
+   indent-tabs-mode nil)
   ) ; or whichever modes you prefer
 
 ;; (use-package highlight-indent-guides
