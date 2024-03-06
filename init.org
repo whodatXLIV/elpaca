@@ -40,7 +40,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
    (lambda ()
      (setq file-name-handler-alist default-file-name-handler-alist
            gc-cons-percentage 0.1
-           gc-cons-threshold 800000)
+           gc-cons-threshold 16777216)
      (message "gc-cons-threshold & file-name-handler-alist restored")
      (when (boundp 'after-focus-change-function)
        (add-function :after after-focus-change-function #'+gc-after-focus-change)))))
@@ -90,21 +90,6 @@ ELP is useful for seeing which functions in a package are "hot".
   (elp-instrument-package file))
 (add-hook 'elpaca-after-init-hook
           (lambda () (elp-results) (elp-restore-package (intern file))))
-#+end_src
-
-** theme and font
-#+begin_src emacs-lisp :lexical t
-(setq custom-theme-directory "~/.emacs.d/themes/")
-(add-to-list 'load-path custom-theme-directory)
-(load-theme 'base16-chalk t)
-(global-hl-line-mode 1)
-(set-face-attribute 'hl-line nil :inherit nil :background "gray6")
-
-(add-to-list 'default-frame-alist
-             '(font . "Hack-12"))
-
-(tool-bar-mode -1)
-(menu-bar-mode -1)
 #+end_src
 
 ** elpaca and preloads
@@ -206,7 +191,6 @@ ELP is useful for seeing which functions in a package are "hot".
   
 #+end_src
 
-
 *** general for keybindings
 #+begin_src emacs-lisp :lexical t
 (use-package general
@@ -216,6 +200,25 @@ ELP is useful for seeing which functions in a package are "hot".
   (general-override-mode)
   (general-auto-unbind-keys)
   )
+#+end_src
+
+** theme and font
+#+begin_src emacs-lisp :lexical t
+;; (setq custom-theme-directory "~/.emacs.d/themes/")
+;; (add-to-list 'load-path custom-theme-directory)
+;; (load-theme 'base16-chalk t)
+(use-package color-theme-sanityinc-tomorrow
+  :config
+  (setq custom-safe-themes t)   ; Treat all themes as safe
+  (color-theme-sanityinc-tomorrow-night)
+  (global-hl-line-mode 1)
+  (set-face-attribute 'hl-line nil :inherit nil :background "gray6")
+  (add-to-list 'default-frame-alist
+               '(font . "Hack-12"))
+  (tool-bar-mode -1)
+  (menu-bar-mode -1)
+  )
+
 (elpaca-wait)
 
 #+end_src
@@ -225,10 +228,6 @@ ELP is useful for seeing which functions in a package are "hot".
 #+begin_src emacs-lisp :lexical t
 (global-display-line-numbers-mode t)
 (show-paren-mode 1)
-
-;; highlight line with the cursor, preserving the colours.
-(global-hl-line-mode 1)
-(set-face-attribute 'hl-line nil :inherit nil :background "gray6")
 
 (setq-default indent-tabs-mode nil)
 (setq-default tab-width 4)
@@ -354,7 +353,7 @@ ELP is useful for seeing which functions in a package are "hot".
 
 (defun my-minibuffer-exit-hook ()
   "Set low GC when minibuffer exits."
-  (setq gc-cons-threshold 800000)
+  (setq gc-cons-threshold 16777216)
   (setq gc-cons-percentage 0.1))
 
 (add-hook 'minibuffer-setup-hook 'my-minibuffer-setup-hook)
@@ -475,6 +474,7 @@ This is for when I accidentally make a column in org mode
 *** company
 #+begin_src emacs-lisp :lexical t
 (use-package company
+  :delight
   :hook ((prog-mode org-mode) . company-mode)
   :custom
   (company-idle-delay 0.5)
@@ -514,7 +514,7 @@ This is for when I accidentally make a column in org mode
            "C-h v"  'counsel-describe-variable
            "C-h i"  'counsel-info-lookup-symbol
            )
-  :diminish ""
+  :delight
   :config
   (counsel-mode)
   )
@@ -710,6 +710,7 @@ This is for when I accidentally make a column in org mode
                                     :mccabe (:enabled :json-false)
                                     ))
                          ))
+  (setq eldoc-echo-area-use-multiline-p nil)
   (require 'flycheck-eglot)
   (global-flycheck-eglot-mode 1)
   )
@@ -743,24 +744,7 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 (use-package indent-bars
-  :custom
-  (indent-bars-treesit-support t)
-  (indent-bars-no-descend-string t)
- ;; (indent-bars-treesit-ignore-blank-lines-types '("module"))
-  (indent-bars-treesit-wrap '((python
-                               argument_list
-                               attribute
-                               assignment
-                               identifier
-                               parameters
-                               list
-                               list_comprehension
-                               dictionary
-                               dictionary_comprehension
-                               parenthesized_expression
-                               call
-                               expression_statement
-                               subscript)))
+
   :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
   :defer t
   :hook (prog-mode . indent-bars-mode)
@@ -772,7 +756,29 @@ This is for when I accidentally make a column in org mode
    indent-bars-pad-frac 0.1
    indent-bars-display-on-blank-lines t
    indent-tabs-mode nil)
+
+  (setq indent-bars-treesit-support t)
+  (setq indent-bars-no-descend-string t)
+  (setq indent-bars-treesit-ignore-blank-lines-types '("module" "call"))
+  (setq indent-bars-treesit-wrap '((python
+                                    argument_list
+                                    attribute
+                                    assignment
+                                    identifier
+                                    parameters
+                                    list
+                                    list_comprehension
+                                    dictionary
+                                    dictionary_comprehension
+                                    parenthesized_expression
+                                    call
+                                    expression_statement
+                                    subscript)))
+  
   ) ; or whichever modes you prefer
+
+
+
 
 ;; (use-package highlight-indent-guides
 ;; :hook (prog-mode . highlight-indent-guides-mode)
@@ -839,7 +845,7 @@ This is for when I accidentally make a column in org mode
   ;; default pattern ignores order.
   (setf (cdr (assoc t ivy-re-builders-alist))
 	'ivy--regex-ignore-order)
-  :diminish ""
+  :delight
   :config  
   (ivy-mode t)
   )
@@ -881,6 +887,14 @@ This is for when I accidentally make a column in org mode
 
 
 #+end_src
+
+*** markdown mode
+#+begin_src emacs-lisp :lexical t
+
+(use-package markdown-mode)
+  
+#+end_src
+
 
 *** Multiple cursors
 #+begin_src emacs-lisp :lexical t
@@ -987,41 +1001,49 @@ This is for when I accidentally make a column in org mode
   :defer t
   :custom-face
   (org-block   ((t (:background "gray10" :extend t))))
-  (org-block-begin-line   ((t (:inherit org-block :background "#1d2021" :foreground "#d9b466" :extend t))))
-  (org-block-end-line     ((t (:inherit org-block-begin-line :foreground "#6b7d70"))))
-  (org-document-info      ((t (:foreground "#d5c4a1" :weight bold))))
-  (org-document-info-keyword    ((t (:inherit shadow))))
-  (org-document-title     ((t (:foreground "#fbf1c7" :weight bold :height 1.4))))
-  (org-meta-line          ((t (:inherit shadow))))
-  (org-target             ((t (:height 0.7 :inherit shadow))))
-  (org-link               ((t (:foreground "#b8bb26" :background "#32302f" :overline nil))))  ;; 
-  (org-indent             ((t (:inherit org-hide))))
-  (org-indent             ((t (:inherit (org-hide fixed-pitch)))))
-  (org-footnote           ((t (:foreground "#8ec07c" :background "#32302f" :overline nil))))
-  (org-ref-cite-face      ((t (:foreground "#fabd2f" :background "#32302f" :overline nil))))  ;; 
-  (org-ref-ref-face       ((t (:foreground "#83a598" :background "#32302f" :overline nil))))
-  (org-ref-label-face     ((t (:inherit shadow :box t))))
+  (org-block-begin-line   ((t (:inherit org-block :background "gray20" :foreground "#d9b466" :extend t))))
+  (org-block-end-line     ((t (:inherit org-block-begin-line :background "gray10" :foreground "#d9b466" :extend t))))
+  ;; (org-document-info      ((t (:foreground "#d5c4a1" :weight bold))))
+  ;; (org-document-info-keyword    ((t (:inherit shadow))))
+  ;; (org-document-title     ((t (:foreground "#fbf1c7" :weight bold :height 1.4))))
+  ;; (org-meta-line          ((t (:inherit shadow))))
+  ;; (org-target             ((t (:height 0.7 :inherit shadow))))
+  ;; (org-link               ((t (:foreground "#b8bb26" :background "#32302f" :overline nil))))  ;; 
+  ;; (org-indent             ((t (:inherit org-hide))))
+  ;; (org-indent             ((t (:inherit (org-hide fixed-pitch)))))
+  ;; (org-footnote           ((t (:foreground "#8ec07c" :background "#32302f" :overline nil))))
+  ;; (org-ref-cite-face      ((t (:foreground "#fabd2f" :background "#32302f" :overline nil))))  ;; 
+  ;; (org-ref-ref-face       ((t (:foreground "#83a598" :background "#32302f" :overline nil))))
+  ;; (org-ref-label-face     ((t (:inherit shadow :box t))))
   (org-drawer             ((t (:inherit shadow))))
-  (org-property-value     ((t (:inherit org-document-info))) t)
-  (org-tag                ((t (:inherit shadow))))
-  (org-date               ((t (:foreground "#83a598" :underline t))))
-  (org-verbatim           ((t (:inherit org-block :background "#3c3836" :foreground "#d5c4a1"))))
-  (org-code               ((t (:inherit org-verbatim :background "#181818" :foreground "#90d1fc"))))
-  (org-quote              ((t (:inherit org-block :slant italic))))
-  (org-level-1            ((t (:background "#181818" :weight bold :height 1.3 :overline nil :underline t :extend t)))) ;; Blue :foreground "#3375a8"
-  (org-level-2            ((t (:foreground "#8ec07c" :background "#181818" :weight bold :height 1.2 :overline nil :extend t)))) ;; Aqua
-  (org-level-3            ((t (:foreground "#b8bb26" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Green
-  (org-level-4            ((t (:foreground "#fabd2f" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Yellow
-  (org-level-5            ((t (:foreground "#fe8019" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Orange
-  (org-level-6            ((t (:foreground "#fb4934" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Red
-  (org-level-7            ((t (:foreground "#d3869b" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Blue
-  (org-level-8            ((t (:background "#181818" :weight bold :height 1.1 :overline nil :extend t))))
-  (org-headline-done      ((t (:foreground "#5ca637" :background "#181818" :weight bold :overline nil :extend t)))) ;; Gray
-  (org-headline-todo      ((t (:foreground "#d45555" :background "#181818" :weight bold :overline nil :extend t)))) ;; Gray
-  (org-ellipsis           ((t (:inherit shadow :height 1.0 :weight bold :extend t))))
-  (org-latex-and-related  ((t (:inherit org-block :extend t))))                                                   
-  (org-table              ((t (:foreground "#d5c4a1" ))))
-  (org-checkbox           ((t (:foreground "#ffc4a1" :height 1.3))))
+  ;; (org-property-value     ((t (:inherit org-document-info))) t)
+  ;; (org-tag                ((t (:inherit shadow))))
+  ;; (org-date               ((t (:foreground "#83a598" :underline t))))
+  ;; (org-verbatim           ((t (:inherit org-block :background "#3c3836" :foreground "#d5c4a1"))))
+  ;; (org-code               ((t (:inherit org-verbatim :background "#181818" :foreground "#90d1fc"))))
+  ;; (org-quote              ((t (:inherit org-block :slant italic))))
+  ;; (org-level-1            ((t (:background "#181818" :weight bold :height 1.3 :overline nil :underline t :extend t)))) ;; Blue :foreground "#3375a8"
+  ;; (org-level-2            ((t (:foreground "#8ec07c" :background "#181818" :weight bold :height 1.2 :overline nil :extend t)))) ;; Aqua
+  ;; (org-level-3            ((t (:foreground "#b8bb26" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Green
+  ;; (org-level-4            ((t (:foreground "#fabd2f" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Yellow
+  ;; (org-level-5            ((t (:foreground "#fe8019" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Orange
+  ;; (org-level-6            ((t (:foreground "#fb4934" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Red
+  ;; (org-level-7            ((t (:foreground "#d3869b" :background "#181818" :weight bold :height 1.1 :overline nil :extend t)))) ;; Blue
+  ;; (org-level-8            ((t (:background "#181818" :weight bold :height 1.1 :overline nil :extend t))))
+  (org-level-1            ((t (:weight bold :height 1.2 :overline nil :underline t :extend t)))) ;; Blue :foreground "#3375a8"
+  (org-level-2            ((t (:weight bold :height 1.2 :overline nil :extend t)))) ;; Aqua
+  (org-level-3            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Green
+  (org-level-4            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Yellow
+  (org-level-5            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Orange
+  (org-level-6            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Red
+  (org-level-7            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Blue
+  (org-level-8            ((t (:weight bold :height 1.1 :overline nil :extend t))))
+  ;; (org-headline-done      ((t (:foreground "#5ca637" :background "#181818" :weight bold :overline nil :extend t)))) ;; Gray
+  ;; (org-headline-todo      ((t (:foreground "#d45555" :background "#181818" :weight bold :overline nil :extend t)))) ;; Gray
+  ;; (org-ellipsis           ((t (:inherit shadow :height 1.0 :weight bold :extend t))))
+  ;; (org-latex-and-related  ((t (:inherit org-block :extend t))))                                                   
+  ;; (org-table              ((t (:foreground "#d5c4a1" ))))
+  ;; (org-checkbox           ((t (:foreground "#ffc4a1" :height 1.3))))
   ;;;                                )
   :config
   (setq-local line-spacing 0.1)
@@ -1122,6 +1144,39 @@ This is for when I accidentally make a column in org mode
   )
 
 
+#+end_src
+
+*** posframe
+#+begin_src emacs-lisp :lexical t
+(use-package company-posframe
+  :delight
+  :config
+  (company-posframe-mode 1)
+  :general-config
+  (:keymap 'company-active-map
+           "H-<tab>" 'company-posframe-quickhelp-toggle
+           "H-p" 'company-posframe-quickhelp-scroll-up
+           "H-n" 'company-posframe-quickhelp-scroll-down)
+  ;; Quickhelp keys.
+  )
+(use-package ivy-posframe
+  :delight
+  :config
+  (setq ivy-posframe-display-functions-alist
+        '(
+          (swiper          . ivy-display-function-fallback)
+          ;; (complete-symbol . ivy-posframe-display-at-point)
+          (counsel-M-x     . ivy-posframe-display-at-point)
+          (t               . ivy-posframe-display-at-point)))
+  
+  ;; Different command can use different display function.
+  (setq ivy-posframe-height-alist '((swiper . 10)
+                                    (t      . 20)))
+  (setq ivy-posframe-parameters
+        '((left-fringe . 10)
+          (right-fringe . 10)))
+  (ivy-posframe-mode 1)
+  )
 #+end_src
 
 *** projectile
@@ -1490,6 +1545,7 @@ This is for when I accidentally make a column in org mode
 *** sideline mode
 #+begin_src emacs-lisp :lexical t
 (use-package sideline
+  :delight
   :hook (
          (flycheck-mode . sideline-mode)  
          (flymake-mode  . sideline-mode)
@@ -1515,16 +1571,16 @@ This is for when I accidentally make a column in org mode
 
 #+end_src
 
-
 *** smart-mode-line
 #+begin_src emacs-lisp :lexical t
 
 (use-package smart-mode-line
   :delight
   :config
-  (sml/setup)
   (setq sml/name-width 50
         sml/mode-width 50)
+  (setq sml/theme 'respectful)
+  (sml/setup)
   )
   
 #+end_src
@@ -1534,7 +1590,7 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 (use-package smartparens
-  :diminish 
+  :delight
   :config
   (require 'smartparens-config)
   (smartparens-global-mode t)
@@ -1576,7 +1632,7 @@ This is for when I accidentally make a column in org mode
   (defadvice swiper-all (before dotemacs activate)
     (setq gc-cons-threshold most-positive-fixnum))
 
-  :diminish ivy-mode
+  :delight
   :general-config
   (:keymap 'override
            "C-s" 'swiper
@@ -1862,3 +1918,6 @@ This is for when I accidentally make a column in org mode
 
 
 #+end_src
+
+** 
+
