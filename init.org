@@ -210,11 +210,11 @@ ELP is useful for seeing which functions in a package are "hot".
 (use-package color-theme-sanityinc-tomorrow
   :config
   (setq custom-safe-themes t)   ; Treat all themes as safe
-  (color-theme-sanityinc-tomorrow-night)
+  (color-theme-sanityinc-tomorrow-bright)
   (global-hl-line-mode 1)
   (set-face-attribute 'hl-line nil :inherit nil :background "gray6")
   (add-to-list 'default-frame-alist
-               '(font . "Hack-12"))
+               '(font . "Hack-12")) 
   (tool-bar-mode -1)
   (menu-bar-mode -1)
   )
@@ -473,25 +473,41 @@ This is for when I accidentally make a column in org mode
 
 *** company
 #+begin_src emacs-lisp :lexical t
+
 (use-package company
   :delight
   :hook ((prog-mode org-mode) . company-mode)
-  :custom
-  (company-idle-delay 0.5)
-  (company-minimum-prefix-length 2)
-  (company-require-match 'never)
-  (company-show-numbers t)
-  (company-tooltip-limit 20)
-  (company-dabbrev-downcase nil)
-  (company-dabbrev-ignore-case t)
-  (company-dabbrev-code-ignore-case t)
-  (company-dabbrev-code-everywhere t)
-  (company-etags-ignore-case t)
+  :custom-face
+  (company-preview                      ((t (:background "gray10" :foreground "#c397d8" :extend t))))
+  (company-preview-common               ((t (:inherit company-preview :foreground "#c397d8" :extend t))))
+  (company-preview-search               ((t (:inherit company-preview :foreground "#7aa6da" :extend t))))
+  (company-tooltip                      ((t (:background "gray10" :foreground "#eaeaea" :extend t))))
+  (company-tooltip-selection            ((t (:background "gray10" :foreground "#969896" :extend t))))
+  (company-tooltip-common               ((t (:inherit company-tooltip :foreground "#c397d8" :extend t))))
+  (company-tooltip-common-selection     ((t (:inherit company-tooltip-selection :foreground "#c397d8" :extend t))))
+  (company-tooltip-search               ((t (:inherit company-tooltip :foreground "#7aa6da" :extend t))))
+  (company-tooltip-annotation           ((t (:inherit company-tooltip :foreground "#70c0b1" :extend t))))
+  (company-tooltip-annotation-selection ((t (:inherit company-tooltip-selection :foreground "#70c0b1" :extend t))))
+  (company-echo-common                  ((t (:inherit company-echo :foreground "#c397d8" :extend t))))
+ 
+  :config
+  (setq company-tooltip-align-annotations t)
+  (setq company-idle-delay 1)
+  (setq company-tooltip-idle-delay 2)
+  (setq company-minimum-prefix-length 0)
+  (setq company-require-match 'never)
+  (setq company-show-numbers t)
+  (setq company-tooltip-limit 20)
+  (setq company-dabbrev-downcase nil)
+  (setq company-dabbrev-ignore-case t)
+  (setq company-dabbrev-code-ignore-case t)
+  (setq company-dabbrev-code-everywhere t)
+  (setq company-etags-ignore-case t)
   :general-config
   (:keymap 'override
            "C-<tab>" #'company-other-backend)
-;  :config
-;  (global-company-mode 1)
+                                        ;  :config
+                                        ;  (global-company-mode 1)
   )
 
 #+end_src
@@ -565,6 +581,9 @@ This is for when I accidentally make a column in org mode
 ;; (all-the-icons-install-fonts)
 (use-package dired-subtree
   :after dired
+  :custom-face
+  (dired-directory ((t (:foreground "#97c8f7" :extend t)))) 
+  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
   ;; :defer t
   :config
   (define-key dired-mode-map (kbd "H-r") 'dired-subtree-remove)
@@ -757,6 +776,16 @@ This is for when I accidentally make a column in org mode
    indent-bars-display-on-blank-lines t
    indent-tabs-mode nil)
 
+  ;; (setq
+  ;;  indent-bars-color '(highlight :face-bg t :blend 0.1)
+  ;;  indent-bars-pattern ". . . . . . . . ."
+  ;;  indent-bars-width-frac 0.1
+  ;;  indent-bars-pad-frac 0.1
+  ;;  indent-bars-zigzag nil
+  ;;  indent-bars-color-by-depth '(:regexp "outline-\\([0-9]+\\)" :blend 1) ; blend=1: blend with BG only
+  ;;  indent-bars-highlight-current-depth '(:blend 1) ; pump up the BG blend on current
+  ;;  indent-bars-display-on-blank-lines t)
+
   (setq indent-bars-treesit-support t)
   (setq indent-bars-no-descend-string t)
   (setq indent-bars-treesit-ignore-blank-lines-types '("module" "call"))
@@ -895,7 +924,6 @@ This is for when I accidentally make a column in org mode
   
 #+end_src
 
-
 *** Multiple cursors
 #+begin_src emacs-lisp :lexical t
 (use-package multiple-cursors
@@ -949,9 +977,10 @@ This is for when I accidentally make a column in org mode
       (beginning-of-line)
 
       (when (not (or
-                  (looking-at "[[:space:]]*$")
+;;                  (looking-at "[[:space:]]*$")
                   (looking-at "#\\+LASTRUN:")))
         (forward-line 1)
+;;        (newline)
         (newline)
         (forward-line -1))
       (when (looking-at "#\\+LASTRUN:")
@@ -1001,8 +1030,8 @@ This is for when I accidentally make a column in org mode
   :defer t
   :custom-face
   (org-block   ((t (:background "gray10" :extend t))))
-  (org-block-begin-line   ((t (:inherit org-block :background "gray20" :foreground "#d9b466" :extend t))))
-  (org-block-end-line     ((t (:inherit org-block-begin-line :background "gray10" :foreground "#d9b466" :extend t))))
+  (org-block-begin-line   ((t (:inherit org-block :background "#1b2419" :foreground "#876716" :extend t))))
+  (org-block-end-line     ((t (:inherit org-block-begin-line :background "gray10" :foreground "#876716" :extend t))))
   ;; (org-document-info      ((t (:foreground "#d5c4a1" :weight bold))))
   ;; (org-document-info-keyword    ((t (:inherit shadow))))
   ;; (org-document-title     ((t (:foreground "#fbf1c7" :weight bold :height 1.4))))
@@ -1161,6 +1190,8 @@ This is for when I accidentally make a column in org mode
   )
 (use-package ivy-posframe
   :delight
+  :custom-face
+  (ivy-posframe ((t (:background "gray10" :extend t)))) 
   :config
   (setq ivy-posframe-display-functions-alist
         '(
