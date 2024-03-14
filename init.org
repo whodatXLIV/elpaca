@@ -179,11 +179,9 @@ ELP is useful for seeing which functions in a package are "hot".
 
 #+begin_src emacs-lisp :lexical t
 (use-package transient
-
   :after seq
   )
 (use-package git-commit
-
   :after transient
   )
 
@@ -261,15 +259,20 @@ ELP is useful for seeing which functions in a package are "hot".
 *** Mac os use meta
 #+begin_src emacs-lisp :lexical t
 
+  ;; :defer t
+  ;; :hook after-init-hook
+
+
 (use-package exec-path-from-shell
+  :if (memq window-system '(mac ns))
+  :ensure t
   :config
-  (when (memq window-system '(mac ns x))
-    (setq exec-path-from-shell-arguments (list "-l" "-i")) ;; (list "-l" "-i")
-    (exec-path-from-shell-initialize)
-    (setq mac-option-modifier 'hyper)
-    (setq mac-command-modifier 'meta)
-    (setq mac-right-option-modifier 'super)
-    ))
+  (setq exec-path-from-shell-arguments (list "-l" "-i")) ;; (list "-l" "-i")
+  ;; (exec-path-from-shell-initialize)
+  (setq mac-option-modifier 'hyper)
+  (setq mac-command-modifier 'meta)
+  (setq mac-right-option-modifier 'super)
+  )
 
 
 #+end_src
@@ -393,14 +396,11 @@ This is for when I accidentally make a column in org mode
 *** tramp
 #+begin_src emacs-lisp :lexical t
 (use-feature tramp
-  :config
+  :init
   (setq tramp-default-remote-shell "/usr/bin/zsh") 
   (with-eval-after-load "tramp" (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
   (setq shell-file-name "/bin/bash")
   )
-
-
-
 #+end_src
 
 ** Install Packages
@@ -410,6 +410,7 @@ This is for when I accidentally make a column in org mode
 
 (use-package ace-window
   :delight
+  :bind ("H-SPC" . ace-window)
   :custom
   (aw-dispatch-always t)
   :init
@@ -426,24 +427,14 @@ This is for when I accidentally make a column in org mode
       (?o delete-other-windows "Delete Other Windows")
       (?? aw-show-dispatch-help))
     "List of actions for `aw-dispatch-default'.")
-  :general-config
-  (:keymap 'override
-           "H-SPC" 'ace-window)
   )
-
-
-
-
-
 #+end_src
 
 **** jump mode
 #+begin_src emacs-lisp :lexical t
 (use-package ace-jump-mode
   :delight
-  :general-config
-  (:keymap 'override
-           "H-j" 'ace-jump-mode)
+  :bind ("H-j" . ace-jump-mode)
   )
 #+end_src
 
@@ -451,9 +442,7 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-package ace-mc
   :delight
-  :after (ace-jump-mode multiple-cursors)
-  :general-config
-  ("H-;" 'ace-mc-add-multiple-cursors)
+  :bind ("H-;" . ace-mc-add-multiple-cursors)
   )
 #+end_src
 
@@ -476,6 +465,7 @@ This is for when I accidentally make a column in org mode
 
 (use-package company
   :delight
+  :bind ("C-<tab>" . company-other-backend)
   :hook ((prog-mode org-mode) . company-mode)
   :custom-face
   (company-preview                      ((t (:background "gray10" :foreground "#c397d8" :extend t))))
@@ -489,11 +479,10 @@ This is for when I accidentally make a column in org mode
   (company-tooltip-annotation           ((t (:inherit company-tooltip :foreground "#70c0b1" :extend t))))
   (company-tooltip-annotation-selection ((t (:inherit company-tooltip-selection :foreground "#70c0b1" :extend t))))
   (company-echo-common                  ((t (:inherit company-echo :foreground "#c397d8" :extend t))))
- 
-  :config
+  :init
   (setq company-tooltip-align-annotations t)
-  (setq company-idle-delay 1)
-  (setq company-tooltip-idle-delay 2)
+  (setq company-idle-delay nil)
+  (setq company-tooltip-idle-delay 1)
   (setq company-minimum-prefix-length 0)
   (setq company-require-match 'never)
   (setq company-show-numbers t)
@@ -503,11 +492,6 @@ This is for when I accidentally make a column in org mode
   (setq company-dabbrev-code-ignore-case t)
   (setq company-dabbrev-code-everywhere t)
   (setq company-etags-ignore-case t)
-  :general-config
-  (:keymap 'override
-           "C-<tab>" #'company-other-backend)
-                                        ;  :config
-                                        ;  (global-company-mode 1)
   )
 
 #+end_src
@@ -516,20 +500,17 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 (use-package counsel
-  :init
-  (require 'ivy)
-  :general-config
-  (:keymap 'override
-           "M-x"  'counsel-M-x
-           "C-x b"  'ivy-switch-buffer
-           "C-x C-b"  'counsel-ibuffer
-           "C-x C-f"  'counsel-find-file
-           "C-x f"  'counsel-recentf
-           "C-x C-a"  'counsel-ag
-           "C-h f"  'counsel-describe-function
-           "C-h v"  'counsel-describe-variable
-           "C-h i"  'counsel-info-lookup-symbol
-           )
+  :bind (
+         ("M-x" . counsel-M-x)
+         ("C-x b" . ivy-switch-buffer)
+         ("C-x C-b" . counsel-ibuffer)
+         ("C-x C-f" . counsel-find-file)
+         ("C-x f" . counsel-recentf)
+         ("C-x C-a" . counsel-ag)
+         ("C-h f" . counsel-describe-function)
+         ("C-h v" . counsel-describe-variable)
+         ("C-h i" . counsel-info-lookup-symbol)
+         )
   :delight
   :config
   (counsel-mode)
@@ -538,7 +519,9 @@ This is for when I accidentally make a column in org mode
 
 *** csv
 #+begin_src emacs-lisp :lexical t 
-  (use-package csv-mode)
+  (use-package csv-mode
+    :mode "\\.csv\\'"
+    )
 #+end_src
 
 *** dashboard
@@ -569,44 +552,37 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 (use-package all-the-icons
-  ;; :defer t
-  ;;      :hook dired-mode
   )
 (use-package all-the-icons-dired
   :custom
   (all-the-icons-dired-monochrome nil)
-  :hook dired-mode
-  ;; :defer t
   )
 ;; (all-the-icons-install-fonts)
 (use-package dired-subtree
-  :after dired
   :custom-face
   (dired-directory ((t (:foreground "#97c8f7" :extend t)))) 
   (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
-  ;; :defer t
-  :config
-  (define-key dired-mode-map (kbd "H-r") 'dired-subtree-remove)
-  (define-key dired-mode-map (kbd "<tab>") 'dired-subtree-toggle)
-  (define-key dired-mode-map (kbd "H-p") 'dired-subtree-up)
-  (define-key dired-mode-map (kbd "H-n") 'dired-subtree-down)
-  (define-key dired-mode-map (kbd "H-<up>") 'dired-subtree-beginning)
-  (define-key dired-mode-map (kbd "H-<down>") 'dired-subtree-end)
-  (define-key dired-mode-map (kbd "H-m") 'dired-subtree-mark-subtree)
-  (define-key dired-mode-map (kbd "H-u") 'dired-subtree-unmark-subtree)
-
+  :bind (
+         :map dired-mode-map
+              ("H-r" . dired-subtree-remove)
+              ("<tab>" . dired-subtree-toggle)
+              ("H-p" . dired-subtree-up)
+              ("H-n" . dired-subtree-down)
+              ("H-<up>" . dired-subtree-beginning)
+              ("H-<down>" . dired-subtree-end)
+              ("H-m" . dired-subtree-mark-subtree)
+              ("H-u" . dired-subtree-unmark-subtree)           
+              )
+  
   )
 (use-package dired-filter
-  :hook dired-mode
-  ;; :defer t
   :custom
   (dired-listing-switches "-alogh")
   )
+
 (use-feature dired
-  :general-config
-  (:keymap 'override
-           "C-x d" 'seth/dired-side-vc)
-  :config
+  :bind ("C-x d" . seth/dired-side-vc) 
+  :init
   (when (string= system-type "darwin")       
     (setq dired-use-ls-dired nil))
   (defun seth/dired-side--vc (directory)
@@ -668,11 +644,10 @@ This is for when I accidentally make a column in org mode
   :delight
   :config
   (drag-stuff-global-mode 1)
-  :general-config
-  (:keymap 'override             
-           "<C-M-down>" 'drag-stuff-down
-           "<C-M-up>" 'drag-stuff-up
-           )
+  :bind (
+         ("C-M-<down>" . drag-stuff-down)
+         ("C-M-<up>" . drag-stuff-up)  
+         )
   )
 #+end_src
 
@@ -683,7 +658,6 @@ This is for when I accidentally make a column in org mode
   :delight
   :custom
   (xref-show-definitions-function #'xref-show-definitions-completing-read)
-  :after hydra
   :init (add-hook 'xref-backend-functions #'dumb-jump-xref-activate)
   :config
   (add-to-list 'dumb-jump-language-file-exts '(:language "python" :ext "org" :agtype "python" :rgtype "py"))
@@ -696,9 +670,7 @@ This is for when I accidentally make a column in org mode
     ("i" dumb-jump-go-prompt "Prompt")
     ("l" dumb-jump-quick-look "Quick look")
     ("b" dumb-jump-back "Back"))
-  :general-config
-  (:keymap 'override
-           "H-h ." 'dumb-jump-hydra/body)
+  :bind ("H-h ." . dumb-jump-hydra/body)
   )
 
 #+end_src
@@ -707,7 +679,7 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-package eglot
   :defer t
-  :config
+  :init
   (defun start-eglot-python (env)
     (interactive "sPython env: ")
     (let* (
@@ -730,14 +702,16 @@ This is for when I accidentally make a column in org mode
                                     ))
                          ))
   (setq eldoc-echo-area-use-multiline-p nil)
-  (require 'flycheck-eglot)
+  :config
   (global-flycheck-eglot-mode 1)
   )
 
 (use-package jsonrpc
+  :defer t
   )
 
 (use-package flycheck-eglot
+  :defer t
   )
 
 #+end_src
@@ -832,12 +806,11 @@ This is for when I accidentally make a column in org mode
      ))
   :config
   (global-hl-todo-mode)
-  :general-config
-  (:keymap 'override
-           "H-t t" 'hl-todo-insert
-           "H-t n" 'hl-todo-next
-           "H-t p" 'hl-todo-previous
-           )
+  :bind (
+         ("H-t t" . hl-todo-insert)
+         ("H-t n" . hl-todo-next)
+         ("H-t p" . hl-todo-previous)
+         )
   )
 #+end_src
 
@@ -847,14 +820,15 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 (use-package hydra
-  :init
-  (setq hydra-is-helpful t)
-  :config
-  (require 'hydra-ox))
-(use-package ivy-hydra)
+  :defer t
+  :custom
+  (hydra-is-helpful t)
+  )
+(use-package ivy-hydra
+  :defer t)
 
 (use-package pretty-hydra
-  :after hydra)
+  :defer t)
 #+end_src
 
 *** Ivy
@@ -873,10 +847,9 @@ This is for when I accidentally make a column in org mode
   (setq ivy-magic-slash-non-match-action 'ivy-magic-slash-non-match-create)
   ;; default pattern ignores order.
   (setf (cdr (assoc t ivy-re-builders-alist))
-	'ivy--regex-ignore-order)
+	    'ivy--regex-ignore-order)
   :delight
-  :config  
-  (ivy-mode t)
+  :defer t
   )
 #+end_src
 
@@ -884,6 +857,7 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 (use-package jupyter
+  :defer t
   :config
   (org-babel-do-load-languages
    'org-babel-load-languages
@@ -905,38 +879,35 @@ This is for when I accidentally make a column in org mode
 (use-package magit
   :delight
   :defer t
-  :init (setq magit-completing-read-function 'ivy-completing-read)
-  :general-config
-  (:keymap 'override
-           "C-x g" 'magit-status
-           )
-  :config
+  :bind ("C-x g" . magit-status)
+  :init
+  (setq magit-completing-read-function 'ivy-completing-read)
   (setenv "GIT_ASKPASS" "git-gui--askpass")
   )
-
-
 #+end_src
 
 *** markdown mode
 #+begin_src emacs-lisp :lexical t
 
-(use-package markdown-mode)
+(use-package markdown-mode
+  :defer t
+  )
   
 #+end_src
 
 *** Multiple cursors
 #+begin_src emacs-lisp :lexical t
 (use-package multiple-cursors
-  :general-config
-  (:keymap 'override
-           "H-<return> e" 'mc/edit-lines
-           "H-<return> m" 'mc/mark-more-like-this-extended
-           "H-<return> a" 'mc/mark-all-like-this
-           "H-<return> n" 'mc/insert-numbers
-           "H-<return> l" 'mc/insert-letters
-           )
-  ("C-;" 'mc-hide-unmatched-lines-mode)
-  )
+  :bind (         
+         ("H-<return> e" . mc/edit-lines)
+         ("H-<return> m" . mc/mark-more-like-this-extended)
+         ("H-<return> a" . mc/mark-all-like-this)
+         ("H-<return> n" . mc/insert-numbers)
+         ("H-<return> l" . mc/insert-letters)
+         :map mc/keymap
+         ("C-;" . mc-hide-unmatched-lines-mode)
+         )
+  ) 
 
 #+end_src
 
@@ -954,17 +925,16 @@ This is for when I accidentally make a column in org mode
   (org-log-done t)
   (org-return-follows-link t)
   (org-confirm-babel-evaluate nil)
-  :general-config
-  (:keymap 'org-mode-map
-           "C-M-<up>" 'org-shiftmetaup
-           "C-M-<down>" 'org-shiftmetadown
-           "C-M-<left>" 'org-shiftmetaleft
-           "C-M-<right>" 'org-shiftmetaright
-           "C-M-S-<left>" 'org-shiftcontrolleft
-           "C-M-S-<right>" 'org-shiftcontrolright
-           )
+  :bind (
+         :map org-mode-map
+              ("C-M-<up>" . org-shiftmetaup)
+              ("C-M-<down>" . org-shiftmetadown)
+              ("C-M-<left>" . org-shiftmetaleft)
+              ("C-M-<right>" . org-shiftmetaright)
+              ("C-M-S-<left>" . org-shiftcontrolleft)
+              ("C-M-S-<right>" . org-shiftcontrolright)
+              )
   :config
-
   (add-hook 'org-mode-hook (lambda ()
                              (setq-local seth-jupyter-execution-count 1)))
   (setq seth-jupyter-execution-count 1)
@@ -976,15 +946,10 @@ This is for when I accidentally make a column in org mode
       (forward-line -1)
       (beginning-of-line)
 
-      (when (not (or
-;;                  (looking-at "[[:space:]]*$")
-                  (looking-at "#\\+LASTRUN:")))
-        (forward-line 1)
-;;        (newline)
-        (newline)
-        (forward-line -1))
-      (when (looking-at "#\\+LASTRUN:")
-        (delete-region (pos-bol) (1- (pos-bol 2)))
+      (if (looking-at "#\\+LASTRUN:")
+          (delete-region (pos-bol) (1- (pos-bol 2)))
+        (open-line 1)
+        (next-line 1)
         )
       (insert (concat
                "#+LASTRUN: "
@@ -1138,7 +1103,6 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 (use-package popper
-
   :init
   (setq popper-group-function 'nil) ; projectile projects #'popper-group-by-projectile
   (setq popper-reference-buffers
@@ -1159,14 +1123,11 @@ This is for when I accidentally make a column in org mode
                   "^\\*vterm.*\\*$"  vterm-mode  ;vterm as a popup
                   "^\\*jupyter-repl*\\*$" jupyter-repl-mode
                   )))
-
-  :general-config
-  (:keymap 'override
-           "s-;" 'popper-toggle
-           "s-M-;" 'popper-cycle
-           "s-C-;" 'popper-toggle-type
-           )
-
+  :bind (
+         ("s-;" . popper-toggle)
+         ("s-M-;" . popper-cycle)
+         ("s-C-;" . popper-toggle-type)
+         )
   :config
   (popper-mode)
   (popper-echo-mode)                ; For echo area hints
@@ -1181,18 +1142,20 @@ This is for when I accidentally make a column in org mode
   :delight
   :config
   (company-posframe-mode 1)
-  :general-config
-  (:keymap 'company-active-map
-           "H-<tab>" 'company-posframe-quickhelp-toggle
-           "H-p" 'company-posframe-quickhelp-scroll-up
-           "H-n" 'company-posframe-quickhelp-scroll-down)
-  ;; Quickhelp keys.
+  :bind (
+         :map company-active-map
+              ("H-<tab>" . company-posframe-quickhelp-toggle)
+              ("H-p" . company-posframe-quickhelp-scroll-up)
+              ("H-n" . company-posframe-quickhelp-scroll-down)
+              )
   )
 (use-package ivy-posframe
   :delight
+  :defer t
+  :hook ((ivy-mode swiper-mode counsel-mode) . ivy-posframe-mode)
   :custom-face
   (ivy-posframe ((t (:background "gray10" :extend t)))) 
-  :config
+  :init
   (setq ivy-posframe-display-functions-alist
         '(
           (swiper          . ivy-display-function-fallback)
@@ -1206,7 +1169,6 @@ This is for when I accidentally make a column in org mode
   (setq ivy-posframe-parameters
         '((left-fringe . 10)
           (right-fringe . 10)))
-  (ivy-posframe-mode 1)
   )
 #+end_src
 
@@ -1226,13 +1188,13 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 (use-feature python
-  :defer t
-  :config
-  :general-config
-  (:keymaps 'python-mode-map
-            "H-<left>" 'python-indent-shift-left
-            "H-<right>" 'python-indent-shift-right
-            )
+  :mode ("\\.py\\'" . python-mode)
+  :interpreter ("python" . python-mode)
+  :bind (
+         :map python-mode-map
+              ("H-<left>" . python-indent-shift-left)
+              ("H-<right>" . python-indent-shift-right)
+         )
   )
 #+end_src
 
@@ -1254,6 +1216,7 @@ This is for when I accidentally make a column in org mode
            :local-repo "ox-clip"
            :files (:defaults)
            )
+  :defer t
   )
 
 (use-feature words
@@ -1264,27 +1227,18 @@ This is for when I accidentally make a column in org mode
            :local-repo "scimax"
            :files (:defaults (:exclude "*.org" "scimax.el" "bootstrap.el" "init.el" "packages.el" "scimax-evil.el" "debug-windows.el"))
            )
+  :defer t
   :init
   (defconst scimax-dir (file-name-directory "./elpaca/builds/scimax/"))  
   (add-to-list 'load-path scimax-dir)
-
-  :config
-  (require 'jupyter)
-  (require 'scimax-jupyter)
-  (require 'scimax-ivy)
-  (require 'scimax-yas)
-  (require 'scimax-ob)
-
-
-
+  
   ;; ** helper functions
 
   (defun /jupyter-clean-async--results ()
     "cleans drawer results for async jupyter code blocks"
     (search-forward "#+begin_example")
     (beginning-of-line)
-    (delete-region (pos-bol) (pos-bol 2))
-    
+    (delete-region (pos-bol) (pos-bol 2)) 
     (search-forward "#+end_example")
     (beginning-of-line)
     (delete-region (pos-bol) (pos-bol 2))
@@ -1321,6 +1275,7 @@ This is for when I accidentally make a column in org mode
         (beginning-of-line)
         (when (looking-at "#\\+LASTRUN:")
           (delete-region (pos-bol) (1- (pos-bol 2)))
+          (delete-line)
           )
         (forward-line 1)
         (org-babel-remove-result))))
@@ -1361,7 +1316,6 @@ This is for when I accidentally make a column in org mode
               (org-with-point-at (jupyter-org-request-marker req)
                 (org-babel-remove-result)))))
         args))
-
     (unless (advice-member-p #'/jupyter-remove-empty-async-results 'jupyter-handle-execute-reply)
       (advice-add 'jupyter-handle-execute-reply :filter-args #'/jupyter-remove-empty-async-results)))
 
@@ -1385,7 +1339,6 @@ This is for when I accidentally make a column in org mode
                   (seth-interrupt-kernel)))
               )))
         args))
-
     (unless (advice-member-p #'/jupyter-ansi-async-results 'jupyter-handle-execute-reply)
       (advice-add 'jupyter-handle-execute-reply :filter-args #'/jupyter-ansi-async-results)))
 
@@ -1409,100 +1362,6 @@ This is for when I accidentally make a column in org mode
 
     (unless (advice-member-p #'/jupyter-clean-async-results 'jupyter-handle-execute-reply)
       (advice-add 'jupyter-handle-execute-reply :filter-args #'/jupyter-clean-async-results)))
-
-  ;; jupyter nbconvert notebook.ipynb --to markdown
-  ;; pandoc notebook.md -o notebook.org
-
-  (add-hook 'jupyter-repl-mode-hook 'company-mode)
-  (add-hook 'jupyter-repl-mode-hook 'smartparens-mode)
-  (add-hook 'jupyter-repl-mode-hook ;; org mode
-            '(lambda ()
-               (local-set-key (kbd "H-h h") 'scimax-jupyter-org-hydra/body)
-               ))
-
-  (add-hook 'org-mode-hook ;; org mode
-            '(lambda ()
-               (define-key org-mode-map (kbd "H-h j") #'scimax-jupyter-org-hydra/body)
-               
-               (define-key jupyter-org-interaction-mode-map (kbd "H-<left>") #'python-indent-shift-left)
-               (define-key jupyter-org-interaction-mode-map (kbd "H-<right>") #'python-indent-shift-right)
-               (define-key jupyter-org-interaction-mode-map (kbd "C-<return>") #'jupyter-org-execute-and-next-block)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-p") #'org-babel-previous-src-block)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-n") #'org-babel-next-src-block)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-g") #'jupyter-org-jump-to-visible-block)              
-               (define-key jupyter-org-interaction-mode-map (kbd "s-e") #'scimax-jupyter-jump-to-error)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-<up>") #'jupyter-org-move-src-block)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-<down>") #'(lambda () (interactive) (jupyter-org-move-src-block t)))
-               (define-key jupyter-org-interaction-mode-map (kbd "s-x") #'jupyter-org-kill-block-and-results)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-c") #'jupyter-org-copy-block-and-results)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-o") #'(lambda () (interactive) (jupyter-org-clone-block t)))
-               (define-key jupyter-org-interaction-mode-map (kbd "s-m") #'jupyter-org-merge-blocks)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-s") #'jupyter-org-split-src-block)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-a") #'jupyter-org-insert-src-block)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-b") #'(lambda () (interactive) (jupyter-org-insert-src-block t)))
-               (define-key jupyter-org-interaction-mode-map (kbd "s-l") #'org-babel-remove-result)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-C-l") #'seth-clear-all-results)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-i") #'jupyter-org-inspect-src-block)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-<tab>") #'completion-at-point)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-z") #'org-babel-switch-to-session)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-u") #'jupyter-org-interrupt-kernel)
-               (define-key jupyter-org-interaction-mode-map (kbd "s-k") #'(lambda () (interactive) (progn (setq-local seth-jupyter-execution-count 1)
-                                                                                                          (scimax-jupyter-org-kill-kernel))))
-               (define-key jupyter-org-interaction-mode-map (kbd "s-r") #'(lambda () (interactive) (progn (setq-local seth-jupyter-execution-count 1)
-                                                                                                          (jupyter-org-with-src-block-client
-	                                                                                                       (jupyter-repl-restart-kernel)))))
-
-               (pretty-hydra-define scimax-jupyter-org-hydra (:color blue :hint nil)
-                 ("Execute"
-                  (
-                   ("<return>" nil "quit" :color red)
-                   ("C-c C-c" org-ctrl-c-ctrl-c "current" :color red)
-                   ("C-<return>" jupyter-org-execute-and-next-block "current and next" :color red)
-                   ("H-<return>" (progn (org-ctrl-c-ctrl-c) (scimax-ob-insert-src-block t)) "current and new" )
-                   ;; ("C-M-<return>" jupyter-org-execute-subtree "subtree")
-                   ("S-C-<return>" jupyter-org-restart-and-execute-to-point "restart to point")
-                   ("S-M-<return>" jupyter-org-restart-kernel-execute-buffer "restart buffer"))
-
-                  "Navigate"
-                  (("p" org-babel-previous-src-block "previous" :color red)
-                   ;; ("P" jupyter-org-previous-busy-src-block "previous busy")
-                   ("n" org-babel-next-src-block  "next" :color red)
-                   ;; ("N" jupyter-org-next-busy-src-block "next busy" :color red)
-                   ("g" jupyter-org-jump-to-visible-block "jump to visible src")
-                   ("G" jupyter-org-jump-to-block "jump to src block")
-                   ("e" scimax-jupyter-jump-to-error "Jump to error"))
-
-                  "Edit"
-                  (("<up>" jupyter-org-move-src-block "move up" :color red)
-                   ("<down>" (jupyter-org-move-src-block t) "move down" :color red)
-                   ("x" jupyter-org-kill-block-and-results "kill block")
-                   ("c" jupyter-org-copy-block-and-results "copy block")
-                   ("o" (jupyter-org-clone-block t) "clone")
-                   ("m" jupyter-org-merge-blocks "merge")
-                   ("s" jupyter-org-split-src-block "split")
-                   ("a" (jupyter-org-insert-src-block nil current-prefix-arg) "insert above")
-                   ("b" (jupyter-org-insert-src-block t current-prefix-arg) "insert below")
-                   ("l" org-babel-remove-result "clear result")
-                   ("L" seth-clear-all-results "clear all results")
-                   ("h" jupyter-org-edit-header "edit header"))
-
-                  "Misc"
-                  (("i" jupyter-org-inspect-src-block "inspect")
-                   ("<tab>" completion-at-point "Complete")
-                   
-                   ("O" scimax-ob/body "scimax-ob")
-                   ("E" ox-ipynb-export-to-ipynb-no-results-file-and-open "Export to ipynb no results")
-                   ("q" nil "quit"))
-                  
-                  "Kernel"
-                  (("s" org-babel-jupyter-scratch-buffer "scratch")
-                   ("z" org-babel-switch-to-session "REPL")
-                   ("u" jupyter-org-interrupt-kernel "interrupt")
-                   ("r" (progn (setq-local seth-jupyter-execution-count 1)
-                               (jupyter-org-with-src-block-client
-	                            (jupyter-repl-restart-kernel))) "restart")
-                   ("k" (progn (setq-local seth-jupyter-execution-count 1) (scimax-jupyter-org-kill-kernel)) "kill"))))
-               ))
 
   ;; * Numbered lines in code blocks
   (defvar number-line-overlays '()
@@ -1562,14 +1421,109 @@ This is for when I accidentally make a column in org mode
 					                            map))
 		           (add-to-list 'number-line-overlays ov))
                  (forward-line))))
-    (add-hook 'post-command-hook 'number-line-src-block nil 'local))
-  
-  :general-config
-  (:keymap 'override
-           "H-h w" 'words-hydra/body
-           )
-  )
+    
+    ;; (require 'jupyter)
+    ;; (require 'scimax-jupyter)
+    ;; (require 'scimax-ivy)
+    ;; (require 'scimax-yas)
+    ;; (require 'scimax-ob)
+    
+    ;; jupyter nbconvert notebook.ipynb --to markdown
+    ;; pandoc notebook.md -o notebook.org
 
+    (add-hook 'jupyter-repl-mode-hook 'company-mode)
+    (add-hook 'jupyter-repl-mode-hook 'smartparens-mode)
+    (add-hook 'jupyter-repl-mode-hook ;; org mode
+              '(lambda ()
+                 (local-set-key (kbd "H-h h") 'scimax-jupyter-org-hydra/body)
+                 ))
+
+    (add-hook 'org-mode-hook ;; org mode
+              '(lambda ()
+                 (define-key org-mode-map (kbd "H-h j") #'scimax-jupyter-org-hydra/body)
+                 (define-key jupyter-org-interaction-mode-map (kbd "H-<left>") #'python-indent-shift-left)
+                 (define-key jupyter-org-interaction-mode-map (kbd "H-<right>") #'python-indent-shift-right)
+                 (define-key jupyter-org-interaction-mode-map (kbd "C-<return>") #'jupyter-org-execute-and-next-block)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-p") #'org-babel-previous-src-block)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-n") #'org-babel-next-src-block)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-g") #'jupyter-org-jump-to-visible-block)              
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-e") #'scimax-jupyter-jump-to-error)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-<up>") #'jupyter-org-move-src-block)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-<down>") #'(lambda () (interactive) (jupyter-org-move-src-block t)))
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-x") #'jupyter-org-kill-block-and-results)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-c") #'jupyter-org-copy-block-and-results)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-o") #'(lambda () (interactive) (jupyter-org-clone-block t)))
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-m") #'jupyter-org-merge-blocks)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-s") #'jupyter-org-split-src-block)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-a") #'jupyter-org-insert-src-block)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-b") #'(lambda () (interactive) (jupyter-org-insert-src-block t)))
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-l") #'org-babel-remove-result)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-C-l") #'seth-clear-all-results)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-i") #'jupyter-org-inspect-src-block)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-<tab>") #'completion-at-point)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-z") #'org-babel-switch-to-session)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-u") #'jupyter-org-interrupt-kernel)
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-k") #'(lambda () (interactive) (progn (setq-local seth-jupyter-execution-count 1)
+                                                                                                            (scimax-jupyter-org-kill-kernel))))
+                 (define-key jupyter-org-interaction-mode-map (kbd "s-r") #'(lambda () (interactive) (progn (setq-local seth-jupyter-execution-count 1)
+                                                                                                            (jupyter-org-with-src-block-client
+	                                                                                                         (jupyter-repl-restart-kernel)))))
+
+                 (pretty-hydra-define scimax-jupyter-org-hydra (:color blue :hint nil)
+                   ("Execute"
+                    (
+                     ("<return>" nil "quit" :color red)
+                     ("C-c C-c" org-ctrl-c-ctrl-c "current" :color red)
+                     ("C-<return>" jupyter-org-execute-and-next-block "current and next" :color red)
+                     ("H-<return>" (progn (org-ctrl-c-ctrl-c) (scimax-ob-insert-src-block t)) "current and new" )
+                     ;; ("C-M-<return>" jupyter-org-execute-subtree "subtree")
+                     ("S-C-<return>" jupyter-org-restart-and-execute-to-point "restart to point")
+                     ("S-M-<return>" jupyter-org-restart-kernel-execute-buffer "restart buffer"))
+
+                    "Navigate"
+                    (("p" org-babel-previous-src-block "previous" :color red)
+                     ;; ("P" jupyter-org-previous-busy-src-block "previous busy")
+                     ("n" org-babel-next-src-block  "next" :color red)
+                     ;; ("N" jupyter-org-next-busy-src-block "next busy" :color red)
+                     ("g" jupyter-org-jump-to-visible-block "jump to visible src")
+                     ("G" jupyter-org-jump-to-block "jump to src block")
+                     ("e" scimax-jupyter-jump-to-error "Jump to error"))
+
+                    "Edit"
+                    (("<up>" jupyter-org-move-src-block "move up" :color red)
+                     ("<down>" (jupyter-org-move-src-block t) "move down" :color red)
+                     ("x" jupyter-org-kill-block-and-results "kill block")
+                     ("c" jupyter-org-copy-block-and-results "copy block")
+                     ("o" (jupyter-org-clone-block t) "clone")
+                     ("m" jupyter-org-merge-blocks "merge")
+                     ("s" jupyter-org-split-src-block "split")
+                     ("a" (jupyter-org-insert-src-block nil current-prefix-arg) "insert above")
+                     ("b" (jupyter-org-insert-src-block t current-prefix-arg) "insert below")
+                     ("l" org-babel-remove-result "clear result")
+                     ("L" seth-clear-all-results "clear all results")
+                     ("h" jupyter-org-edit-header "edit header"))
+
+                    "Misc"
+                    (("i" jupyter-org-inspect-src-block "inspect")
+                     ("<tab>" completion-at-point "Complete")
+                     
+                     ("O" scimax-ob/body "scimax-ob")
+                     ("E" ox-ipynb-export-to-ipynb-no-results-file-and-open "Export to ipynb no results")
+                     ("q" nil "quit"))
+                    
+                    "Kernel"
+                    (("s" org-babel-jupyter-scratch-buffer "scratch")
+                     ("z" org-babel-switch-to-session "REPL")
+                     ("u" jupyter-org-interrupt-kernel "interrupt")
+                     ("r" (progn (setq-local seth-jupyter-execution-count 1)
+                                 (jupyter-org-with-src-block-client
+	                              (jupyter-repl-restart-kernel))) "restart")
+                     ("k" (progn (setq-local seth-jupyter-execution-count 1) (scimax-jupyter-org-kill-kernel)) "kill"))))
+                 ))
+    (add-hook 'post-command-hook 'number-line-src-block nil 'local)
+    )
+  :bind ("H-h w" . words-hydra/body)
+  )
 
 #+end_src
 
@@ -1577,6 +1531,7 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-package sideline
   :delight
+  :defer t
   :hook (
          (flycheck-mode . sideline-mode)  
          (flymake-mode  . sideline-mode)
@@ -1597,6 +1552,7 @@ This is for when I accidentally make a column in org mode
   )
 
 (use-package sideline-flycheck
+  :defer t
   :hook (flycheck-mode . sideline-flycheck-setup))
 
 
@@ -1626,23 +1582,23 @@ This is for when I accidentally make a column in org mode
   (require 'smartparens-config)
   (smartparens-global-mode t)
 
-  :general-config
-  (:keymaps 'override
-            "M-<up>"  'sp-beginning-of-sexp
-            "M-<down>"  'sp-end-of-sexp
-            "C-<right>"  'sp-forward-slurp-sexp
-            "M-<right>"  'sp-forward-barf-sexp
-            "C-<left>"   'sp-backward-slurp-sexp
-            "M-<left>"   'sp-backward-barf-sexp
-            "C-M-k"  'sp-kill-sexp
-            "C-k"    'sp-kill-hybrid-sexp
-            "M-k"    'sp-backward-kill-sexp
-            "C-M-w"  'sp-copy-sexp
-            "M-s s"  'sp-split-sexp
-            "M-s j"  'sp-join-sexp
-            "M-]"  'sp-backward-unwrap-sexp
-            "M-["  'sp-unwrap-sexp
-            "C-x C-t"  'sp-transpose-hybrid-sexp)
+  :bind (
+         ("M-<up>"  . sp-beginning-of-sexp)
+         ("M-<down>"  . sp-end-of-sexp)
+         ("C-<right>"  . sp-forward-slurp-sexp)
+         ("M-<right>"  . sp-forward-barf-sexp)
+         ("C-<left>"   . sp-backward-slurp-sexp)
+         ("M-<left>"   . sp-backward-barf-sexp)
+         ("C-M-k"  . sp-kill-sexp)
+         ("C-k"    . sp-kill-hybrid-sexp)
+         ("M-k"    . sp-backward-kill-sexp)
+         ("C-M-w"  . sp-copy-sexp)
+         ("M-s s"  . sp-split-sexp)
+         ("M-s j"  . sp-join-sexp)
+         ("M-]"  . sp-backward-unwrap-sexp)
+         ("M-["  . sp-unwrap-sexp)
+         ("C-x C-t"  . sp-transpose-hybrid-sexp)
+         )
   )
 
 #+end_src
@@ -1664,10 +1620,10 @@ This is for when I accidentally make a column in org mode
     (setq gc-cons-threshold most-positive-fixnum))
 
   :delight
-  :general-config
-  (:keymap 'override
-           "C-s" 'swiper
-           "H-s" 'swiper-all)
+  :bind (
+         ("C-s" . swiper)
+         ("H-s" . swiper-all)
+         )
   )
 
 #+end_src
@@ -1864,7 +1820,9 @@ This is for when I accidentally make a column in org mode
 
   :defer t)
 
-(use-package tree-sitter-langs)
+(use-package tree-sitter-langs
+  :defer t
+  )
 #+end_src
 
 *** undo-tree
@@ -1891,16 +1849,16 @@ This is for when I accidentally make a column in org mode
 *** vterm
 #+begin_src emacs-lisp :lexical t
 (use-package vterm
+  :defer t
   )
 (use-package multi-vterm
-  :after vterm
   :init
   (setq vterm-tramp-shells '(("scp" "/usr/bin/zsh")))
   (setq vterm-shell "/usr/local/bin/zsh")
-  :general
-  (:keymaps 'override
-            "C-x t" 'multi-vterm-project
-            "C-x M-t" 'multi-vterm)
+  :bind (
+         ("C-x t" . multi-vterm-project)
+         ("C-x M-t" . multi-vterm)
+         )
   )
 
 #+end_src
@@ -1910,19 +1868,17 @@ This is for when I accidentally make a column in org mode
 
 (use-package yasnippet
   :delight yas-minor-mode
+  :defer t
   :config
   (yas-global-mode 1)
   )
 
 (use-package yasnippet-snippets
   :defer t
-  :after yasnippet)
+  )
 
 (use-package ivy-yasnippet
-  :after yasnippet
-  :general-config
-  (:keymap 'override
-           "H-," 'ivy-yasnippet)
+  :bind ("H-," . ivy-yasnippet)
   )
 #+end_src
 

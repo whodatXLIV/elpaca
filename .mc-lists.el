@@ -3,6 +3,7 @@
 
 (setq mc/cmds-to-run-for-all
       '(
+        indent-for-tab-command
         kill-region
         org-beginning-of-line
         org-cycle
