@@ -1,4 +1,3 @@
-;-*- eval: (load-file "./init-dev.el"); -*-
 #+title: My Emacs Configuration
 #+options: ^:{} html-postamble:nil
 #+property: header-args :mkdirp yes :tangle yes :tangle-mode: #o444 :results silent :noweb yes
@@ -79,8 +78,8 @@ It's a rough way of knowing when/if I need to optimize my init file.
                               (time-subtract (current-time) before-init-time)))
                      gcs-done)))
 
-(profiler-start 'cpu+mem)
-(add-hook 'elpaca-after-init-hook (lambda () (profiler-stop) (profiler-report)))
+;; (profiler-start 'cpu+mem)
+;; (add-hook 'elpaca-after-init-hook (lambda () (profiler-stop) (profiler-report)))
 #+end_src
 
 ELP is useful for seeing which functions in a package are "hot".
@@ -95,12 +94,13 @@ ELP is useful for seeing which functions in a package are "hot".
 ** elpaca and preloads
 *** installer
 #+begin_src emacs-lisp :lexical t
-(defvar elpaca-installer-version 0.6)
+(defvar elpaca-installer-version 0.7)
 (defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
 (defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
 (defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
 (defvar elpaca-order '(elpaca :repo "https://github.com/progfolio/elpaca.git"
-                              :ref nil
+                              :ref nil :depth nil
+                              :pre-build ("git" "remote" "set-url" "origin" "git@github.com:progfolio/elpaca.git")
                               :files (:defaults "elpaca-test.el" (:exclude "extensions"))
                               :build (:not elpaca--activate-package)))
 (let* ((repo  (expand-file-name "elpaca/" elpaca-repos-directory))
@@ -110,7 +110,6 @@ ELP is useful for seeing which functions in a package are "hot".
   (add-to-list 'load-path (if (file-exists-p build) build repo))
   (unless (file-exists-p repo)
     (make-directory repo t)
-    (when (< emacs-major-version 28) (require 'subr-x))
     (condition-case-unless-debug err
         (if-let ((buffer (pop-to-buffer-same-window "*elpaca-bootstrap*"))
                  ((zerop (call-process "git" nil buffer t "clone"
@@ -122,7 +121,7 @@ ELP is useful for seeing which functions in a package are "hot".
                                        "--eval" "(byte-recompile-directory \".\" 0 'force)")))
                  ((require 'elpaca))
                  ((elpaca-generate-autoloads "elpaca" repo)))
-            (progn (message "%s" (buffer-string)) (kill-buffer buffer))
+            (and (message "%S" (buffer-string)) (kill-buffer buffer))
           (error "%s" (with-current-buffer buffer (buffer-string))))
       ((error) (warn "%s" err) (delete-directory repo 'recursive))))
   (unless (require 'elpaca-autoloads nil t)
@@ -130,9 +129,8 @@ ELP is useful for seeing which functions in a package are "hot".
     (elpaca-generate-autoloads "elpaca" repo)
     (load "./elpaca-autoloads")))
 (add-hook 'after-init-hook #'elpaca-process-queues)
-(elpaca `(,@elpaca-order))
-
-
+(elpaca `(,@elpaca-order :depth nil))
+(setq elpaca-queue-limit 1000)
 #+end_src
 
 *** use package 
@@ -155,7 +153,7 @@ ELP is useful for seeing which functions in a package are "hot".
 #+end_src
 
 *** dependencies
-**** turn of unless needed
+**** turn off unless needed
 #+begin_src emacs-lisp :lexical t :tangle no
 
 (setq custom-delayed-init-variables '())
@@ -172,53 +170,16 @@ ELP is useful for seeing which functions in a package are "hot".
   :demand t
   )
 (elpaca-wait)
-
-
 #+end_src
 **** always on
 
 #+begin_src emacs-lisp :lexical t
 (use-package transient
-  :after seq
-  )
+  :defer t)
 (use-package git-commit
-  :after transient
-  )
-
-(use-package delight)
-  
-#+end_src
-
-*** general for keybindings
-#+begin_src emacs-lisp :lexical t
-(use-package general
-  :demand t
-  :delight
-  :config
-  (general-override-mode)
-  (general-auto-unbind-keys)
-  )
-#+end_src
-
-** theme and font
-#+begin_src emacs-lisp :lexical t
-;; (setq custom-theme-directory "~/.emacs.d/themes/")
-;; (add-to-list 'load-path custom-theme-directory)
-;; (load-theme 'base16-chalk t)
-(use-package color-theme-sanityinc-tomorrow
-  :config
-  (setq custom-safe-themes t)   ; Treat all themes as safe
-  (color-theme-sanityinc-tomorrow-bright)
-  (global-hl-line-mode 1)
-  (set-face-attribute 'hl-line nil :inherit nil :background "gray6")
-  (add-to-list 'default-frame-alist
-               '(font . "Hack-12")) 
-  (tool-bar-mode -1)
-  (menu-bar-mode -1)
-  )
-
-(elpaca-wait)
-
+  :defer t)
+(use-package delight
+  :defer t)
 #+end_src
 
 ** my settings and my defs
@@ -237,50 +198,17 @@ ELP is useful for seeing which functions in a package are "hot".
 *** global keys
 
 #+begin_src emacs-lisp :lexical t
-;; (defun comment-or-uncomment-region-or-line ()
-;;   "Comments or uncomments the region or the current line if there's no active region."
-;;   (interactive)
-;;   (let (beg end)
-;;     (if (region-active-p)
-;;         (setq beg (save-excursion (goto-char (region-beginning)) (line-beginning-position)) end (save-excursion (goto-char (region-end)) (line-end-position)))
-;;       (setq beg (line-beginning-position) end (line-end-position)))
-;;     (comment-or-uncomment-region beg end)
-;;     (next-line)))
 
-(general-define-key
- "H-r" 'revert-buffer
- "H-l" 'scroll-lock-mode
- "C-x e" 'eshell
- "C-x C-;" 'comment-line
- )
-
-#+end_src
-
-*** Mac os use meta
-#+begin_src emacs-lisp :lexical t
-
-  ;; :defer t
-  ;; :hook after-init-hook
-
-
-(use-package exec-path-from-shell
-  :if (memq window-system '(mac ns))
-  :ensure t
-  :config
-  (setq exec-path-from-shell-arguments (list "-l" "-i")) ;; (list "-l" "-i")
-  ;; (exec-path-from-shell-initialize)
-  (setq mac-option-modifier 'hyper)
-  (setq mac-command-modifier 'meta)
-  (setq mac-right-option-modifier 'super)
-  )
-
+(keymap-global-set "H-r" 'revert-buffer)
+(keymap-global-set "H-l" 'scroll-lock-mode)
+(keymap-global-set "C-x e" 'eshell)
+(keymap-global-set "C-x C-;" 'comment-line)
 
 #+end_src
 
 *** misc.
 
 #+begin_src emacs-lisp :lexical t
-
 (put 'upcase-region 'disabled nil)
 (put 'downcase-region 'disabled nil)
 
@@ -298,7 +226,6 @@ ELP is useful for seeing which functions in a package are "hot".
 (setq mouse-wheel-scroll-amount '(1 ((shift) . 1))) ;; one line at a time
 (setq mouse-wheel-progressive-speed nil) ;; don't accelerate scrolling
 (setq mouse-wheel-follow-mouse 't) ;; scroll window under mouse
-
 #+end_src
 *** my focus connections
 
@@ -306,17 +233,7 @@ ELP is useful for seeing which functions in a package are "hot".
 
 (defun connect-focusvq-home ()
   (interactive)
-  (dired "/scp:sfigueroa@dev:~"))
-
-(defun connect-focusvq-ceph ()
-  (interactive)
-  (dired "/scp:sfigueroa@dev:/ceph/var/users/sfigueroa"))
-
-(defun connect-focusvq-elcano ()
-  (interactive)
-  (dired "/scp:sfigueroa@dev:/ceph/var/elcano"))
-
-
+  (dired "/ssh:dev:~"))
 
 (setq sql-connection-alist
       '(
@@ -336,12 +253,7 @@ ELP is useful for seeing which functions in a package are "hot".
         )
       )
 
-
-(general-define-key
- :prefix "H-c"
- "h" 'connect-focusvq-home
- "c" 'connect-focusvq-ceph
- "e" 'connect-focusvq-elcano)
+(keymap-global-set "H-c h" 'connect-focusvq-home)
 
 #+end_src
 
@@ -393,15 +305,78 @@ This is for when I accidentally make a column in org mode
 
 #+end_src
 
-*** tramp
+*** theme and font
 #+begin_src emacs-lisp :lexical t
-(use-feature tramp
+;; (setq custom-theme-directory "~/.emacs.d/themes/")
+;; (add-to-list 'load-path custom-theme-directory)
+;; (load-theme 'base16-chalk t)
+(use-package color-theme-sanityinc-tomorrow
+;;  :defer t
   :init
-  (setq tramp-default-remote-shell "/usr/bin/zsh") 
-  (with-eval-after-load "tramp" (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
-  (setq shell-file-name "/bin/bash")
+  (setq custom-safe-themes t)   ; Treat all themes as safe
+  :config
+  (global-hl-line-mode 1)
+  (set-face-attribute 'hl-line nil :inherit nil :background "gray6")
+  (add-to-list 'default-frame-alist
+               '(font . "Hack-12")) 
+  (tool-bar-mode -1)
+  (menu-bar-mode -1)
+  (color-theme-sanityinc-tomorrow-bright) 
   )
 #+end_src
+*** Mac os use meta
+#+begin_src emacs-lisp :lexical t
+
+;; :defer t
+;; :hook after-init-hook
+(use-package exec-path-from-shell
+  :if (memq window-system '(mac ns))
+  :ensure t
+  :init
+  (setq mac-option-modifier 'hyper)
+  (setq mac-command-modifier 'meta)
+  (setq mac-right-option-modifier 'super)
+;;  (setq exec-path-from-shell-debug t)
+  :config
+  (setq exec-path-from-shell-arguments (list "-l")) ;; (list "-l" "-i")
+  (exec-path-from-shell-initialize)
+  ;; :defer t
+  )
+#+end_src
+
+*** tramp
+#+begin_src emacs-lisp :lexical t
+(use-feature tramp 
+  :config
+  (setq shell-file-name "/bin/bash") 
+  (setq tramp-default-method "ssh")
+  (with-eval-after-load 'tramp (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
+  (with-eval-after-load 'tramp '(setenv "SHELL" "/bin/bash"))
+  )
+
+(use-package counsel-tramp
+  :bind* ("C-c f" . counsel-tramp)
+  :defer t
+  :init
+  (setq make-backup-files nil)
+  (setq create-lockfiles nil) 
+  )
+#+end_src
+
+*** recentf
+#+BEGIN_SRC emacs-lisp :lexical t
+(use-feature recentf
+  :init
+  (setq recentf-auto-cleanup 'mode) ;; disable before we start recentf!
+  (setq recentf-max-menu-items 25)
+  (setq recentf-max-saved-items 25)
+  (run-at-time nil (* 5 60) 'recentf-save-list)
+  :config
+  (recentf-mode 1)
+  :defer t
+  )
+#+END_SRC
+
 
 ** Install Packages
 *** ace
@@ -410,10 +385,13 @@ This is for when I accidentally make a column in org mode
 
 (use-package ace-window
   :delight
-  :bind ("H-SPC" . ace-window)
+  :bind* ("H-SPC" . ace-window)
+  :defer t
   :custom
   (aw-dispatch-always t)
   :init
+  (require 'zoom)
+  (zoom-mode)
   (defvar aw-dispatch-alist
     '((?d aw-delete-window "Delete Window")
       (?s aw-swap-window "Swap Windows")
@@ -434,7 +412,8 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-package ace-jump-mode
   :delight
-  :bind ("H-j" . ace-jump-mode)
+  :bind* ("H-j" . ace-jump-mode)
+  :defer t
   )
 #+end_src
 
@@ -442,7 +421,8 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-package ace-mc
   :delight
-  :bind ("H-;" . ace-mc-add-multiple-cursors)
+  :bind* ("H-;" . ace-mc-add-multiple-cursors)
+  :defer t
   )
 #+end_src
 
@@ -456,7 +436,15 @@ This is for when I accidentally make a column in org mode
            :host github
            :repo "progfolio/auto-tangle-mode.el"
            :local-repo "auto-tangle-mode")
-  :commands (auto-tangle-mode))
+  :defer t 
+  ;; :hook org-mode
+  ;; :config
+  ;; (auto-tangle-mode)
+  ;; (add-hook 'auto-tangle-after-tangle-hook (lambda ()
+  ;;                                            (let ((elpaca-log-functions nil))
+  ;;                                              (load-file "~/.emacs.d/init.el")
+  ;;                                              (elpaca-process-queues))))
+  )
 
 #+end_src
 
@@ -465,7 +453,8 @@ This is for when I accidentally make a column in org mode
 
 (use-package company
   :delight
-  :bind ("C-<tab>" . company-other-backend)
+  :defer t
+  :bind* ("C-<tab>" . company-other-backend)
   :hook ((prog-mode org-mode) . company-mode)
   :custom-face
   (company-preview                      ((t (:background "gray10" :foreground "#c397d8" :extend t))))
@@ -500,16 +489,18 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 (use-package counsel
-  :bind (
+  :defer t
+  :bind* (
          ("M-x" . counsel-M-x)
          ("C-x b" . ivy-switch-buffer)
          ("C-x C-b" . counsel-ibuffer)
          ("C-x C-f" . counsel-find-file)
+         ("C-x d" . counsel-dired)
          ("C-x f" . counsel-recentf)
          ("C-x C-a" . counsel-ag)
          ("C-h f" . counsel-describe-function)
          ("C-h v" . counsel-describe-variable)
-         ("C-h i" . counsel-info-lookup-symbol)
+         ("C-h i" . counsel-info-lookup-symbol) 
          )
   :delight
   :config
@@ -529,16 +520,17 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 
 (use-package dashboard
+  :custom
+  (dashboard-banner-logo-title "It's Emacs time!")
+  (dashboard-startup-banner 'logo)
+  (dashboard-items '((recents  . 15)
+                     (projects . 5)
+                     ))
   :config
+  ;; (add-hook 'elpaca-after-init-hook #'dashboard-insert-startupify-lists)
+  ;; (add-hook 'elpaca-after-init-hook #'dashboard-initialize)
   (dashboard-setup-startup-hook)
- ;; (setq initial-buffer-choice (lambda () (get-buffer "*dashboard*")))
-  (setq dashboard-banner-logo-title "It's Emacs time!")
-  (setq dashboard-startup-banner 'logo)
-  (setq dashboard-items '((recents  . 15)
-                          (projects . 5)
-                          ))
   )
-
 
 ;; Value can be
 ;; 'official which displays the official emacs logo
@@ -552,88 +544,97 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 (use-package all-the-icons
+  :defer t
+  :delight
   )
 (use-package all-the-icons-dired
+  :defer t
+  :delight
+  :hook (dired-mode . all-the-icons-dired-mode)
   :custom
   (all-the-icons-dired-monochrome nil)
   )
 ;; (all-the-icons-install-fonts)
 (use-package dired-subtree
+  :delight
   :custom-face
   (dired-directory ((t (:foreground "#97c8f7" :extend t)))) 
   (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
   :bind (
          :map dired-mode-map
-              ("H-r" . dired-subtree-remove)
-              ("<tab>" . dired-subtree-toggle)
-              ("H-p" . dired-subtree-up)
-              ("H-n" . dired-subtree-down)
-              ("H-<up>" . dired-subtree-beginning)
-              ("H-<down>" . dired-subtree-end)
-              ("H-m" . dired-subtree-mark-subtree)
-              ("H-u" . dired-subtree-unmark-subtree)           
-              )
-  
+         ("H-r" . dired-subtree-remove)
+         ("<tab>" . dired-subtree-toggle)
+         ("H-p" . dired-subtree-up)
+         ("H-n" . dired-subtree-down)
+         ("H-<up>" . dired-subtree-beginning)
+         ("H-<down>" . dired-subtree-end)
+         ("H-m" . dired-subtree-mark-subtree)
+         ("H-u" . dired-subtree-unmark-subtree)           
+         )
   )
 (use-package dired-filter
   :custom
   (dired-listing-switches "-alogh")
+  :defer t
+  :hook (dired-mode)
   )
 
 (use-feature dired
-  :bind ("C-x d" . seth/dired-side-vc) 
-  :init
+  ;; :bind* ("C-x d" . seth/dired-side-vc)
+  :defer t
+  :delight
+  :config
+  (require 'dired-subtree)
   (when (string= system-type "darwin")       
     (setq dired-use-ls-dired nil))
-  (defun seth/dired-side--vc (directory)
-    "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
-    (let* (
-           (backend (vc-responsible-backend directory t))
-           (dir (if (eq backend nil)
-                    directory
-                  (expand-file-name (vc-call-backend backend 'root directory))))
-           (dired_dir (dired-noselect dir))
-           (path-list (split-string (first (last (split-string directory dir))) "/"))
-           )
-      (display-buffer-in-side-window
-       dired_dir `((side . left)
-                   (slot . 0)
-                   (window-width . 0.3)
-                   (window-parameters) . ((no-other-window . t)
-                                          (no-delete-other-windows . t)
-                                          (mode-line-format . (" " "%b"))
-                                          )
-                   )
-       )
-      (with-current-buffer dired_dir
-        (setq window-size-fixed 'width)
-        (switch-to-buffer-other-frame dired_dir)
-        (revert-buffer)
-        (dired-hide-details-mode)
-        (goto-char 0)
-        (cl-loop for p in path-list do
-                 (goto-char (search-forward p))
-                 (dired-subtree-insert)
-                 )
-        )
-      )
-    )
-
-  (defun seth/dired-side-vc (&optional initial-input)
-    "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
-    (interactive) 
-
-    (ivy-read "Dired: " #'read-file-name-internal
-              :matcher #'counsel--find-file-matcher
-              :initial-input initial-input
-              :action (lambda (d) (seth/dired-side--vc (expand-file-name d)))
-              :preselect (counsel--preselect-file)
-              :require-match 'confirm-after-completion
-              :history 'file-name-history
-              :keymap counsel-find-file-map
-              :caller 'counsel-dired)
-    )    
+  ;; (defun seth/dired-side--vc (directory)
+  ;;   "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
+  ;;   (let* (
+  ;;          (backend (vc-responsible-backend directory t))
+  ;;          (dir (if (eq backend nil)
+  ;;                   directory
+  ;;                 (expand-file-name (vc-call-backend backend 'root directory))))
+  ;;          (dired_dir (dired-noselect dir))
+  ;;          (path-list (split-string (first (last (split-string directory dir))) "/"))
+  ;;          )
+  ;;     (display-buffer-in-side-window
+  ;;      dired_dir `((side . left)
+  ;;                  (slot . 0)
+  ;;                  (window-width . 0.3)
+  ;;                  (window-parameters) . ((no-other-window . t)
+  ;;                                         (no-delete-other-windows . t)
+  ;;                                         (mode-line-format . (" " "%b"))
+  ;;                                         )
+  ;;                  )
+  ;;      )
+  ;;     (with-current-buffer dired_dir
+  ;;       (setq window-size-fixed 'width)
+  ;;       (switch-to-buffer-other-frame dired_dir)
+  ;;       (revert-buffer)
+  ;;       (dired-hide-details-mode)
+  ;;       (goto-char 0)
+  ;;       (cl-loop for p in path-list do
+  ;;                (goto-char (search-forward p))
+  ;;                (dired-subtree-insert)
+  ;;                )
+  ;;       )
+  ;;     )
+  ;;   )
+  ;; (defun seth/dired-side-vc (&optional initial-input)
+  ;;   "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
+  ;;   (interactive) 
+  ;;   (ivy-read "Dired: " #'read-file-name-internal
+  ;;             :matcher #'counsel--find-file-matcher
+  ;;             :initial-input initial-input
+  ;;             :action (lambda (d) (seth/dired-side--vc (expand-file-name d)))
+  ;;             :preselect (counsel--preselect-file)
+  ;;             :require-match 'confirm-after-completion
+  ;;             :history 'file-name-history
+  ;;             :keymap counsel-find-file-map
+  ;;             :caller 'counsel-dired)
+  ;;   )    
   )
+
 
 #+end_src
 
@@ -642,12 +643,14 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-package drag-stuff
   :delight
+  :defer t
   :config
   (drag-stuff-global-mode 1)
-  :bind (
+  :bind* (
          ("C-M-<down>" . drag-stuff-down)
          ("C-M-<up>" . drag-stuff-up)  
          )
+  :defer t
   )
 #+end_src
 
@@ -797,14 +800,13 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-package hl-todo
   :delight
-  :custom
-  (hl-todo-keyword-faces
+  :config
+  (setq hl-todo-keyword-faces
    '(("TODO"   . "#934b9c")
      ("NOTE"  . "#1E90FF")
      ("HACK"  . "#CC6200")
      ("BUG"  . "#FF0000")
      ))
-  :config
   (global-hl-todo-mode)
   :bind (
          ("H-t t" . hl-todo-insert)
@@ -858,6 +860,8 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-package jupyter
   :defer t
+  :custom
+  (org-babel-jupyter-resource-directory "./plots/")
   :config
   (org-babel-do-load-languages
    'org-babel-load-languages
@@ -865,7 +869,6 @@ This is for when I accidentally make a column in org mode
      (julia . t)
      (python . t)
      (jupyter . t)))
-  (setq org-babel-jupyter-resource-directory '"./plots/")
   )
 
 (use-package zmq
@@ -879,8 +882,8 @@ This is for when I accidentally make a column in org mode
 (use-package magit
   :delight
   :defer t
-  :bind ("C-x g" . magit-status)
-  :init
+  :bind* ("C-x g" . magit-status)
+  :config 
   (setq magit-completing-read-function 'ivy-completing-read)
   (setenv "GIT_ASKPASS" "git-gui--askpass")
   )
@@ -927,17 +930,38 @@ This is for when I accidentally make a column in org mode
   (org-confirm-babel-evaluate nil)
   :bind (
          :map org-mode-map
-              ("C-M-<up>" . org-shiftmetaup)
-              ("C-M-<down>" . org-shiftmetadown)
+              ;;("C-M-<up>" . org-shiftmetaup)
+              ;;("C-M-<down>" . org-shiftmetadown)
+              ("s-C-l" . seth-clear-all-results)
               ("C-M-<left>" . org-shiftmetaleft)
               ("C-M-<right>" . org-shiftmetaright)
               ("C-M-S-<left>" . org-shiftcontrolleft)
               ("C-M-S-<right>" . org-shiftcontrolright)
-              )
-  :config
+              ("s-p" . org-babel-previous-src-block)
+              ("s-n" . org-babel-next-src-block)
+              ("s-l" . org-babel-remove-result)
+              ("s-<tab>" . completion-at-point)
+              ("s-z" . org-babel-switch-to-session)
+              ) 
+  :init
+  (defun seth-clear-all-results ()
+    "Clear all results in the buffer."
+    (interactive)
+    (save-excursion
+      (goto-char (point-min))
+      (while (org-babel-next-src-block)
+        (forward-line -1)
+        (beginning-of-line)
+        (when (looking-at "#\\+LASTRUN:")
+          (delete-region (pos-bol) (1- (pos-bol 2)))
+          (delete-line)
+          )
+        (forward-line 1)
+        (org-babel-remove-result))))
+
   (add-hook 'org-mode-hook (lambda ()
                              (setq-local seth-jupyter-execution-count 1)))
-  (setq seth-jupyter-execution-count 1)
+  ;; (setq seth-jupyter-execution-count 1)
   (defun org-babel-add-time-stamp-after-execute-before-src-block ()
     ;; (sleep-for 2)
     (end-of-line)
@@ -969,6 +993,10 @@ This is for when I accidentally make a column in org mode
         org-src-strip-leading-and-trailing-blank-lines t
         org-src-preserve-indentation t ;; do not put two spaces on the left
         org-src-tab-acts-natively t)
+
+  :config
+  (require 'scimax-jupyter)
+
   )
 
 ;; Backend for HTML Table export
@@ -1092,6 +1120,7 @@ This is for when I accidentally make a column in org mode
 *** page-break lines
 #+begin_src emacs-lisp :lexical t
   (use-package page-break-lines
+    :defer t
     :delight
     :config
     (global-page-break-lines-mode)
@@ -1219,7 +1248,7 @@ This is for when I accidentally make a column in org mode
   :defer t
   )
 
-(use-feature words
+(use-package scimax-jupyter
   :ensure (scimax
            :type git
            :host github
@@ -1227,14 +1256,11 @@ This is for when I accidentally make a column in org mode
            :local-repo "scimax"
            :files (:defaults (:exclude "*.org" "scimax.el" "bootstrap.el" "init.el" "packages.el" "scimax-evil.el" "debug-windows.el"))
            )
-  :defer t
-  :init
+  :config
   (defconst scimax-dir (file-name-directory "./elpaca/builds/scimax/"))  
   (add-to-list 'load-path scimax-dir)
-  
   ;; ** helper functions
-
-  (defun /jupyter-clean-async--results ()
+  (defun /jupyter-clean-async--results () 
     "cleans drawer results for async jupyter code blocks"
     (search-forward "#+begin_example")
     (beginning-of-line)
@@ -1265,21 +1291,6 @@ This is for when I accidentally make a column in org mode
     (/jupyter-clean-async--results)
     )
 
-  (defun seth-clear-all-results ()
-    "Clear all results in the buffer."
-    (interactive)
-    (save-excursion
-      (goto-char (point-min))
-      (while (org-babel-next-src-block)
-        (forward-line -1)
-        (beginning-of-line)
-        (when (looking-at "#\\+LASTRUN:")
-          (delete-region (pos-bol) (1- (pos-bol 2)))
-          (delete-line)
-          )
-        (forward-line 1)
-        (org-babel-remove-result))))
-
   (defun seth-interrupt-kernel ()
     "Clear all results in the buffer."
     (interactive)
@@ -1297,8 +1308,6 @@ This is for when I accidentally make a column in org mode
           (setq num (+1 num))))
       )
     )
-
-
   ;; *** remove result if empty
   (with-eval-after-load 'jupyter-client
     (defun /jupyter-remove-empty-async-results (args)
@@ -1421,109 +1430,94 @@ This is for when I accidentally make a column in org mode
 					                            map))
 		           (add-to-list 'number-line-overlays ov))
                  (forward-line))))
-    
-    ;; (require 'jupyter)
-    ;; (require 'scimax-jupyter)
-    ;; (require 'scimax-ivy)
-    ;; (require 'scimax-yas)
-    ;; (require 'scimax-ob)
-    
-    ;; jupyter nbconvert notebook.ipynb --to markdown
-    ;; pandoc notebook.md -o notebook.org
-
-    (add-hook 'jupyter-repl-mode-hook 'company-mode)
-    (add-hook 'jupyter-repl-mode-hook 'smartparens-mode)
-    (add-hook 'jupyter-repl-mode-hook ;; org mode
-              '(lambda ()
-                 (local-set-key (kbd "H-h h") 'scimax-jupyter-org-hydra/body)
-                 ))
-
-    (add-hook 'org-mode-hook ;; org mode
-              '(lambda ()
-                 (define-key org-mode-map (kbd "H-h j") #'scimax-jupyter-org-hydra/body)
-                 (define-key jupyter-org-interaction-mode-map (kbd "H-<left>") #'python-indent-shift-left)
-                 (define-key jupyter-org-interaction-mode-map (kbd "H-<right>") #'python-indent-shift-right)
-                 (define-key jupyter-org-interaction-mode-map (kbd "C-<return>") #'jupyter-org-execute-and-next-block)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-p") #'org-babel-previous-src-block)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-n") #'org-babel-next-src-block)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-g") #'jupyter-org-jump-to-visible-block)              
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-e") #'scimax-jupyter-jump-to-error)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-<up>") #'jupyter-org-move-src-block)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-<down>") #'(lambda () (interactive) (jupyter-org-move-src-block t)))
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-x") #'jupyter-org-kill-block-and-results)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-c") #'jupyter-org-copy-block-and-results)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-o") #'(lambda () (interactive) (jupyter-org-clone-block t)))
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-m") #'jupyter-org-merge-blocks)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-s") #'jupyter-org-split-src-block)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-a") #'jupyter-org-insert-src-block)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-b") #'(lambda () (interactive) (jupyter-org-insert-src-block t)))
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-l") #'org-babel-remove-result)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-C-l") #'seth-clear-all-results)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-i") #'jupyter-org-inspect-src-block)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-<tab>") #'completion-at-point)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-z") #'org-babel-switch-to-session)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-u") #'jupyter-org-interrupt-kernel)
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-k") #'(lambda () (interactive) (progn (setq-local seth-jupyter-execution-count 1)
-                                                                                                            (scimax-jupyter-org-kill-kernel))))
-                 (define-key jupyter-org-interaction-mode-map (kbd "s-r") #'(lambda () (interactive) (progn (setq-local seth-jupyter-execution-count 1)
-                                                                                                            (jupyter-org-with-src-block-client
-	                                                                                                         (jupyter-repl-restart-kernel)))))
-
-                 (pretty-hydra-define scimax-jupyter-org-hydra (:color blue :hint nil)
-                   ("Execute"
-                    (
-                     ("<return>" nil "quit" :color red)
-                     ("C-c C-c" org-ctrl-c-ctrl-c "current" :color red)
-                     ("C-<return>" jupyter-org-execute-and-next-block "current and next" :color red)
-                     ("H-<return>" (progn (org-ctrl-c-ctrl-c) (scimax-ob-insert-src-block t)) "current and new" )
-                     ;; ("C-M-<return>" jupyter-org-execute-subtree "subtree")
-                     ("S-C-<return>" jupyter-org-restart-and-execute-to-point "restart to point")
-                     ("S-M-<return>" jupyter-org-restart-kernel-execute-buffer "restart buffer"))
-
-                    "Navigate"
-                    (("p" org-babel-previous-src-block "previous" :color red)
-                     ;; ("P" jupyter-org-previous-busy-src-block "previous busy")
-                     ("n" org-babel-next-src-block  "next" :color red)
-                     ;; ("N" jupyter-org-next-busy-src-block "next busy" :color red)
-                     ("g" jupyter-org-jump-to-visible-block "jump to visible src")
-                     ("G" jupyter-org-jump-to-block "jump to src block")
-                     ("e" scimax-jupyter-jump-to-error "Jump to error"))
-
-                    "Edit"
-                    (("<up>" jupyter-org-move-src-block "move up" :color red)
-                     ("<down>" (jupyter-org-move-src-block t) "move down" :color red)
-                     ("x" jupyter-org-kill-block-and-results "kill block")
-                     ("c" jupyter-org-copy-block-and-results "copy block")
-                     ("o" (jupyter-org-clone-block t) "clone")
-                     ("m" jupyter-org-merge-blocks "merge")
-                     ("s" jupyter-org-split-src-block "split")
-                     ("a" (jupyter-org-insert-src-block nil current-prefix-arg) "insert above")
-                     ("b" (jupyter-org-insert-src-block t current-prefix-arg) "insert below")
-                     ("l" org-babel-remove-result "clear result")
-                     ("L" seth-clear-all-results "clear all results")
-                     ("h" jupyter-org-edit-header "edit header"))
-
-                    "Misc"
-                    (("i" jupyter-org-inspect-src-block "inspect")
-                     ("<tab>" completion-at-point "Complete")
-                     
-                     ("O" scimax-ob/body "scimax-ob")
-                     ("E" ox-ipynb-export-to-ipynb-no-results-file-and-open "Export to ipynb no results")
-                     ("q" nil "quit"))
-                    
-                    "Kernel"
-                    (("s" org-babel-jupyter-scratch-buffer "scratch")
-                     ("z" org-babel-switch-to-session "REPL")
-                     ("u" jupyter-org-interrupt-kernel "interrupt")
-                     ("r" (progn (setq-local seth-jupyter-execution-count 1)
-                                 (jupyter-org-with-src-block-client
-	                              (jupyter-repl-restart-kernel))) "restart")
-                     ("k" (progn (setq-local seth-jupyter-execution-count 1) (scimax-jupyter-org-kill-kernel)) "kill"))))
-                 ))
     (add-hook 'post-command-hook 'number-line-src-block nil 'local)
     )
-  :bind ("H-h w" . words-hydra/body)
-  )
+
+  (add-hook 'jupyter-repl-mode-hook 'company-mode)
+  (add-hook 'jupyter-repl-mode-hook 'smartparens-mode)
+  (add-hook 'jupyter-repl-mode-hook ;; org mode
+            '(lambda ()
+               (local-set-key (kbd "H-h h") 'scimax-jupyter-org-hydra/body)
+               ))
+
+  (pretty-hydra-define scimax-jupyter-org-hydra (:color blue :hint nil)
+    ("Execute"
+     (
+      ("<return>" nil "quit" :color red)
+      ("C-c C-c" org-ctrl-c-ctrl-c "current" :color red)
+      ("C-<return>" jupyter-org-execute-and-next-block "current and next" :color red)
+      ("H-<return>" (progn (org-ctrl-c-ctrl-c) (scimax-ob-insert-src-block t)) "current and new" )
+      ;; ("C-M-<return>" jupyter-org-execute-subtree "subtree")
+      ("S-C-<return>" jupyter-org-restart-and-execute-to-point "restart to point")
+      ("S-M-<return>" jupyter-org-restart-kernel-execute-buffer "restart buffer"))
+
+     "Navigate"
+     (("p" org-babel-previous-src-block "previous" :color red)
+      ;; ("P" jupyter-org-previous-busy-src-block "previous busy")
+      ("n" org-babel-next-src-block  "next" :color red)
+      ;; ("N" jupyter-org-next-busy-src-block "next busy" :color red)
+      ("g" jupyter-org-jump-to-visible-block "jump to visible src")
+      ("G" jupyter-org-jump-to-block "jump to src block")
+      ("e" scimax-jupyter-jump-to-error "Jump to error"))
+
+     "Edit"
+     (("<up>" jupyter-org-move-src-block "move up" :color red)
+      ("<down>" (jupyter-org-move-src-block t) "move down" :color red)
+      ("x" jupyter-org-kill-block-and-results "kill block")
+      ("c" jupyter-org-copy-block-and-results "copy block")
+      ("o" (jupyter-org-clone-block t) "clone")
+      ("m" jupyter-org-merge-blocks "merge")
+      ("s" jupyter-org-split-src-block "split")
+      ("a" (jupyter-org-insert-src-block nil current-prefix-arg) "insert above")
+      ("b" (jupyter-org-insert-src-block t current-prefix-arg) "insert below")
+      ("l" org-babel-remove-result "clear result")
+      ("L" seth-clear-all-results "clear all results")
+      ("h" jupyter-org-edit-header "edit header"))
+
+     "Misc"
+     (("i" jupyter-org-inspect-src-block "inspect")
+      ("<tab>" completion-at-point "Complete")
+      
+      ("O" scimax-ob/body "scimax-ob")
+      ("E" ox-ipynb-export-to-ipynb-no-results-file-and-open "Export to ipynb no results")
+      ("q" nil "quit"))
+     
+     "Kernel"
+     (("s" org-babel-jupyter-scratch-buffer "scratch")
+      ("z" org-babel-switch-to-session "REPL")
+      ("u" jupyter-org-interrupt-kernel "interrupt")
+      ("r" (progn (setq-local seth-jupyter-execution-count 1)
+                  (jupyter-org-with-src-block-client
+	               (jupyter-repl-restart-kernel))) "restart")
+      ("k" (progn (setq-local seth-jupyter-execution-count 1) (scimax-jupyter-org-kill-kernel)) "kill"))))
+
+  :bind (
+         ;; ("H-h w" . words-hydra/body)
+         :map jupyter-org-interaction-mode-map
+         ("H-h j" . scimax-jupyter-org-hydra/body)
+         ("H-<left>" . python-indent-shift-left)
+         ("H-<right>" . python-indent-shift-right)
+         ("C-<return>" . jupyter-org-execute-and-next-block)
+         ("s-g" . jupyter-org-jump-to-visible-block)              
+         ("s-e" . scimax-jupyter-jump-to-error)
+         ("s-<up>" . jupyter-org-move-src-block)
+         ("s-<down>" . (lambda () (interactive) (jupyter-org-move-src-block t)))
+         ("s-x" . jupyter-org-kill-block-and-results)
+         ("s-c" . jupyter-org-copy-block-and-results)
+         ("s-o" . (lambda () (interactive) (jupyter-org-clone-block t)))
+         ("s-m" . jupyter-org-merge-blocks)
+         ("s-s" . jupyter-org-split-src-block)
+         ("s-a" . jupyter-org-insert-src-block)
+         ("s-b" . (lambda () (interactive) (jupyter-org-insert-src-block t)))
+         ("s-i" . jupyter-org-inspect-src-block)
+         ("s-u" . jupyter-org-interrupt-kernel)
+         ("s-k" . (lambda () (interactive) (progn (setq-local seth-jupyter-execution-count 1)
+                                                  (scimax-jupyter-org-kill-kernel))))
+         ("s-r" . (lambda () (interactive) (progn (setq-local seth-jupyter-execution-count 1)
+                                                  (jupyter-org-with-src-block-client
+                                                   (jupyter-repl-restart-kernel))))) 
+         )
+  ) 
 
 #+end_src
 
@@ -1561,14 +1555,15 @@ This is for when I accidentally make a column in org mode
 *** smart-mode-line
 #+begin_src emacs-lisp :lexical t
 
-(use-package smart-mode-line
-  :delight
-  :config
-  (setq sml/name-width 50
-        sml/mode-width 50)
-  (setq sml/theme 'respectful)
-  (sml/setup)
-  )
+;; (use-package smart-mode-line
+;;   :delight
+;;   :init
+;;   (setq sml/name-width 50
+;;         sml/mode-width 50)
+;;   (setq sml/theme 'respectful)
+;;   :config
+;;   (sml/setup)
+;;   )
   
 #+end_src
 
@@ -1581,8 +1576,7 @@ This is for when I accidentally make a column in org mode
   :config
   (require 'smartparens-config)
   (smartparens-global-mode t)
-
-  :bind (
+  :bind* (
          ("M-<up>"  . sp-beginning-of-sexp)
          ("M-<down>"  . sp-end-of-sexp)
          ("C-<right>"  . sp-forward-slurp-sexp)
@@ -1599,6 +1593,7 @@ This is for when I accidentally make a column in org mode
          ("M-["  . sp-unwrap-sexp)
          ("C-x C-t"  . sp-transpose-hybrid-sexp)
          )
+  :demand t
   )
 
 #+end_src
@@ -1618,9 +1613,9 @@ This is for when I accidentally make a column in org mode
     (setq gc-cons-threshold most-positive-fixnum))
   (defadvice swiper-all (before dotemacs activate)
     (setq gc-cons-threshold most-positive-fixnum))
-
+  :defer t
   :delight
-  :bind (
+  :bind* (
          ("C-s" . swiper)
          ("H-s" . swiper-all)
          )
@@ -1632,17 +1627,18 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 (use-package tabbar
-  :init (tabbar-mode t) 
-  :general-config
-  (:keymaps 'override 
-            "M-S-<up>" 'tabbar-press-home
-            "M-S-<left>" 'tabbar-backward-tab
-            "M-S-<right>" 'tabbar-forward-tab
-            "M-S-<down>" 'tabbar-local-mode
-            "C-S-<left>" 'tabbar-move-group-backward
-            "C-S-<right>" 'tabbar-move-group-forward   ) 
+  :defer t
+  :bind* (
+          ("M-S-<up>" . tabbar-press-home)
+          ("M-S-<left>" . tabbar-backward-tab)
+          ("M-S-<right>" . tabbar-forward-tab)
+          ("M-S-<down>" . tabbar-local-mode)
+          ("C-S-<left>" . tabbar-move-group-backward)
+          ("C-S-<right>" . tabbar-move-group-forward)
+          )
 
   :config
+  (tabbar-mode t)
   (defun tabbar-buffer-groups ()
     "Return the list of group names the current buffer belongs to.
        This function is a custom function for tabbar-mode's tabbar-buffer-groups.
@@ -1803,7 +1799,6 @@ This is for when I accidentally make a column in org mode
   :hook
   ((lua-mode
     python-mode
-    org-mode
     emacs-lisp-mode
     csv-mode
     json-mode
@@ -1812,16 +1807,16 @@ This is for when I accidentally make a column in org mode
     yaml-mode
     ) . siren-tree-sitter-mode-enable)
 
-  :preface
+  :config
   (defun siren-tree-sitter-mode-enable ()
     (tree-sitter-mode t)
     (tree-sitter-hl-mode)
     )
-
   :defer t)
 
 (use-package tree-sitter-langs
   :defer t
+  :after tree-sitter
   )
 #+end_src
 
@@ -1853,7 +1848,7 @@ This is for when I accidentally make a column in org mode
   )
 (use-package multi-vterm
   :init
-  (setq vterm-tramp-shells '(("scp" "/usr/bin/zsh")))
+  (setq vterm-tramp-shells '(("ssh" "/usr/bin/zsh")))
   (setq vterm-shell "/usr/local/bin/zsh")
   :bind (
          ("C-x t" . multi-vterm-project)
@@ -1873,8 +1868,7 @@ This is for when I accidentally make a column in org mode
   (yas-global-mode 1)
   )
 
-(use-package yasnippet-snippets
-  :defer t
+(use-package yasnippet-snippets  
   )
 
 (use-package ivy-yasnippet
@@ -1887,16 +1881,16 @@ This is for when I accidentally make a column in org mode
 (use-package zoom
   :delight
   :custom
-  (zoom-mode t)
   (zoom-size '(0.618 . 0.618))
+  :defer t
   )
 #+end_src
 
 
 * End 
 
-#+begin_src emacs-lisp :lexical t
-
+#+begin_src emacs-lisp :lexical t :tangle no
+;; ;-*- eval: (load-file "./init-dev.el"); -*-
 
 #+end_src
 
@@ -1907,4 +1901,7 @@ This is for when I accidentally make a column in org mode
 #+end_src
 
 ** 
-
+# TODO figure out tramp hang issues
+# CHange tramp stuff to be faster and more reliable
+# Check on zsh 'tramp vs "tramp"
+# Make execute path faster
