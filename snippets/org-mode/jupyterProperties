@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: jupyterProperties
+# key: <jp
+# --
+#+PROPERTY: header-args :session ${1:"/scp:sfigueroa@dev.focusvq.com:sessionName"} :kernel ${2:seth-py311-dev} :async yes :results drawer scalar :display image/svg+xml image/jpeg image/png text/org text/plain
+$0

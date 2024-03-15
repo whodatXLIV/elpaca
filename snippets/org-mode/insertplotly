@@ -1,0 +1,10 @@
+# -*- mode: snippet -*-
+# name: insertplotly
+# key: <plotly
+# --
+import plotly
+import plotly.graph_objects as go
+import plotly.io as pio
+pio.renderers.default = "png+iframe_connected"
+pio.renderers['iframe_connected'].html_directory='plots' 
+$0

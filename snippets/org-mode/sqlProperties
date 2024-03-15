@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: sqlProperties
+# key: <sp
+# --
+#+PROPERTY: header-args :engine mysql :dbhost db.internal.focusvq.com :dbuser fds :dbpassword WnJSuqmND9i0ePYw :database ${1:"fds|elcano"}
+$0

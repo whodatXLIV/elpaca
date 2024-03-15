@@ -1,0 +1,17 @@
+# -*- mode: snippet -*-
+# name: addPath
+# key: <ap
+# --
+
+import os
+from pathlib import Path
+import sys
+
+sys.path.append(str(Path(os.path.abspath('')).parent))
+import walkForwardFunction as wf
+
+sys.path.append(str(Path(os.path.abspath('')).parent / "python.focusvq"))
+from focusvq.factset.dataClient import FactSetClient, PriceLogic
+from focusvq.utils.SlurmCluster import SlurmPoolExecutor, logFormat 
+
+$0

@@ -15,3 +15,5 @@ transient
 /eln-cache/
 /eshell/
 /tree-sitter/
+/tutorial/
+/*.el#
