@@ -930,19 +930,19 @@ This is for when I accidentally make a column in org mode
   (org-confirm-babel-evaluate nil)
   :bind (
          :map org-mode-map
-              ;;("C-M-<up>" . org-shiftmetaup)
-              ;;("C-M-<down>" . org-shiftmetadown)
-              ("s-C-l" . seth-clear-all-results)
-              ("C-M-<left>" . org-shiftmetaleft)
-              ("C-M-<right>" . org-shiftmetaright)
-              ("C-M-S-<left>" . org-shiftcontrolleft)
-              ("C-M-S-<right>" . org-shiftcontrolright)
-              ("s-p" . org-babel-previous-src-block)
-              ("s-n" . org-babel-next-src-block)
-              ("s-l" . org-babel-remove-result)
-              ("s-<tab>" . completion-at-point)
-              ("s-z" . org-babel-switch-to-session)
-              ) 
+         ;;("C-M-<up>" . org-shiftmetaup)
+         ;;("C-M-<down>" . org-shiftmetadown)
+         ("s-C-l" . seth-clear-all-results)
+         ("C-M-<left>" . org-shiftmetaleft)
+         ("C-M-<right>" . org-shiftmetaright)
+         ("C-M-S-<left>" . org-shiftcontrolleft)
+         ("C-M-S-<right>" . org-shiftcontrolright)
+         ("s-p" . org-babel-previous-src-block)
+         ("s-n" . org-babel-next-src-block)
+         ("s-l" . org-babel-remove-result)
+         ("s-<tab>" . completion-at-point)
+         ("s-z" . org-babel-switch-to-session)
+         ) 
   :init
   (defun seth-clear-all-results ()
     "Clear all results in the buffer."
@@ -962,8 +962,17 @@ This is for when I accidentally make a column in org mode
   (add-hook 'org-mode-hook (lambda ()
                              (setq-local seth-jupyter-execution-count 1)))
   ;; (setq seth-jupyter-execution-count 1)
-  (defun org-babel-add-time-stamp-after-execute-before-src-block ()
-    ;; (sleep-for 2)
+  
+  (setq org-src-fontify-natively t
+        org-src-window-setup 'current-window ;; edit in current window
+        org-src-strip-leading-and-trailing-blank-lines t
+        org-src-preserve-indentation t ;; do not put two spaces on the left
+        org-src-tab-acts-natively t)
+
+  :config
+  (require 'scimax-jupyter)
+  (defun seth-org-babel-add-time-stamp-after-execute-before-src-block ()
+    ;; (sleep-for 2)    
     (end-of-line)
     (save-excursion
       (search-backward "#+BEGIN_SRC" 0 t)
@@ -975,6 +984,7 @@ This is for when I accidentally make a column in org mode
         (open-line 1)
         (next-line 1)
         )
+      
       (insert (concat
                "#+LASTRUN: "
                (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
@@ -982,20 +992,12 @@ This is for when I accidentally make a column in org mode
                (int-to-string seth-jupyter-execution-count)
                "]"
                ))
-      (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))    
-      ))
+      (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))
+      )
+    )
 
   (add-hook 'org-babel-after-execute-hook
-            'org-babel-add-time-stamp-after-execute-before-src-block)
-
-  (setq org-src-fontify-natively t
-        org-src-window-setup 'current-window ;; edit in current window
-        org-src-strip-leading-and-trailing-blank-lines t
-        org-src-preserve-indentation t ;; do not put two spaces on the left
-        org-src-tab-acts-natively t)
-
-  :config
-  (require 'scimax-jupyter)
+            'seth-org-babel-add-time-stamp-after-execute-before-src-block)
 
   )
 
@@ -1446,10 +1448,9 @@ This is for when I accidentally make a column in org mode
       ("<return>" nil "quit" :color red)
       ("C-c C-c" org-ctrl-c-ctrl-c "current" :color red)
       ("C-<return>" jupyter-org-execute-and-next-block "current and next" :color red)
-      ("H-<return>" (progn (org-ctrl-c-ctrl-c) (scimax-ob-insert-src-block t)) "current and new" )
-      ;; ("C-M-<return>" jupyter-org-execute-subtree "subtree")
-      ("S-C-<return>" jupyter-org-restart-and-execute-to-point "restart to point")
-      ("S-M-<return>" jupyter-org-restart-kernel-execute-buffer "restart buffer"))
+      ("H-<return>" (progn (org-ctrl-c-ctrl-c) (scimax-ob-insert-src-block t)) "current and new")
+      ("S-C-<return>" jupyter-org-execute-to-point "Execute to point")
+      ("S-M-<return>" jupyter-org-execute-subtree "Execute Subtree"))
 
      "Navigate"
      (("p" org-babel-previous-src-block "previous" :color red)
@@ -1555,15 +1556,15 @@ This is for when I accidentally make a column in org mode
 *** smart-mode-line
 #+begin_src emacs-lisp :lexical t
 
-;; (use-package smart-mode-line
-;;   :delight
-;;   :init
-;;   (setq sml/name-width 50
-;;         sml/mode-width 50)
-;;   (setq sml/theme 'respectful)
-;;   :config
-;;   (sml/setup)
-;;   )
+(use-package smart-mode-line
+  :delight
+  :init
+  (setq sml/name-width 50
+        sml/mode-width 50)
+  (setq sml/theme 'respectful)
+  :config
+  (sml/setup)
+  )
   
 #+end_src
 
