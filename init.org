@@ -500,7 +500,7 @@ This is for when I accidentally make a column in org mode
          ("C-x b" . ivy-switch-buffer)
          ("C-x C-b" . counsel-ibuffer)
          ("C-x C-f" . counsel-find-file)
-         ("C-x d" . counsel-dired)
+         ("C-x C-d" . counsel-dired)
          ("C-x f" . counsel-recentf)
          ("C-x C-a" . counsel-ag)
          ("C-h f" . counsel-describe-function)
@@ -552,6 +552,7 @@ This is for when I accidentally make a column in org mode
   :defer t
   :delight
   )
+
 (use-package all-the-icons-dired
   :defer t
   :delight
@@ -559,12 +560,9 @@ This is for when I accidentally make a column in org mode
   :custom
   (all-the-icons-dired-monochrome nil)
   )
-;; (all-the-icons-install-fonts)
+
 (use-package dired-subtree
   :delight
-  :custom-face
-  (dired-directory ((t (:foreground "#97c8f7" :extend t)))) 
-  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
   :bind (
          :map dired-mode-map
          ("H-r" . dired-subtree-remove)
@@ -576,7 +574,9 @@ This is for when I accidentally make a column in org mode
          ("H-m" . dired-subtree-mark-subtree)
          ("H-u" . dired-subtree-unmark-subtree)           
          )
+  :defer t
   )
+
 (use-package dired-filter
   :custom
   (dired-listing-switches "-alogh")
@@ -588,8 +588,11 @@ This is for when I accidentally make a column in org mode
   ;; :bind* ("C-x d" . seth/dired-side-vc)
   :defer t
   :delight
+  :custom-face
+  (dired-directory ((t (:foreground "#97c8f7" :extend t)))) 
+  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
   :config
-  (require 'dired-subtree)
+  ;; (require 'dired-subtree)
   (when (string= system-type "darwin")       
     (setq dired-use-ls-dired nil))
   ;; (defun seth/dired-side--vc (directory)
@@ -782,11 +785,12 @@ This is for when I accidentally make a column in org mode
 
   :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
   :defer t
-  :hook (prog-mode . indent-bars-mode)
+  :hook ((prog-mode org-mode) . indent-bars-mode)
   :config
   (setq
+   indent-bars-prefer-character t
    indent-bars-color '(highlight :face-bg t :blend 0.5)
-   indent-bars-pattern ". . . . . . . . ." ; play with the number of dots for your usual font size
+;;   indent-bars-pattern ". . . . . . . . ." ; play with the number of dots for your usual font size
    indent-bars-width-frac 0.3
    indent-bars-pad-frac 0.1
    indent-bars-display-on-blank-lines t
@@ -1242,27 +1246,27 @@ This is for when I accidentally make a column in org mode
               ("H-n" . company-posframe-quickhelp-scroll-down)
               )
   )
-(use-package ivy-posframe
-  :delight
-  :defer t
-  :hook ((ivy-mode swiper-mode counsel-mode) . ivy-posframe-mode)
-  :custom-face
-  (ivy-posframe ((t (:background "gray10" :extend t)))) 
-  :init
-  (setq ivy-posframe-display-functions-alist
-        '(
-          (swiper          . ivy-display-function-fallback)
-          ;; (complete-symbol . ivy-posframe-display-at-point)
-          (counsel-M-x     . ivy-posframe-display-at-point)
-          (t               . ivy-posframe-display-at-point)))
+;; (use-package ivy-posframe
+;;   :delight
+;;   :defer t
+;;   :hook ((ivy-mode swiper-mode counsel-mode) . ivy-posframe-mode)
+;;   :custom-face
+;;   (ivy-posframe ((t (:background "gray10" :extend t)))) 
+;;   :init
+;;   (setq ivy-posframe-display-functions-alist
+;;         '(
+;;           (swiper          . ivy-display-function-fallback)
+;;           ;; (complete-symbol . ivy-posframe-display-at-point)
+;;           (counsel-M-x     . ivy-posframe-display-at-point)
+;;           (t               . ivy-posframe-display-at-point)))
   
-  ;; Different command can use different display function.
-  (setq ivy-posframe-height-alist '((swiper . 10)
-                                    (t      . 20)))
-  (setq ivy-posframe-parameters
-        '((left-fringe . 10)
-          (right-fringe . 10)))
-  )
+;;   ;; Different command can use different display function.
+;;   (setq ivy-posframe-height-alist '((swiper . 10)
+;;                                     (t      . 20)))
+;;   (setq ivy-posframe-parameters
+;;         '((left-fringe . 10)
+;;           (right-fringe . 10)))
+;;   )
 #+end_src
 
 *** projectile
@@ -1947,5 +1951,19 @@ This is for when I accidentally make a column in org mode
   (zoom-size '(0.618 . 0.618))
   :defer t
   )
+#+end_src
+
+*** neovim
+#+begin_src emacs-lisp :lexical t
+(use-package neotree
+  :delight
+  :defer t
+  :custom-face
+  (neo-dir-link-face ((t (:foreground "#97c8f7" :extend t)))) 
+  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
+  :bind* ("C-x d" . neotree)
+  :custom
+  (neo-theme 'arrow)
+)
 #+end_src
 
