@@ -203,6 +203,8 @@ ELP is useful for seeing which functions in a package are "hot".
 (keymap-global-set "H-l" 'scroll-lock-mode)
 (keymap-global-set "C-x e" 'eshell)
 (keymap-global-set "C-x C-;" 'comment-line)
+(keymap-global-set "H-<up>" 'scroll-other-window-down)
+(keymap-global-set "H-<down>" 'scroll-other-window)
 
 #+end_src
 
@@ -333,10 +335,14 @@ This is for when I accidentally make a column in org mode
   :if (memq window-system '(mac ns))
   :ensure t
   :init
-  (setq mac-option-modifier 'hyper)
-  (setq mac-command-modifier 'meta)
-  (setq mac-right-option-modifier 'super)
-;;  (setq exec-path-from-shell-debug t)
+  (setq mac-option-modifier 'hyper ;; for emacs-mac
+        mac-command-modifier 'meta
+        mac-right-option-modifier 'super)
+  (setq ns-command-modifier 'meta ;; for emacs-plus
+        ns-option-modifier 'hyper
+        ns-right-option-modifier 'super
+        )
+  ;;  (setq exec-path-from-shell-debug t)
   :config
   (setq exec-path-from-shell-arguments (list "-l")) ;; (list "-l" "-i")
   (exec-path-from-shell-initialize)
@@ -376,7 +382,6 @@ This is for when I accidentally make a column in org mode
   :defer t
   )
 #+END_SRC
-
 
 ** Install Packages
 *** ace
@@ -719,6 +724,40 @@ This is for when I accidentally make a column in org mode
 
 #+end_src
 
+*** embark
+#+begin_src emacs-lisp :lexical t
+(use-package embark
+  :ensure t
+  :defer t
+  :bind*
+  (("C-." . embark-act)         ;; pick some comfortable binding
+   ("C-;" . embark-dwim)        ;; good alternative: M-.
+   ("C-h B" . embark-bindings)  ;; alternative for `describe-bindings'
+   ) 
+
+  :init
+  ;; Optionally replace the key help with a completing-read interface
+  (setq prefix-help-command #'embark-prefix-help-command)
+
+  ;; Show the Embark target at point via Eldoc. You may adjust the
+  ;; Eldoc strategy, if you want to see the documentation from
+  ;; multiple providers. Beware that using this can be a little
+  ;; jarring since the message shown in the minibuffer can be more
+  ;; than one line, causing the modeline to move up and down:
+
+  ;; (add-hook 'eldoc-documentation-functions #'embark-eldoc-first-target)
+  ;; (setq eldoc-documentation-strategy #'eldoc-documentation-compose-eagerly)
+
+  :config
+
+  ;; Hide the mode line of the Embark live/completions buffers
+  (add-to-list 'display-buffer-alist
+               '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+                 nil
+                 (window-parameters (mode-line-format . none)))))
+
+#+end_src
+
 *** flycheck
 #+begin_src emacs-lisp :lexical t
 
@@ -887,6 +926,29 @@ This is for when I accidentally make a column in org mode
   (setq magit-completing-read-function 'ivy-completing-read)
   (setenv "GIT_ASKPASS" "git-gui--askpass")
   )
+#+end_src
+
+*** marginalia
+#+begin_src emacs-lisp :lexical t
+;; Enable rich annotations using the Marginalia package
+(use-package marginalia
+  ;; Bind `marginalia-cycle' locally in the minibuffer.  To make the binding
+  ;; available in the *Completions* buffer, add it to the
+  ;; `completion-list-mode-map'.
+  :bind* ("H-a" . marginalia-cycle)
+  :defer t
+  ;; The :init section is always executed.
+  :init
+  ;; Marginalia must be activated in the :init section of use-package such that
+  ;; the mode gets enabled right away. Note that this forces loading the
+  ;; package.
+  (marginalia-mode))
+
+(use-package nerd-icons-completion
+  :after marginalia
+  :config
+  (nerd-icons-completion-mode)
+  (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup))
 #+end_src
 
 *** markdown mode
@@ -1887,22 +1949,3 @@ This is for when I accidentally make a column in org mode
   )
 #+end_src
 
-
-* End 
-
-#+begin_src emacs-lisp :lexical t :tangle no
-;; ;-*- eval: (load-file "./init-dev.el"); -*-
-
-#+end_src
-
-
-#+begin_src emacs-lisp :lexical t
-
-
-#+end_src
-
-** 
-# TODO figure out tramp hang issues
-# CHange tramp stuff to be faster and more reliable
-# Check on zsh 'tramp vs "tramp"
-# Make execute path faster
