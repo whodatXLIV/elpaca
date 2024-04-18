@@ -69,7 +69,7 @@ The following line turns on lexical binding for performance reasons.
 ** profiling
 This function displays how long Emacs took to start.
 It's a rough way of knowing when/if I need to optimize my init file.
-#+begin_src emacs-lisp :lexical t :tangle no
+#+begin_src emacs-lisp :lexical t :tangle yes
 (add-hook 'elpaca-after-init-hook
           (lambda ()
             (message "Emacs loaded in %s with %d garbage collections."
@@ -175,9 +175,11 @@ ELP is useful for seeing which functions in a package are "hot".
 
 #+begin_src emacs-lisp :lexical t
 (use-package transient
-  :defer t)
+  :defer t
+  )
 (use-package git-commit
-  :defer t)
+  :defer t
+  )
 (use-package delight
   :defer t)
 #+end_src
@@ -235,7 +237,7 @@ ELP is useful for seeing which functions in a package are "hot".
 
 (defun connect-focusvq-home ()
   (interactive)
-  (dired "/ssh:dev:~"))
+  (dired "/scp:sfigueroa@dev:~"))
 
 (setq sql-connection-alist
       '(
@@ -354,8 +356,15 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-feature tramp 
   :config
+  ;; (when (string-equal emacs-version "29.2")
+  ;;   (with-current-buffer
+  ;;       (url-retrieve-synchronously
+  ;;        "https://git.savannah.gnu.org/cgit/emacs.git/plain/lisp/emacs-lisp/loaddefs-gen.el?h=emacs-29")
+  ;;     (goto-char (point-min))
+  ;;     (while (looking-at "^.+$") (forward-line))
+  ;;     (eval-region (point) (point-max))))
   (setq shell-file-name "/bin/bash") 
-  (setq tramp-default-method "ssh")
+  (setq tramp-default-method "scp")
   (with-eval-after-load 'tramp (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
   (with-eval-after-load 'tramp '(setenv "SHELL" "/bin/bash"))
   )
@@ -364,6 +373,7 @@ This is for when I accidentally make a column in org mode
   :bind* ("C-c f" . counsel-tramp)
   :defer t
   :init
+  (setq counsel-tramp-custom-connections '(/scp:sfigueroa@dev:~/ /scp:sfigueroa@dev:~/elcano/ ))
   (setq make-backup-files nil)
   (setq create-lockfiles nil) 
   )
@@ -372,13 +382,17 @@ This is for when I accidentally make a column in org mode
 *** recentf
 #+BEGIN_SRC emacs-lisp :lexical t
 (use-feature recentf
+  :after tramp
   :init
-  (setq recentf-auto-cleanup 'mode) ;; disable before we start recentf!
+  (setq recentf-auto-cleanup nil) ;; disable before we start recentf!
   (setq recentf-max-menu-items 25)
   (setq recentf-max-saved-items 25)
-  (run-at-time nil (* 5 60) 'recentf-save-list)
+  
   :config
   (recentf-mode 1)
+  (run-at-time nil (* 5 60) 'recentf-save-list)
+  (add-to-list 'recentf-exclude "\\.png\\'")
+  (recentf-cleanup)
   :defer t
   )
 #+END_SRC
@@ -453,6 +467,97 @@ This is for when I accidentally make a column in org mode
 
 #+end_src
 
+*** bufler
+
+#+begin_src emacs-lisp :lexical t
+(use-package bufler
+  :defer t
+  :bind* (
+          ("C-x C-b" . bufler-sidebar)
+          )
+  :delight
+  :config
+  (setf bufler-groups
+        (bufler-defgroups
+          (group
+           ;; Subgroup collecting all named workspaces.
+           (auto-workspace))
+          (group
+           ;; images
+           (mode-match "*images*" (rx bos "image-mode"))
+           )
+          (group
+           ;; Subgroup collecting all `help-mode' and `info-mode' buffers.
+           (group-or "*Help/Info*"
+                     (mode-match "*Help*" (rx bos "help-"))
+                     (mode-match "*Info*" (rx bos "info-"))))
+          (group
+           ;; Subgroup collecting all special buffers (i.e. ones that are not
+           ;; file-backed), except `magit-status-mode' buffers (which are allowed to fall
+           ;; through to other groups, so they end up grouped with their project buffers).
+           (group-and "*Special*"
+                      (lambda (buffer)
+                        (unless (or (funcall (mode-match "Magit" (rx bos "magit-status"))
+                                             buffer)
+                                    (funcall (mode-match "Dired" (rx bos "dired"))
+                                             buffer)
+                                    (funcall (auto-file) buffer))
+                          "*Special*")))
+           (group
+            ;; Subgroup collecting these "special special" buffers
+            ;; separately for convenience.
+            (name-match "**Special**"
+                        (rx bos "*" (or "Messages" "Warnings" "scratch" "Backtrace") "*")))
+           (group
+            ;; Subgroup collecting all other Magit buffers, grouped by directory.
+            (mode-match "*Magit* (non-status)" (rx bos (or "magit" "forge") "-"))
+            (auto-directory))
+           ;; Subgroup for Helm buffers.
+           (mode-match "*Helm*" (rx bos "helm-"))
+           ;; Remaining special buffers are grouped automatically by mode.
+           (auto-mode))
+          ;; All buffers under "~/.emacs.d" (or wherever it is).
+          (dir user-emacs-directory)
+          (group
+           ;; Subgroup collecting buffers in `org-directory' (or "~/org" if
+           ;; `org-directory' is not yet defined).
+           (dir (if (bound-and-true-p org-directory)
+                    org-directory
+                  "~/org"))
+           (group
+            ;; Subgroup collecting indirect Org buffers, grouping them by file.
+            ;; This is very useful when used with `org-tree-to-indirect-buffer'.
+            (auto-indirect)
+            (auto-file))
+           ;; Group remaining buffers by whether they're file backed, then by mode.
+           (group-not "*special*" (auto-file))
+           (auto-mode))
+          (group
+           ;; Subgroup collecting buffers in a projectile project.
+           (auto-projectile))
+          (group
+           ;; Subgroup collecting buffers in a version-control project,
+           ;; grouping them by directory.
+           (auto-project))
+          ;; Group remaining buffers by directory, then major mode.
+          (group
+           ;; magit
+           (mode-match "*magit-leftovers*" (rx bos "magit-process-mode"))
+           )
+
+          (group
+           ;; logs and out stuff
+           (mode-match "*Fundamental*" (rx bos "fundamental-mode"))
+           )
+          
+          (auto-directory)
+          (auto-mode))
+        )
+  )
+
+#+end_src
+
+
 *** company
 #+begin_src emacs-lisp :lexical t
 
@@ -498,8 +603,9 @@ This is for when I accidentally make a column in org mode
   :bind* (
          ("M-x" . counsel-M-x)
          ("C-x b" . ivy-switch-buffer)
-         ("C-x C-b" . counsel-ibuffer)
+;;         ("C-x C-b" . counsel-ibuffer)
          ("C-x C-f" . counsel-find-file)
+         ("C-x M-f" . counsel-file-jump)
          ("C-x C-d" . counsel-dired)
          ("C-x f" . counsel-recentf)
          ("C-x C-a" . counsel-ag)
@@ -524,18 +630,18 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 
-(use-package dashboard
-  :custom
-  (dashboard-banner-logo-title "It's Emacs time!")
-  (dashboard-startup-banner 'logo)
-  (dashboard-items '((recents  . 15)
-                     (projects . 5)
-                     ))
-  :config
-  ;; (add-hook 'elpaca-after-init-hook #'dashboard-insert-startupify-lists)
-  ;; (add-hook 'elpaca-after-init-hook #'dashboard-initialize)
-  (dashboard-setup-startup-hook)
-  )
+;; (use-package dashboard
+;;   :custom
+;;   (dashboard-banner-logo-title "It's Emacs time!")
+;;   (dashboard-startup-banner 'logo)
+;;   (dashboard-items '((recents  . 15)
+;;                      (projects . 5)
+;;                      ))
+;;   :config
+;;   ;; (add-hook 'elpaca-after-init-hook #'dashboard-insert-startupify-lists)
+;;   ;; (add-hook 'elpaca-after-init-hook #'dashboard-initialize)
+;;   (dashboard-setup-startup-hook)
+;;   )
 
 ;; Value can be
 ;; 'official which displays the official emacs logo
@@ -548,100 +654,100 @@ This is for when I accidentally make a column in org mode
 *** dired
 
 #+begin_src emacs-lisp :lexical t
-(use-package all-the-icons
-  :defer t
-  :delight
-  )
+  (use-package all-the-icons
+    :defer t
+    :delight
+    )
 
-(use-package all-the-icons-dired
-  :defer t
-  :delight
-  :hook (dired-mode . all-the-icons-dired-mode)
-  :custom
-  (all-the-icons-dired-monochrome nil)
-  )
+  (use-package all-the-icons-dired
+    :defer t
+    :delight
+    :hook (dired-mode . all-the-icons-dired-mode)
+    :custom
+    (all-the-icons-dired-monochrome nil)
+    )
 
-(use-package dired-subtree
-  :delight
-  :bind (
-         :map dired-mode-map
-         ("H-r" . dired-subtree-remove)
-         ("<tab>" . dired-subtree-toggle)
-         ("H-p" . dired-subtree-up)
-         ("H-n" . dired-subtree-down)
-         ("H-<up>" . dired-subtree-beginning)
-         ("H-<down>" . dired-subtree-end)
-         ("H-m" . dired-subtree-mark-subtree)
-         ("H-u" . dired-subtree-unmark-subtree)           
-         )
-  :defer t
-  )
-
-(use-package dired-filter
-  :custom
-  (dired-listing-switches "-alogh")
-  :defer t
-  :hook (dired-mode)
-  )
-
-(use-feature dired
-  ;; :bind* ("C-x d" . seth/dired-side-vc)
-  :defer t
-  :delight
-  :custom-face
-  (dired-directory ((t (:foreground "#97c8f7" :extend t)))) 
-  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
-  :config
-  ;; (require 'dired-subtree)
-  (when (string= system-type "darwin")       
-    (setq dired-use-ls-dired nil))
-  ;; (defun seth/dired-side--vc (directory)
-  ;;   "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
-  ;;   (let* (
-  ;;          (backend (vc-responsible-backend directory t))
-  ;;          (dir (if (eq backend nil)
-  ;;                   directory
-  ;;                 (expand-file-name (vc-call-backend backend 'root directory))))
-  ;;          (dired_dir (dired-noselect dir))
-  ;;          (path-list (split-string (first (last (split-string directory dir))) "/"))
+  ;; (use-package dired-subtree
+  ;;   :delight
+  ;;   :bind (
+  ;;          :map dired-mode-map
+  ;;          ("H-r" . dired-subtree-remove)
+  ;;          ("<tab>" . dired-subtree-toggle)
+  ;;          ("H-p" . dired-subtree-up)
+  ;;          ("H-n" . dired-subtree-down)
+  ;;          ("H-<up>" . dired-subtree-beginning)
+  ;;          ("H-<down>" . dired-subtree-end)
+  ;;          ("H-m" . dired-subtree-mark-subtree)
+  ;;          ("H-u" . dired-subtree-unmark-subtree)           
   ;;          )
-  ;;     (display-buffer-in-side-window
-  ;;      dired_dir `((side . left)
-  ;;                  (slot . 0)
-  ;;                  (window-width . 0.3)
-  ;;                  (window-parameters) . ((no-other-window . t)
-  ;;                                         (no-delete-other-windows . t)
-  ;;                                         (mode-line-format . (" " "%b"))
-  ;;                                         )
-  ;;                  )
-  ;;      )
-  ;;     (with-current-buffer dired_dir
-  ;;       (setq window-size-fixed 'width)
-  ;;       (switch-to-buffer-other-frame dired_dir)
-  ;;       (revert-buffer)
-  ;;       (dired-hide-details-mode)
-  ;;       (goto-char 0)
-  ;;       (cl-loop for p in path-list do
-  ;;                (goto-char (search-forward p))
-  ;;                (dired-subtree-insert)
-  ;;                )
-  ;;       )
-  ;;     )
+  ;;   :defer t
   ;;   )
-  ;; (defun seth/dired-side-vc (&optional initial-input)
-  ;;   "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
-  ;;   (interactive) 
-  ;;   (ivy-read "Dired: " #'read-file-name-internal
-  ;;             :matcher #'counsel--find-file-matcher
-  ;;             :initial-input initial-input
-  ;;             :action (lambda (d) (seth/dired-side--vc (expand-file-name d)))
-  ;;             :preselect (counsel--preselect-file)
-  ;;             :require-match 'confirm-after-completion
-  ;;             :history 'file-name-history
-  ;;             :keymap counsel-find-file-map
-  ;;             :caller 'counsel-dired)
-  ;;   )    
-  )
+
+  (use-package dired-filter
+    :custom
+    (dired-listing-switches "-alogh")
+    :defer t
+    :hook (dired-mode)
+    )
+
+  (use-feature dired
+    ;; :bind* ("C-x d" . seth/dired-side-vc)
+    :defer t
+    :delight
+    :custom-face
+    (dired-directory ((t (:foreground "#97c8f7" :extend t)))) 
+    (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
+    :config
+    ;; (require 'dired-subtree)
+    (when (string= system-type "darwin")       
+      (setq dired-use-ls-dired nil))
+    ;; (defun seth/dired-side--vc (directory)
+    ;;   "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
+    ;;   (let* (
+    ;;          (backend (vc-responsible-backend directory t))
+    ;;          (dir (if (eq backend nil)
+    ;;                   directory
+    ;;                 (expand-file-name (vc-call-backend backend 'root directory))))
+    ;;          (dired_dir (dired-noselect dir))
+    ;;          (path-list (split-string (first (last (split-string directory dir))) "/"))
+    ;;          )
+    ;;     (display-buffer-in-side-window
+    ;;      dired_dir `((side . left)
+    ;;                  (slot . 0)
+    ;;                  (window-width . 0.3)
+    ;;                  (window-parameters) . ((no-other-window . t)
+    ;;                                         (no-delete-other-windows . t)
+    ;;                                         (mode-line-format . (" " "%b"))
+    ;;                                         )
+    ;;                  )
+    ;;      )
+    ;;     (with-current-buffer dired_dir
+    ;;       (setq window-size-fixed 'width)
+    ;;       (switch-to-buffer-other-frame dired_dir)
+    ;;       (revert-buffer)
+    ;;       (dired-hide-details-mode)
+    ;;       (goto-char 0)
+    ;;       (cl-loop for p in path-list do
+    ;;                (goto-char (search-forward p))
+    ;;                (dired-subtree-insert)
+    ;;                )
+    ;;       )
+    ;;     )
+    ;;   )
+    ;; (defun seth/dired-side-vc (&optional initial-input)
+    ;;   "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
+    ;;   (interactive) 
+    ;;   (ivy-read "Dired: " #'read-file-name-internal
+    ;;             :matcher #'counsel--find-file-matcher
+    ;;             :initial-input initial-input
+    ;;             :action (lambda (d) (seth/dired-side--vc (expand-file-name d)))
+    ;;             :preselect (counsel--preselect-file)
+    ;;             :require-match 'confirm-after-completion
+    ;;             :history 'file-name-history
+    ;;             :keymap counsel-find-file-map
+    ;;             :caller 'counsel-dired)
+    ;;   )    
+    )
 
 
 #+end_src
@@ -708,7 +814,7 @@ This is for when I accidentally make a column in org mode
                 '(:pylsp (:plugins (
                                     :pylint (:enabled :json-false)
                                     :autopep8 (:enabled :json-false)
-                                    :yapf (:enabled :json-false)
+                                    ;; :yapf (:enabled :json-false)
                                     :mccabe (:enabled :json-false)
                                     ))
                          ))
@@ -843,11 +949,12 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-package hl-todo
   :delight
+  :defer t
   :config
   (setq hl-todo-keyword-faces
-   '(("TODO"   . "#934b9c")
-     ("NOTE"  . "#1E90FF")
-     ("HACK"  . "#CC6200")
+   '(("TODO" . "#934b9c")
+     ("NOTE" . "#1E90FF")
+     ("HACK" . "#CC6200")
      ("BUG"  . "#FF0000")
      ))
   (global-hl-todo-mode)
@@ -903,9 +1010,9 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-package jupyter
   :defer t
-  :custom
-  (org-babel-jupyter-resource-directory "./plots/")
   :config
+  (defvaralias 'org-babel-jupyter-resource-directory 'jupyter-org-resource-directory)
+  (setq org-babel-jupyter-resource-directory "./plots/")
   (org-babel-do-load-languages
    'org-babel-load-languages
    '((emacs-lisp . t)
@@ -927,6 +1034,8 @@ This is for when I accidentally make a column in org mode
   :defer t
   :bind* ("C-x g" . magit-status)
   :config 
+  (setq split-height-threshold nil)
+  (setq split-width-threshold 0)
   (setq magit-completing-read-function 'ivy-completing-read)
   (setenv "GIT_ASKPASS" "git-gui--askpass")
   )
@@ -1270,7 +1379,7 @@ This is for when I accidentally make a column in org mode
 #+end_src
 
 *** projectile
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
 
 (use-package projectile
   :delight '(:eval (concat " [" (projectile-project-name) "]"))
@@ -1912,10 +2021,16 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-package vterm
   :defer t
+  ;;; instructions to build vterm
+  ;; cd /Users/sethfigueroa/.emacs.d/elpaca/builds/vterm/
+  ;; mkdir -p build
+  ;; cd build
+  ;; cmake ..
+  ;; make
   )
 (use-package multi-vterm
   :init
-  (setq vterm-tramp-shells '(("ssh" "/usr/bin/zsh")))
+  (setq vterm-tramp-shells '(("scp" "/usr/bin/zsh")))
   (setq vterm-shell "/usr/local/bin/zsh")
   :bind (
          ("C-x t" . multi-vterm-project)
@@ -1965,5 +2080,5 @@ This is for when I accidentally make a column in org mode
   :custom
   (neo-theme 'arrow)
 )
-#+end_src
+#+end_src 
 

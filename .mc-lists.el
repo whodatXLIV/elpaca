@@ -3,6 +3,7 @@
 
 (setq mc/cmds-to-run-for-all
       '(
+        end-of-buffer
         indent-for-tab-command
         kill-region
         org-beginning-of-line
@@ -13,6 +14,8 @@
         org-yank
         sp-beginning-of-sexp
         sp-end-of-sexp
+        sp-kill-hybrid-sexp
+        vterm-end-of-line
         ))
 
 (setq mc/cmds-to-run-once
@@ -24,4 +27,5 @@
         ace-mc-add-single-cursor
         ace-mc-do-keyboard-reset
         ace-mc-quick-exchange
+        counsel-M-x
         ))
