@@ -99,8 +99,7 @@ ELP is useful for seeing which functions in a package are "hot".
 (defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
 (defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
 (defvar elpaca-order '(elpaca :repo "https://github.com/progfolio/elpaca.git"
-                              :ref nil :depth nil
-                              :pre-build ("git" "remote" "set-url" "origin" "git@github.com:progfolio/elpaca.git")
+                              :ref nil :depth 1
                               :files (:defaults "elpaca-test.el" (:exclude "extensions"))
                               :build (:not elpaca--activate-package)))
 (let* ((repo  (expand-file-name "elpaca/" elpaca-repos-directory))
@@ -110,10 +109,13 @@ ELP is useful for seeing which functions in a package are "hot".
   (add-to-list 'load-path (if (file-exists-p build) build repo))
   (unless (file-exists-p repo)
     (make-directory repo t)
+    (when (< emacs-major-version 28) (require 'subr-x))
     (condition-case-unless-debug err
         (if-let ((buffer (pop-to-buffer-same-window "*elpaca-bootstrap*"))
-                 ((zerop (call-process "git" nil buffer t "clone"
-                                       (plist-get order :repo) repo)))
+                 ((zerop (apply #'call-process `("git" nil ,buffer t "clone"
+                                                 ,@(when-let ((depth (plist-get order :depth)))
+                                                     (list (format "--depth=%d" depth) "--no-single-branch"))
+                                                 ,(plist-get order :repo) ,repo))))
                  ((zerop (call-process "git" nil buffer t "checkout"
                                        (or (plist-get order :ref) "--"))))
                  (emacs (concat invocation-directory invocation-name))
@@ -121,7 +123,7 @@ ELP is useful for seeing which functions in a package are "hot".
                                        "--eval" "(byte-recompile-directory \".\" 0 'force)")))
                  ((require 'elpaca))
                  ((elpaca-generate-autoloads "elpaca" repo)))
-            (and (message "%S" (buffer-string)) (kill-buffer buffer))
+            (progn (message "%s" (buffer-string)) (kill-buffer buffer))
           (error "%s" (with-current-buffer buffer (buffer-string))))
       ((error) (warn "%s" err) (delete-directory repo 'recursive))))
   (unless (require 'elpaca-autoloads nil t)
@@ -129,8 +131,7 @@ ELP is useful for seeing which functions in a package are "hot".
     (elpaca-generate-autoloads "elpaca" repo)
     (load "./elpaca-autoloads")))
 (add-hook 'after-init-hook #'elpaca-process-queues)
-(elpaca `(,@elpaca-order :depth nil))
-(setq elpaca-queue-limit 1000)
+(elpaca `(,@elpaca-order))
 #+end_src
 
 *** use package 
@@ -557,7 +558,6 @@ This is for when I accidentally make a column in org mode
 
 #+end_src
 
-
 *** company
 #+begin_src emacs-lisp :lexical t
 
@@ -624,6 +624,281 @@ This is for when I accidentally make a column in org mode
   (use-package csv-mode
     :mode "\\.csv\\'"
     )
+#+end_src
+
+*** d20
+#+begin_src emacs-lisp :lexical t
+(use-package org-d20
+  :delight
+  :defer t
+  :config
+  (require 's)
+  (require 'seq)
+  (require 'dash)
+  (require 'cl-lib)
+  (require 'subr-x)
+  (require 'org-table)
+  
+  (pretty-hydra-define d20-hydra (:color blue :hint nil)
+    (
+     "Initiative"
+     (
+      ("i" org-d20-initiative-add "add initiative" :exit nil)
+      ("n" org-d20-initiative-dwim "next initiative" :exit nil)
+      ("p" org-d20-initiative-back "prev initiative" :exit nil)
+      )
+     
+     "Roll"
+     (
+      ("r" org-d20-roll "roll" :exit nil)
+      ("P" org-d20-roll-at-point "roll at point" :exit nil)
+      ("a" org-d20-d20 "Advantage/Disadvatage" :exit nil)
+      )
+     
+     "Edit"
+     (
+      ("d" org-d20-damage "damage" :exit nil)
+      ("t" org-table-align "align" :exit nil)
+      ("q" nil "quit")
+      )
+     )
+    )
+
+  (defun org-d20-initiative ()
+    "Generate an Org-mode table with initiative order and monster/NPC HP."
+    (interactive "*")
+    (let ((rows))
+      (let (name-input init-input ac-input hd-input num-input (monster 1))
+        (cl-loop
+         do (setq name-input (read-string "Monster/NPC name (blank when done): "))
+         (when (> (length name-input) 0)
+           (setq init-input (read-string (concat name-input "'s init modifier: "))
+                 ac-input (read-string (concat name-input "'s Armor Class: "))
+                 hd-input (read-string (concat name-input "'s hit points: "))
+                 num-input
+                 (cdr (org-d20--roll
+                       (read-string (concat "How many " name-input "? ")))))
+           ;; In 5e, all monsters of the same kind have the same
+           ;; initiative
+           (let ((init (int-to-string
+                        (org-d20--d20-plus (string-to-number init-input))))
+                 (monsters-left num-input))
+             (while (>= monsters-left 1)
+               (let (
+                     (hp (int-to-string (cdr (org-d20--roll hd-input))))
+                     (ac (int-to-string (cdr (org-d20--roll ac-input))))
+                     )
+                 (push (list
+                        "" (concat name-input
+                                   " "
+                                   (org-d20--monster-number monster))
+                        (org-d20--num-to-term init-input) init ac hp "0")
+                       rows))
+               (setq monsters-left (1- monsters-left)
+                     monster (1+ monster)))))
+         (unless org-d20-continue-monster-numbering (setq monster 1))
+         while (-all? (lambda (x) (> (length x) 0))
+                      (list name-input init-input ac-input hd-input))))
+      (dolist (pc org-d20-party)
+        (let ((init (read-string (concat (car pc) "'s initiative roll: "))))
+          (push (list "" (car pc) (org-d20--num-to-term (cdr pc)) init "-" "-" "-")
+                rows)))
+      ;; We prepended each new item to the list, so reverse before
+      ;; printing.  This ensures that the numbering/lettering of
+      ;; monsters on the same initiative count is ascending
+      (setq rows (seq-reverse rows))
+      (insert
+       "Round of combat: 1\n|Turn|Creature|Mod|Init|AC|HP|Damage|Status|\n|-\n")
+      (dolist (row rows)
+        (dolist (cell row)
+          (insert "|" cell))
+        (insert "|\n"))
+      (delete-char -1)
+      (org-table-goto-column 4)
+      (org-table-sort-lines nil ?N)
+      (org-table-goto-line 2)
+      (org-table-goto-column 1)
+      (insert ">>>>")                     ; four chars in 'Turn'
+      (org-table-align)))
+
+
+  (defun org-d20-initiative-back ()
+    "Go back an turn on the turn tracker in an initiative table."
+    (interactive "*")
+    (when (org-at-table-p)
+      (cl-loop
+       do (let* ((back (search-backward ">>>>" (org-table-begin) t))
+                 (forward (search-forward ">>>>" (org-table-end) t))
+                 (cur (if back back forward)))
+            (goto-char cur)
+            (skip-chars-backward ">")
+            (delete-char 4)
+            (if (not 
+                 (eq 2 (org-table-current-line)))
+                (progn
+                  (forward-line -1)
+                  (org-table-next-field)
+                  (insert ">>>>"))
+              (save-excursion
+                (search-backward "Round of combat:")
+                (search-forward-regexp "[0-9]+")
+                (skip-chars-backward "0-9")
+                (replace-match
+                 (int-to-string (1- (string-to-number (match-string 0))))))
+              (goto-char (org-table-end))
+              (backward-char)
+              (org-table-goto-column 1)
+              (insert ">>>>")))
+       while (save-excursion
+               (org-table-goto-column 2)
+               (looking-at "~"))))
+    (org-table-align))
+
+  (defun org-d20-initiative-advance ()
+    "Advance the turn tracker in an initiative table."
+    (interactive "*")
+    (when (org-at-table-p)
+      (cl-loop
+       do (let* ((back (search-backward ">>>>" (org-table-begin) t))
+                 (forward (search-forward ">>>>" (org-table-end) t))
+                 (cur (if back back forward)))
+            (goto-char cur)
+            (skip-chars-backward ">")
+            (delete-char 4)
+            (if (save-excursion
+                  (org-table-goto-line (1+ (org-table-current-line))))
+                (progn
+                  (forward-line 1)
+                  (org-table-next-field)
+                  (insert ">>>>"))
+              (save-excursion
+                (search-backward "Round of combat:")
+                (search-forward-regexp "[0-9]+")
+                (skip-chars-backward "0-9")
+                (replace-match
+                 (int-to-string (1+ (string-to-number (match-string 0))))))
+              (org-table-goto-line 2)
+              (insert ">>>>")))
+       while (save-excursion
+               (org-table-goto-column 2)
+               (looking-at "~"))))
+    (org-table-align))
+
+  (defun org-d20-damage (dmg)
+    "Apply DMG poitns of damage to the monster/NPC in the table row at point."
+    (interactive "*nDamage dealt: ")
+    (when (org-at-table-p)
+      (org-table-goto-column 7)
+      (skip-chars-forward " ")
+      (when (looking-at "[0-9]+")
+        (let ((total-damage (+ dmg (string-to-number (match-string 0)))))
+          (replace-match (int-to-string total-damage))
+          (save-excursion
+            (org-table-goto-column 6)
+            (skip-chars-forward " ")
+            (when (looking-at "[0-9]+")
+              (let ((max-hp (string-to-number (match-string 0))))
+                (if (>= total-damage max-hp)
+                    (progn
+                      (org-table-goto-column 2)
+                      (insert "~")
+                      (org-d20--org-table-end-of-current-cell-content)
+                      (insert "~"))
+                  (when (>= total-damage (/ max-hp 2))
+                    (org-table-goto-column 8)
+                    (org-d20--org-table-end-of-current-cell-content)
+                    (unless (looking-back "bloodied" nil)
+                      (unless (looking-back "|" nil)
+                        (insert "; "))
+                      (insert "bloodied")))))))))
+      (org-table-align)))
+
+  (defun org-d20-initiative-dwim ()
+    "Start a new combat or advance the turn tracker, based on point."
+    (interactive "*")
+    (if (org-at-table-p)
+        (org-d20-initiative-advance)
+      (org-d20-initiative)))
+
+
+  (defun org-d20-initiative-add ()
+    "Add a monster to an existing combat."
+    (interactive "*" org-mode)
+    (if (org-at-table-p)
+        (let* ((name-input (read-string "Monster/NPC name: "))
+               (init-input (read-number (concat name-input "'s init modifier: ")))
+               (ac-input (read-number (concat name-input "'s Armor Class: ")))
+               (hd-input (read-string (concat name-input "'s hit points: ")))
+               (num-input (read-string (concat "How many " name-input "? "))))
+          (org-d20--initiative-add-records name-input init-input ac-input hd-input num-input))
+      (org-d20-initiative)))
+
+
+
+
+  (defun org-d20--initiative-add-records (name init-mod ac hd num)
+    (let ((monster 1))
+      ;; First, if we need to, try to count the number of monsters.
+      ;; We can only use a crude heuristic here because we don't
+      ;; know what kind of things the user might have added to the
+      ;; table
+      (when org-d20-continue-monster-numbering
+        (save-excursion
+          (org-table-goto-line 1)
+          (while (org-table-goto-line (1+ (org-table-current-line)))
+            (org-table-goto-column 2)
+            (when (looking-at "[^|]+ \\([A-Z]\\|[0-9]+\\)~? *|")
+              (setq monster (1+ monster))))))
+      (save-excursion
+        ;; Ensure we're not on header row (following won't go past end
+        ;; of table)
+        (org-table-goto-line (1+ (org-table-current-line)))
+        (org-table-goto-line (1+ (org-table-current-line)))
+        (let ((init (int-to-string (org-d20--d20-plus init-mod)))
+              (monsters-left (cdr (org-d20--roll num))))
+          (while (>= monsters-left 1)
+            ;; Open a new row and then immediately move it downwards
+            ;; to ensure that the monsters on the same initiative
+            ;; count are numbered/lettered in ascending order
+            (org-table-insert-row)
+            (org-table-move-row)
+            (org-table-next-field)
+            (insert name)
+            (insert " ")
+            (insert (org-d20--monster-number monster))
+            (org-table-next-field)
+            (insert (org-d20--num-to-term init-mod))
+            (org-table-next-field)
+            (insert init)
+            (org-table-next-field)
+            (insert (int-to-string (cdr (org-d20--roll ac))))
+            (org-table-next-field)
+            (insert (int-to-string (cdr (org-d20--roll hd))))
+            (org-table-next-field)
+            (insert "0")
+            (setq monsters-left (1- monsters-left)
+                  monster (1+ monster))))
+        (org-table-goto-column 4)
+        (org-table-sort-lines nil ?N)
+        (org-table-align))))
+
+
+  ;; (define-key org-mode-map (kbd "H-h d") 'd20-hydra/body)
+
+  
+  :bind (
+         :map org-d20-mode-map
+         ("H-h d" . 'd20-hydra/body)
+         ("H-d i". 'org-d20-initiative-add)
+         ("H-d n". 'org-d20-initiative-dwim)
+         ("H-d p". 'org-d20-initiative-back)
+         ("H-d d". 'org-d20-damage)
+         ("H-d r". 'org-d20-roll)
+         ("H-d e". 'org-d20-roll-at-point)
+         ("H-d a". 'org-d20-d20)
+         )
+  
+  )
 #+end_src
 
 *** dashboard
@@ -764,7 +1039,6 @@ This is for when I accidentally make a column in org mode
          ("C-M-<down>" . drag-stuff-down)
          ("C-M-<up>" . drag-stuff-up)  
          )
-  :defer t
   )
 #+end_src
 
@@ -1412,6 +1686,17 @@ This is for when I accidentally make a column in org mode
 ;; (add-hook 'python-mode-hook 'yapf-mode)
 #+end_src
 
+**** code-cells
+#+begin_src emacs-lisp :lexical t
+(use-package code-cells
+  :defer t
+  :hook (python-mode . code-cells-mode))
+;; (setq jupyter-repl-echo-eval-p t) # this might be needed
+;; associate it to a repl buffer
+;; create and name repls
+;; jupytext with notebook and python files?
+;; can i connect to a jupyter on a server?
+#+end_src
 *** Scimax 
 #+begin_src emacs-lisp :lexical t  
 (use-feature ox-clip

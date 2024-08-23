@@ -10,10 +10,13 @@
         org-cycle
         org-delete-char
         org-end-of-line
+        org-open-line
         org-self-insert-command
         org-yank
+        sp-backward-slurp-sexp
         sp-beginning-of-sexp
         sp-end-of-sexp
+        sp-forward-slurp-sexp
         sp-kill-hybrid-sexp
         vterm-end-of-line
         ))
@@ -27,5 +30,9 @@
         ace-mc-add-single-cursor
         ace-mc-do-keyboard-reset
         ace-mc-quick-exchange
+        ace-window
         counsel-M-x
+        embark-dwim
+        tabbar-move-group-backward
+        tabbar-press-home
         ))
