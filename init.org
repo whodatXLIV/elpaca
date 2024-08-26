@@ -563,6 +563,9 @@ This is for when I accidentally make a column in org mode
 
 (use-package buffer-expose
   :delight
+  :config
+  (setcdr buffer-expose-mode-map nil)
+
   ;; :defer t
   :bind* (
           ("H-b e" . buffer-expose)
@@ -577,8 +580,6 @@ This is for when I accidentally make a column in org mode
   )
 
 #+end_src
-
-
 
 *** company
 #+begin_src emacs-lisp :lexical t
@@ -1088,47 +1089,6 @@ This is for when I accidentally make a column in org mode
 
 #+end_src
 
-*** eglot
-#+begin_src emacs-lisp :lexical t
-(use-package eglot
-  :defer t
-  :init
-  (defun start-eglot-python (env)
-    (interactive "sPython env: ")
-    (let* (
-           (mypath (concat
-                    (shell-command-to-string "conda info --base | tr -d '\n'")
-                    (concat "/envs/" env "/bin/pylsp")
-                    )
-                   )
-           )
-      (kill-new mypath)
-      (call-interactively 'eglot)
-      )
-    )
-  (setq-default eglot-workspace-configuration
-                '(:pylsp (:plugins (
-                                    :pylint (:enabled :json-false)
-                                    :autopep8 (:enabled :json-false)
-                                    ;; :yapf (:enabled :json-false)
-                                    :mccabe (:enabled :json-false)
-                                    ))
-                         ))
-  (setq eldoc-echo-area-use-multiline-p nil)
-  :config
-  (global-flycheck-eglot-mode 1)
-  )
-
-(use-package jsonrpc
-  :defer t
-  )
-
-(use-package flycheck-eglot
-  :defer t
-  )
-
-#+end_src
-
 *** embark
 #+begin_src emacs-lisp :lexical t
 (use-package embark
@@ -1309,25 +1269,6 @@ This is for when I accidentally make a column in org mode
   :defer t
   )
 
-#+end_src
-*** Jupyter
-
-#+begin_src emacs-lisp :lexical t
-(use-package jupyter
-  :defer t
-  :config
-  (defvaralias 'org-babel-jupyter-resource-directory 'jupyter-org-resource-directory)
-  (setq org-babel-jupyter-resource-directory "./plots/")
-  (org-babel-do-load-languages
-   'org-babel-load-languages
-   '((emacs-lisp . t)
-     (julia . t)
-     (python . t)
-     (jupyter . t)))
-  )
-
-(use-package zmq
-  :defer t)
 #+end_src
 
 *** magit
@@ -1693,6 +1634,139 @@ This is for when I accidentally make a column in org mode
 #+end_src
 
 *** python
+first need to start kernel
+that same kernel needs to start eglot
+need to name that kernel the file name
+need to associate the kernel with the buffer
+
+(setq jupyter-eval-use-overlays t) I like this
+(setq jupyter-repl-echo-eval-p nil) is there a mini of this where just the output is sent to the repl cells?
+how to handle errors
+
+add in a way to rewrite the code cells to have a timestamp
+
+use popper to be able to handle the outputs and errors and stuff
+
+Use tabbar and window managers to fix the output. New frame per output
+
+**** code-cells
+#+begin_src emacs-lisp :lexical t
+
+(use-package code-cells
+  :defer t
+  :config
+  (setcdr code-cells-mode-map nil)
+  (defun seth-add-time-stamp-after-execute (&optional var)
+    (interactive)
+    (unless var (setq var nil))
+    (let (
+          (bounds (code-cells--bounds 1))
+          )
+      (save-excursion      (goto-char (car bounds))
+                           (kill-line)
+                           (insert (concat
+                                    "# %% "
+                                    (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
+                                    ;; " ["
+                                    ;; (int-to-string seth-jupyter-execution-count)
+                                    ;; "]"
+                                    ))
+                           (apply 'code-cells-eval (code-cells--bounds 1)))
+      (if var
+          (code-cells-forward-cell 1)
+        )
+      )      
+    )
+
+  (defun seth-clear-timestamps ()
+    (interactive)
+    (let (
+          (bounds (code-cells--bounds 1))
+          )
+      (save-excursion
+        (goto-char (car bounds))
+        (kill-line)
+        (insert "# %%")
+        )
+      )
+    )
+  
+  :hook (python-mode . code-cells-mode-maybe)
+  :bind (
+         :map code-cells-mode-map
+         ("C-c C-c" . seth-add-time-stamp-after-execute)
+         ("C-<return>" . (lambda() (interactive) (seth-add-time-stamp-after-execute 1)))
+         ("M-p" . code-cells-backward-cell)
+         ("M-n" . code-cells-forward-cell)
+         ;; ("C-c % B" . code-cells-move-cell-up)
+         ;; ("C-c % F" . code-cells-move-cell-down)
+         ("C-c ;" . code-cells-comment-or-uncomment)
+         ("C-c a" . code-cells-mark-cell)
+         )
+  )
+#+end_src
+
+**** eglot
+#+begin_src emacs-lisp :lexical t
+(use-package eglot
+  :defer t
+  :init
+  (defun start-eglot-python (env)
+    (interactive "sPython env: ")
+    (let* (
+           (mypath (concat
+                    (shell-command-to-string "conda info --base | tr -d '\n'")
+                    (concat "/envs/" env "/bin/pylsp")
+                    )
+                   )
+           )
+      (kill-new mypath)
+      (call-interactively 'eglot)
+      )
+    )
+  (setq-default eglot-workspace-configuration
+                '(:pylsp (:plugins (
+                                    :pylint (:enabled :json-false)
+                                    :autopep8 (:enabled :json-false)
+                                    ;; :yapf (:enabled :json-false)
+                                    :mccabe (:enabled :json-false)
+                                    ))
+                         ))
+  (setq eldoc-echo-area-use-multiline-p nil)
+  :config
+  (global-flycheck-eglot-mode 1)
+  )
+
+(use-package jsonrpc
+  :defer t
+  )
+
+(use-package flycheck-eglot
+  :defer t
+  )
+
+#+end_src
+
+**** Jupyter
+
+#+begin_src emacs-lisp :lexical t
+(use-package jupyter
+  :defer t
+  :config
+  (defvaralias 'org-babel-jupyter-resource-directory 'jupyter-org-resource-directory)
+  (setq org-babel-jupyter-resource-directory "./plots/")
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((emacs-lisp . t)
+     (julia . t)
+     (python . t)
+     (jupyter . t)))
+  )
+
+(use-package zmq
+  :defer t)
+#+end_src
+
 **** python
 #+begin_src emacs-lisp :lexical t
 
@@ -1715,17 +1789,6 @@ This is for when I accidentally make a column in org mode
 ;; (add-hook 'python-mode-hook 'yapf-mode)
 #+end_src
 
-**** code-cells
-#+begin_src emacs-lisp :lexical t
-(use-package code-cells
-  :defer t
-  :hook (python-mode . code-cells-mode))
-;; (setq jupyter-repl-echo-eval-p t) # this might be needed
-;; associate it to a repl buffer
-;; create and name repls
-;; jupytext with notebook and python files?
-;; can i connect to a jupyter on a server?
-#+end_src
 *** Scimax 
 #+begin_src emacs-lisp :lexical t  
 (use-feature ox-clip
@@ -2431,7 +2494,8 @@ This is for when I accidentally make a column in org mode
   )
 #+end_src
 
-*** neovim
+
+#+LASTRUN: [2024-08-26 Mon 16:39:30] [2]
 #+begin_src emacs-lisp :lexical t
 (use-package neotree
   :delight
