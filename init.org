@@ -558,6 +558,28 @@ This is for when I accidentally make a column in org mode
 
 #+end_src
 
+*** buffer-expose
+#+begin_src emacs-lisp :lexical t
+
+(use-package buffer-expose
+  :delight
+  ;; :defer t
+  :bind* (
+          ("H-b e" . buffer-expose)
+          ("H-b b" . buffer-expose-no-stars)
+          ("H-b c" . buffer-expose-current-mode)
+          ("H-b s" . buffer-expose-major-mode)
+          ("H-b d" . buffer-expose-dired-buffers)
+          ("H-b *" . buffer-expose-stars)
+          )
+  :config
+  (buffer-expose-mode 1)  
+  )
+
+#+end_src
+
+
+
 *** company
 #+begin_src emacs-lisp :lexical t
 
@@ -931,7 +953,7 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
   (use-package all-the-icons
     :defer t
-    :delight
+    :if (display-graphic-p)
     )
 
   (use-package all-the-icons-dired
@@ -1279,6 +1301,15 @@ This is for when I accidentally make a column in org mode
   )
 #+end_src
 
+*** Iscroll
+#+begin_src emacs-lisp :lexical t
+
+(use-package iscroll
+  :delight
+  :defer t
+  )
+
+#+end_src
 *** Jupyter
 
 #+begin_src emacs-lisp :lexical t
@@ -1331,11 +1362,11 @@ This is for when I accidentally make a column in org mode
   ;; package.
   (marginalia-mode))
 
-(use-package nerd-icons-completion
-  :after marginalia
-  :config
-  (nerd-icons-completion-mode)
-  (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup))
+(use-package all-the-icons-completion
+  :after (marginalia all-the-icons)
+  :hook (marginalia-mode . all-the-icons-completion-marginalia-setup)
+  :init
+  (all-the-icons-completion-mode))
 #+end_src
 
 *** markdown mode
@@ -1542,7 +1573,7 @@ This is for when I accidentally make a column in org mode
    ;; Org styling, hide markup etc.
    org-hide-emphasis-markers t
    org-pretty-entities nil
-
+   org-modern-fold-stars '(("▶" . "▼") ("▷" . "▽") ("▶" . "▼") ("▹" . "▿") ("▸" . "▾"))
    ;; Agenda styling
    org-agenda-tags-column 0
    org-agenda-block-separator ?─
@@ -1564,8 +1595,6 @@ This is for when I accidentally make a column in org mode
    org-export-with-drawers t
    )
   )
-
-
 #+end_src
 
 *** page-break lines
@@ -2281,26 +2310,75 @@ This is for when I accidentally make a column in org mode
   )
 #+end_src
 
-*** undo-tree
+*** undo
 #+begin_src emacs-lisp :lexical t
 
-(use-package undo-tree
+(use-package undo-fu
+  :defer t
   :delight
   :custom
-  (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
-  (backup-directory-alist `(("." . "~/.emacs.d/.saves")))
-  (backup-by-copying t)
-  (delete-old-versions t)
-  (kept-new-versions 2)
-  (kept-old-versions 6)
-  (version-control t)       ; use versioned backups
-  (undo-tree-enable-undo-in-region t)
-
-  :config
-  (global-undo-tree-mode)
+  (undo-fu-allow-undo-in-region t)
+  :bind* (
+          ("C-/" . undo-fu-only-undo)
+          ("C-?" . undo-fu-only-redo)
+          )
+  :hook
+  ((prog-mode text-mode) . undo-fu-session-mode)
   )
 
-  #+end_src
+
+(use-package undo-fu-session
+  :defer t
+  :delight
+  :custom
+  (undo-fu-session-directory "~/.emacs.d/.saves")
+  (undo-fu-session-file-limit 10)
+  :hook
+  ((prog-mode text-mode) . undo-fu-session-mode)  
+  )
+
+(use-package vundo
+  :defer t
+  :delight
+  :bind* ("C-x u" . vundo)
+  ;; :custom-face
+  ;; (vundo-highlight ((t (:inherit nil :background "#ff5959" :foreground "white"))))
+  :custom
+  (vundo-glyph-alist vundo-unicode-symbols)
+  )
+
+(use-feature undo-hl
+  :ensure (undo-hl
+           :type git
+           :host github
+           :repo "casouri/undo-hl"
+           )
+  :defer t
+  :delight
+  :hook
+  ((prog-mode text-mode) . undo-hl-mode)
+  :custom
+  (undo-hl-flash-duration 0.2)
+  :custom-face
+  (undo-hl-insert ((t (:inherit nil :background "#59c267" :foreground "#1f4023")))) 
+  (undo-hl-delete ((t (:inherit nil :background "#ff5959" :foreground "#5e1e1e"))))
+  )
+;; (use-package undo-tree
+;;   :delight
+;;   :custom
+;;   (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
+;;   (backup-directory-alist `(("." . "~/.emacs.d/.saves")))
+;;   (backup-by-copying t)
+;;   (delete-old-versions t)
+;;   (kept-new-versions 2)
+;;   (kept-old-versions 6)
+;;   (version-control t)       ; use versioned backups
+;;   (undo-tree-enable-undo-in-region t)
+
+;;   :config
+;;   (global-undo-tree-mode)
+;;   )
+#+end_src
 
 *** vterm
 #+begin_src emacs-lisp :lexical t
@@ -2366,4 +2444,3 @@ This is for when I accidentally make a column in org mode
   (neo-theme 'arrow)
 )
 #+end_src 
-
