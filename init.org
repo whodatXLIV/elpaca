@@ -928,18 +928,18 @@ This is for when I accidentally make a column in org mode
 
 #+begin_src emacs-lisp :lexical t
 
-;; (use-package dashboard
-;;   :custom
-;;   (dashboard-banner-logo-title "It's Emacs time!")
-;;   (dashboard-startup-banner 'logo)
-;;   (dashboard-items '((recents  . 15)
-;;                      (projects . 5)
-;;                      ))
-;;   :config
-;;   ;; (add-hook 'elpaca-after-init-hook #'dashboard-insert-startupify-lists)
-;;   ;; (add-hook 'elpaca-after-init-hook #'dashboard-initialize)
-;;   (dashboard-setup-startup-hook)
-;;   )
+(use-package dashboard
+  :custom
+  (dashboard-banner-logo-title "It's Emacs time!")
+  (dashboard-startup-banner 'logo)
+  (dashboard-items '((recents  . 15)
+                     (projects . 5)
+                     ))
+  :config
+  ;; (add-hook 'elpaca-after-init-hook #'dashboard-insert-startupify-lists)
+  ;; (add-hook 'elpaca-after-init-hook #'dashboard-initialize)
+  (dashboard-setup-startup-hook)
+  )
 
 ;; Value can be
 ;; 'official which displays the official emacs logo
@@ -1554,7 +1554,7 @@ This is for when I accidentally make a column in org mode
 
 (use-package popper
   :init
-  (setq popper-group-function 'nil) ; projectile projects #'popper-group-by-projectile
+  ;; (setq popper-group-function 'nil) ; projectile projects #'popper-group-by-projectile
   (setq popper-reference-buffers
         '("\\*Messages\\*"
           "Output\\*$"
@@ -1572,7 +1572,16 @@ This is for when I accidentally make a column in org mode
                   "^\\*term.*\\*$"   term-mode   ;term as a popup
                   "^\\*vterm.*\\*$"  vterm-mode  ;vterm as a popup
                   "^\\*jupyter-repl*\\*$" jupyter-repl-mode
+                  ("^\\*jupyter-\\*$" . hide)
+                  ;; (special-mode . hide)
+                  ;; (fundamental-mode . hide)
+                  ;; ("^\\*jupyter-error*\\*$" . hide)
+                  ;; ("^\\*jupyter-output*\\*$" . hide)
                   )))
+  (setq popper-group-function #'popper-group-by-project)
+  (setq popper-display-control t)  ;This is the DEFAULT behavior
+  ;; (setq popper-display-function #'display-buffer-pop-up-frame)
+  
   :bind (
          ("s-;" . popper-toggle)
          ("s-M-;" . popper-cycle)
@@ -1635,21 +1644,22 @@ This is for when I accidentally make a column in org mode
 
 *** python
 
-***** how to open python [0/5]
-- [ ] first need to start kernel (how to know which one to start)
-- [ ] that same kernel needs to start eglot (must get sent to eglot in parallel)
-- [ ] need to name that kernel the file name (so that kernels are unique)
-- [ ] need to associate the kernel with the buffer using associate-buffer
-- [ ] Use tabbar and window managers to fix the output. capture output and organize somehow
+***** how to open python [5/6]
+- [X] first need to start kernel (how to know which one to start)
+- [X] that same kernel needs to start eglot (must get sent to eglot in parallel)
+- [X] need to name that kernel the file name (so that kernels are unique)
+- [X] need to associate the kernel with the buffer using associate-buffer
+- [X] Use tabbar and window managers to fix the output.
+- [ ] poppler still finicky, need to fix it
+- [ ] capture output and organize somehow. Copy buffer to another?
   
-
 ***** TODO [0/3]
 - [ ] how to handle errors i.e. stop running cells and show the correct linum of the whole doc not of the cell
 - [ ] need to go through all cells and clear all
 - [ ] use popper to be able to handle the outputs and errors and stuff
   
 ***** things I want to keep in mind
-(setq jupyter-eval-use-overlays t) I like this
+ I like this
 (setq jupyter-repl-echo-eval-p nil) is there a mini of this where just the output is sent to the repl cells?
 
 **** code-cells
@@ -1777,15 +1787,14 @@ This is for when I accidentally make a column in org mode
 #+end_src
 
 **** Jupyter
-
 #+begin_src emacs-lisp :lexical t
 (use-package jupyter
   :defer t
-  :after python
+  :custom
+  (jupyter-eval-use-overlays t)
   :config
   (defvaralias 'org-babel-jupyter-resource-directory 'jupyter-org-resource-directory)
   (setq org-babel-jupyter-resource-directory "./plots/")
-  (setq jupyter-eval-use-overlays t)
   (org-babel-do-load-languages
    'org-babel-load-languages
    '((emacs-lisp . t)
@@ -2279,6 +2288,9 @@ This is for when I accidentally make a column in org mode
       ((string-equal "*PHP*" (substring (buffer-name) 0 5))
        "PHP"
        )
+      ((string-equal "*jupyter-" (substring (buffer-name) 0 9))
+       "Jupyter"
+       )
       ((string-equal "*" (substring (buffer-name) 0 1))
        "Emacs Buffer"
        )
@@ -2434,6 +2446,12 @@ This is for when I accidentally make a column in org mode
 (use-package vundo
   :defer t
   :delight
+  :custom
+  (undo-limit         (* 96 1024 1024)) ;  96 MiB. The change group at which this size is exceeded is the last one kept.
+  (undo-strong-limit (* 128 1024 1024)) ; 128 MiB. The change group at which this size is exceeded is discarded itself (along with all older change groups). There is one exception: the very latest change group is only discarded if it exceeds ‘undo-outer-limit’.
+  (undo-outer-limit (* 1024 1024 1024)) ;   1 GiB. If at garbage collection time the undo info for the current command exceeds this limit, Emacs discards the info and displays a warning. This is a last ditch limit to prevent memory overflow.
+  (amalgamating-undo-limit 5)
+  
   :bind* ("C-x u" . vundo)
   ;; :custom-face
   ;; (vundo-highlight ((t (:inherit nil :background "#ff5959" :foreground "white"))))
