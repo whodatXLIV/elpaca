@@ -1745,9 +1745,11 @@ This is for when I accidentally make a column in org mode
          )
   :config
   (global-flycheck-eglot-mode 1)
-  (defun start-eglot-python (env)
-    (interactive "sPython env: ")
+  (defun start-eglot-python ()
+    (interactive)
     (let* (
+           (spec (jupyter-completing-read-kernelspec nil nil))
+           (env (jupyter-kernelspec-name spec))
            (contact (concat
                      (shell-command-to-string "conda info --base | tr -d '\n'")
                      (concat "/envs/" env "/bin/pylsp")
@@ -1761,7 +1763,7 @@ This is for when I accidentally make a column in org mode
       (apply 'eglot (list managed-modes project class (list contact) language-ids))
       (jupyter-run-repl env buffer-file-name t 'jupyter-repl-client)
       )
-    )
+    )  
   )
 
 (use-package jsonrpc
