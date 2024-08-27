@@ -1339,101 +1339,101 @@ This is for when I accidentally make a column in org mode
 **** org general
 
 #+begin_src emacs-lisp :lexical t
-(use-feature org
-  :defer t
-  :custom
-  (enable-local-variables t)
-  (org-display-remote-inline-images 'cache)
-  (org-startup-folded t)
-  (org-startup-indented t)
-  (org-log-done t)
-  (org-return-follows-link t)
-  (org-confirm-babel-evaluate nil)
-  :bind (
-         :map org-mode-map
-         ;;("C-M-<up>" . org-shiftmetaup)
-         ;;("C-M-<down>" . org-shiftmetadown)
-         ("s-C-l" . seth-clear-all-results)
-         ("C-M-<left>" . org-shiftmetaleft)
-         ("C-M-<right>" . org-shiftmetaright)
-         ("C-M-S-<left>" . org-shiftcontrolleft)
-         ("C-M-S-<right>" . org-shiftcontrolright)
-         ("s-p" . org-babel-previous-src-block)
-         ("s-n" . org-babel-next-src-block)
-         ("s-l" . org-babel-remove-result)
-         ("s-<tab>" . completion-at-point)
-         ("s-z" . org-babel-switch-to-session)
-         ) 
-  :init
-  (defun seth-clear-all-results ()
-    "Clear all results in the buffer."
-    (interactive)
-    (save-excursion
-      (goto-char (point-min))
-      (while (org-babel-next-src-block)
-        (forward-line -1)
-        (beginning-of-line)
-        (when (looking-at "#\\+LASTRUN:")
-          (delete-region (pos-bol) (1- (pos-bol 2)))
-          (delete-line)
-          )
-        (forward-line 1)
-        (org-babel-remove-result))))
+  (use-feature org
+    :defer t
+    :custom
+    (enable-local-variables t)
+    (org-display-remote-inline-images 'cache)
+    (org-startup-folded t)
+    (org-startup-indented t)
+    (org-log-done t)
+    (org-return-follows-link t)
+    (org-confirm-babel-evaluate nil)
+    :bind (
+           :map org-mode-map
+           ;;("C-M-<up>" . org-shiftmetaup)
+           ;;("C-M-<down>" . org-shiftmetadown)
+           ("s-C-l" . seth-clear-all-results)
+           ("C-M-<left>" . org-shiftmetaleft)
+           ("C-M-<right>" . org-shiftmetaright)
+           ("C-M-S-<left>" . org-shiftcontrolleft)
+           ("C-M-S-<right>" . org-shiftcontrolright)
+           ("s-p" . org-babel-previous-src-block)
+           ("s-n" . org-babel-next-src-block)
+           ("s-l" . org-babel-remove-result)
+           ("s-<tab>" . completion-at-point)
+           ("s-z" . org-babel-switch-to-session)
+           ) 
+    :init
+    (defun seth-clear-all-results ()
+      "Clear all results in the buffer."
+      (interactive)
+      (save-excursion
+        (goto-char (point-min))
+        (while (org-babel-next-src-block)
+          (forward-line -1)
+          (beginning-of-line)
+          (when (looking-at "#\\+LASTRUN:")
+            (delete-region (pos-bol) (1- (pos-bol 2)))
+            (delete-line)
+            )
+          (forward-line 1)
+          (org-babel-remove-result))))
 
-  (add-hook 'org-mode-hook (lambda ()
-                             (setq-local seth-jupyter-execution-count 1)))
-  ;; (setq seth-jupyter-execution-count 1)
-  
-  (setq org-src-fontify-natively t
-        org-src-window-setup 'current-window ;; edit in current window
-        org-src-strip-leading-and-trailing-blank-lines t
-        org-src-preserve-indentation t ;; do not put two spaces on the left
-        org-src-tab-acts-natively t)
+    (add-hook 'org-mode-hook (lambda ()
+                               (setq-local seth-jupyter-execution-count 1)))
+    ;; (setq seth-jupyter-execution-count 1)
+    
+    (setq org-src-fontify-natively t
+          org-src-window-setup 'current-window ;; edit in current window
+          org-src-strip-leading-and-trailing-blank-lines t
+          org-src-preserve-indentation t ;; do not put two spaces on the left
+          org-src-tab-acts-natively t)
 
-  :config
-  (require 'scimax-jupyter)
-  (defun seth-org-babel-add-time-stamp-after-execute-before-src-block ()
-    ;; (sleep-for 2)    
-    (end-of-line)
-    (save-excursion
-      (search-backward "#+BEGIN_SRC" 0 t)
-      (forward-line -1)
-      (beginning-of-line)
+    :config
+    ;; (require 'scimax-jupyter)
+    ;; (defun seth-org-babel-add-time-stamp-after-execute-before-src-block ()
+    ;;   ;; (sleep-for 2)    
+    ;;   (end-of-line)
+    ;;   (save-excursion
+    ;;     (search-backward "#+BEGIN_SRC" 0 t)
+    ;;     (forward-line -1)
+    ;;     (beginning-of-line)
 
-      (if (looking-at "#\\+LASTRUN:")
-          (delete-region (pos-bol) (1- (pos-bol 2)))
-        (open-line 1)
-        (next-line 1)
-        )
-      
-      (insert (concat
-               "#+LASTRUN: "
-               (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
-               " ["
-               (int-to-string seth-jupyter-execution-count)
-               "]"
-               ))
-      (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))
-      )
+    ;;     (if (looking-at "#\\+LASTRUN:")
+    ;;         (delete-region (pos-bol) (1- (pos-bol 2)))
+    ;;       (open-line 1)
+    ;;       (next-line 1)
+    ;;       )
+        
+    ;;     (insert (concat
+    ;;              "#+LASTRUN: "
+    ;;              (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
+    ;;              " ["
+    ;;              (int-to-string seth-jupyter-execution-count)
+    ;;              "]"
+    ;;              ))
+    ;;     (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))
+    ;;     )
+    ;;   )
+
+    ;; (add-hook 'org-babel-after-execute-hook
+    ;;           'seth-org-babel-add-time-stamp-after-execute-before-src-block)
+
     )
 
-  (add-hook 'org-babel-after-execute-hook
-            'seth-org-babel-add-time-stamp-after-execute-before-src-block)
+  ;; Backend for HTML Table export
 
-  )
-
-;; Backend for HTML Table export
-
-;;(require 'ox-html)
-;;(defun ox-mrkup-filter-bold
-;;    (text back-end info)
-;;  "Markup TEXT as <bold>TEXT</bold>. Ignore BACK-END and INFO."
-;;  (format "<bold>%s</bold>" text))
-;;
-;;(org-export-define-derived-backend 'htmlTable 'html
-;;  :filters-alist
-;;  '((:filter-body . ox-mrkup-filter-body)
-;;    ))
+  ;;(require 'ox-html)
+  ;;(defun ox-mrkup-filter-bold
+  ;;    (text back-end info)
+  ;;  "Markup TEXT as <bold>TEXT</bold>. Ignore BACK-END and INFO."
+  ;;  (format "<bold>%s</bold>" text))
+  ;;
+  ;;(org-export-define-derived-backend 'htmlTable 'html
+  ;;  :filters-alist
+  ;;  '((:filter-body . ox-mrkup-filter-body)
+  ;;    ))
 
 #+end_src
 
@@ -1634,20 +1634,23 @@ This is for when I accidentally make a column in org mode
 #+end_src
 
 *** python
-first need to start kernel
-that same kernel needs to start eglot
-need to name that kernel the file name
-need to associate the kernel with the buffer
 
+***** how to open python [0/5]
+- [ ] first need to start kernel (how to know which one to start)
+- [ ] that same kernel needs to start eglot (must get sent to eglot in parallel)
+- [ ] need to name that kernel the file name (so that kernels are unique)
+- [ ] need to associate the kernel with the buffer using associate-buffer
+- [ ] Use tabbar and window managers to fix the output. capture output and organize somehow
+  
+
+***** TODO [0/3]
+- [ ] how to handle errors i.e. stop running cells and show the correct linum of the whole doc not of the cell
+- [ ] need to go through all cells and clear all
+- [ ] use popper to be able to handle the outputs and errors and stuff
+  
+***** things I want to keep in mind
 (setq jupyter-eval-use-overlays t) I like this
 (setq jupyter-repl-echo-eval-p nil) is there a mini of this where just the output is sent to the repl cells?
-how to handle errors
-
-add in a way to rewrite the code cells to have a timestamp
-
-use popper to be able to handle the outputs and errors and stuff
-
-Use tabbar and window managers to fix the output. New frame per output
 
 **** code-cells
 #+begin_src emacs-lisp :lexical t
@@ -1659,19 +1662,23 @@ Use tabbar and window managers to fix the output. New frame per output
   (defun seth-add-time-stamp-after-execute (&optional var)
     (interactive)
     (unless var (setq var nil))
+    (unless (boundp 'seth-jupyter-execution-count) (setq-local seth-jupyter-execution-count 1))
     (let (
           (bounds (code-cells--bounds 1))
           )
-      (save-excursion      (goto-char (car bounds))
-                           (kill-line)
-                           (insert (concat
-                                    "# %% "
-                                    (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
-                                    ;; " ["
-                                    ;; (int-to-string seth-jupyter-execution-count)
-                                    ;; "]"
-                                    ))
-                           (apply 'code-cells-eval (code-cells--bounds 1)))
+      (save-excursion
+        (goto-char (car bounds))
+        (kill-line)
+        (insert (concat
+                 "# %% "
+                 (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
+                 " ["
+                 (int-to-string seth-jupyter-execution-count)
+                 "]"
+                 ))
+        (apply 'code-cells-eval (code-cells--bounds 1))
+        (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))
+        )
       (if var
           (code-cells-forward-cell 1)
         )
@@ -1690,6 +1697,17 @@ Use tabbar and window managers to fix the output. New frame per output
         )
       )
     )
+
+  (defun seth-restart-jupyter-execution-count (&rest arg)
+    (setq-local seth-jupyter-execution-count 1)
+    )
+  ;; add below to keep track of what has been run
+  (add-hook 'python-mode-hook (lambda ()
+                                (setq-local seth-jupyter-execution-count 1)))
+  (advice-add 'jupyter-repl-restart-kernel :before #'seth-restart-jupyter-execution-count)
+  (advice-add 'jupyter-run-repl :before #'seth-restart-jupyter-execution-count)
+
+  ;; (defun start-python (env))
   
   :hook (python-mode . code-cells-mode-maybe)
   :bind (
@@ -1702,6 +1720,8 @@ Use tabbar and window managers to fix the output. New frame per output
          ;; ("C-c % F" . code-cells-move-cell-down)
          ("C-c ;" . code-cells-comment-or-uncomment)
          ("C-c a" . code-cells-mark-cell)
+         ;; add clear stuff
+
          )
   )
 #+end_src
@@ -1711,19 +1731,6 @@ Use tabbar and window managers to fix the output. New frame per output
 (use-package eglot
   :defer t
   :init
-  (defun start-eglot-python (env)
-    (interactive "sPython env: ")
-    (let* (
-           (mypath (concat
-                    (shell-command-to-string "conda info --base | tr -d '\n'")
-                    (concat "/envs/" env "/bin/pylsp")
-                    )
-                   )
-           )
-      (kill-new mypath)
-      (call-interactively 'eglot)
-      )
-    )
   (setq-default eglot-workspace-configuration
                 '(:pylsp (:plugins (
                                     :pylint (:enabled :json-false)
@@ -1733,8 +1740,28 @@ Use tabbar and window managers to fix the output. New frame per output
                                     ))
                          ))
   (setq eldoc-echo-area-use-multiline-p nil)
+  :bind (
+         ("C-c p" . start-eglot-python)
+         )
   :config
   (global-flycheck-eglot-mode 1)
+  (defun start-eglot-python (env)
+    (interactive "sPython env: ")
+    (let* (
+           (contact (concat
+                     (shell-command-to-string "conda info --base | tr -d '\n'")
+                     (concat "/envs/" env "/bin/pylsp")
+                     )
+                    )
+           (managed-modes (list major-mode))
+           (project (eglot--current-project))
+           (class eglot-lsp-server)
+           (language-ids (list "python"))
+           )
+      (apply 'eglot (list managed-modes project class (list contact) language-ids))
+      (jupyter-run-repl env buffer-file-name t 'jupyter-repl-client)
+      )
+    )
   )
 
 (use-package jsonrpc
@@ -1752,9 +1779,11 @@ Use tabbar and window managers to fix the output. New frame per output
 #+begin_src emacs-lisp :lexical t
 (use-package jupyter
   :defer t
+  :after python
   :config
   (defvaralias 'org-babel-jupyter-resource-directory 'jupyter-org-resource-directory)
   (setq org-babel-jupyter-resource-directory "./plots/")
+  (setq jupyter-eval-use-overlays t)
   (org-babel-do-load-languages
    'org-babel-load-languages
    '((emacs-lisp . t)
@@ -1790,7 +1819,7 @@ Use tabbar and window managers to fix the output. New frame per output
 #+end_src
 
 *** Scimax 
-#+begin_src emacs-lisp :lexical t  
+#+begin_src emacs-lisp :lexical t :tangle no
 (use-feature ox-clip
   :ensure (ox-clip
            :type git
@@ -2376,18 +2405,18 @@ Use tabbar and window managers to fix the output. New frame per output
 *** undo
 #+begin_src emacs-lisp :lexical t
 
-(use-package undo-fu
-  :defer t
-  :delight
-  :custom
-  (undo-fu-allow-undo-in-region t)
-  :bind* (
-          ("C-/" . undo-fu-only-undo)
-          ("C-?" . undo-fu-only-redo)
-          )
-  :hook
-  ((prog-mode text-mode) . undo-fu-session-mode)
-  )
+;; (use-package undo-fu
+;;   :defer t
+;;   :delight
+;;   :custom
+;;   (undo-fu-allow-undo-in-region t)
+;;   :bind* (
+;;           ("C-/" . undo-fu-only-undo)
+;;           ("C-?" . undo-fu-only-redo)
+;;           )
+;;   :hook
+;;   ((prog-mode text-mode) . undo-fu-session-mode)
+;;   )
 
 
 (use-package undo-fu-session
@@ -2395,7 +2424,7 @@ Use tabbar and window managers to fix the output. New frame per output
   :delight
   :custom
   (undo-fu-session-directory "~/.emacs.d/.saves")
-  (undo-fu-session-file-limit 10)
+  (undo-fu-session-file-limit nil)
   :hook
   ((prog-mode text-mode) . undo-fu-session-mode)  
   )
@@ -2494,8 +2523,7 @@ Use tabbar and window managers to fix the output. New frame per output
   )
 #+end_src
 
-
-#+LASTRUN: [2024-08-26 Mon 16:39:30] [2]
+*** neotree
 #+begin_src emacs-lisp :lexical t
 (use-package neotree
   :delight
