@@ -1669,10 +1669,10 @@ This is for when I accidentally make a column in org mode
   :defer t
   :config
   (setcdr code-cells-mode-map nil)
-  (defun seth-add-time-stamp-after-execute (&optional var)
+  (defun seth-code-cells/add-time-stamp-after-execute (&optional var)
     (interactive)
     (unless var (setq var nil))
-    (unless (boundp 'seth-jupyter-execution-count) (setq-local seth-jupyter-execution-count 1))
+    (unless (boundp 'seth-code-cells/jupyter-execution-count) (setq-local seth-code-cells/jupyter-execution-count 1))
     (let (
           (bounds (code-cells--bounds 1))
           )
@@ -1683,11 +1683,11 @@ This is for when I accidentally make a column in org mode
                  "# %% "
                  (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
                  " ["
-                 (int-to-string seth-jupyter-execution-count)
+                 (int-to-string seth-code-cells/jupyter-execution-count)
                  "]"
                  ))
         (apply 'code-cells-eval (code-cells--bounds 1))
-        (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))
+        (setq-local seth-code-cells/jupyter-execution-count (1+ seth-code-cells/jupyter-execution-count))
         )
       (if var
           (code-cells-forward-cell 1)
@@ -1695,7 +1695,7 @@ This is for when I accidentally make a column in org mode
       )      
     )
 
-  (defun seth-clear-timestamps ()
+  (defun seth-code-cells/clear-timestamps ()
     (interactive)
     (let (
           (bounds (code-cells--bounds 1))
@@ -1708,30 +1708,70 @@ This is for when I accidentally make a column in org mode
       )
     )
 
-  (defun seth-restart-jupyter-execution-count (&rest arg)
-    (setq-local seth-jupyter-execution-count 1)
+  (defun seth-code-cells/restart-jupyter-execution-count (&rest arg)
+    (setq-local seth-code-cells/jupyter-execution-count 1)
     )
+
+  (defun seth-code-cells/add-cell (&rest arg)
+    (interactive)
+    (let (
+          (bounds (code-cells--bounds 1))   
+          )
+      (cond
+       (arg 
+        (goto-char (car bounds))
+        (open-line 2)
+        (insert "# %%")
+        (open-line 1)
+        (next-line 1)
+        (print "in arg")
+        )
+       (t
+        (goto-char (car (cdr bounds)))
+        (open-line 1)
+        (next-line 1)
+        (insert "# %%")
+        (open-line 3)
+        (next-line 1)
+        (print "not in arg"))
+       )
+      ))
+
+  (defun seth-code-cells/clear-all-results ()
+    "Clear all results in the buffer."
+    (interactive)
+    (save-excursion
+      (goto-char (point-min))
+      (when (looking-at "# %%")
+        (kill-line)
+        (insert "# %%")
+        )
+      (while (code-cells-forward-cell 1)
+          (kill-line)
+          (insert "# %%")
+        ))
+    )
+
   ;; add below to keep track of what has been run
   (add-hook 'python-mode-hook (lambda ()
-                                (setq-local seth-jupyter-execution-count 1)))
-  (advice-add 'jupyter-repl-restart-kernel :before #'seth-restart-jupyter-execution-count)
-  (advice-add 'jupyter-run-repl :before #'seth-restart-jupyter-execution-count)
+                                (setq-local seth-code-cells/jupyter-execution-count 1)))
+  (advice-add 'jupyter-repl-restart-kernel :before #'seth-code-cells/restart-jupyter-execution-count)
+  (advice-add 'jupyter-run-repl :before #'seth-code-cells/restart-jupyter-execution-count)
 
   ;; (defun start-python (env))
-  
+
   :hook (python-mode . code-cells-mode-maybe)
   :bind (
          :map code-cells-mode-map
-         ("C-c C-c" . seth-add-time-stamp-after-execute)
-         ("C-<return>" . (lambda() (interactive) (seth-add-time-stamp-after-execute 1)))
+         ("C-c C-c" . seth-code-cells/add-time-stamp-after-execute)
+         ("C-c c a" . (lambda() (interactive) (seth-code-cells/add-time-stamp-after-execute 1)))
+         ("C-c c b" . (lambda() (interactive) (seth-code-cells/add-cell 1))) ;; add above
+         ("C-<return>" . (lambda() (interactive) (seth-code-cells/add-cell ))) ;; add below
          ("M-p" . code-cells-backward-cell)
          ("M-n" . code-cells-forward-cell)
-         ;; ("C-c % B" . code-cells-move-cell-up)
-         ;; ("C-c % F" . code-cells-move-cell-down)
-         ("C-c ;" . code-cells-comment-or-uncomment)
-         ("C-c a" . code-cells-mark-cell)
-         ;; add clear stuff
-
+         ("C-c c ;" . code-cells-comment-or-uncomment)
+         ("C-c c h" . code-cells-mark-cell)
+         ("C-c c o" . seth-code-cells/clear-timestamps)
          )
   )
 #+end_src
@@ -2451,7 +2491,8 @@ This is for when I accidentally make a column in org mode
   (undo-strong-limit (* 128 1024 1024)) ; 128 MiB. The change group at which this size is exceeded is discarded itself (along with all older change groups). There is one exception: the very latest change group is only discarded if it exceeds ‘undo-outer-limit’.
   (undo-outer-limit (* 1024 1024 1024)) ;   1 GiB. If at garbage collection time the undo info for the current command exceeds this limit, Emacs discards the info and displays a warning. This is a last ditch limit to prevent memory overflow.
   (amalgamating-undo-limit 5)
-  
+  (vundo-compact-display t)
+
   :bind* ("C-x u" . vundo)
   ;; :custom-face
   ;; (vundo-highlight ((t (:inherit nil :background "#ff5959" :foreground "white"))))
