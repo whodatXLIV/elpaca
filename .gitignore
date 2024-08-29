@@ -18,3 +18,5 @@ transient
 /tutorial/
 /*.el#
 /.cache/
+elpa
+projects
