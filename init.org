@@ -1638,12 +1638,14 @@ This is for when I accidentally make a column in org mode
 
 *** python
 
-***** how to open python [4/8]
+***** how to open python [5/10]
 - [X] first need to start kernel (how to know which one to start)
 - [X] that same kernel needs to start eglot (must get sent to eglot in parallel)
 - [X] need to name that kernel the file name (so that kernels are unique)
 - [X] need to associate the kernel with the buffer using associate-buffer
-- [ ] Use tabbar and window managers to fix the output. (tabbar broken?)
+- [X] tabber moved to tab-line
+- [ ] work with tabs and their views and projects and buffer types
+- [ ] python fix with tabs now
 - [ ] poppler still finicky, need to fix it
 - [ ] capture output and organize somehow. Copy buffer to another?
 - [ ] maybe need to do a jupyter kernel server? That way I can work on comp. Issue is how to jupytext the files?
@@ -2426,6 +2428,7 @@ This is for when I accidentally make a column in org mode
 *** tab-line
 
 #+begin_src emacs-lisp :lexical t :tangle yes
+;; BUG going left when no files or project does not go to views
 (use-package tab-config
   :ensure (tab-config
            :type git
@@ -2475,36 +2478,37 @@ This is for when I accidentally make a column in org mode
            )
       (cond ((not isGroup)
              (if direction
-                 (tab-line-switch-to-next-tab)
+                 (tab-line-switch-to-next-tab) ;; regular tab line switch for buffers
                (tab-line-switch-to-prev-tab)))
             (isGroup
              (if direction
-                 (funcall (cadr (nth current-index (tab-rotate-list-right name-select))))
-               (funcall (cadr (nth current-index (tab-rotate-list-left name-select))))
+                 (funcall (cadr (nth current-index (tab-rotate-list-right name-select)))) ;; change to selected tab (rotated)
+               (funcall (cadr (nth current-index (tab-rotate-list-left name-select)))) 
                )
 
+             ;; once the group tab is selected then need to go to the current buffer in that tab
              (let* (
                     (buflist (tab2-get-tabs))
                     (buffer-select (mapcar (lambda (elt) (cdr (assq 'buffer elt))) buflist))
                     (buffer-current-name (cdr (assq 'buffer (car (seq-filter (lambda (elt) (cdr (assq 'selected elt))) buflist)))))
                     (buffer-current-index (tab-current-index buffer-current-name (list buffer-select)))
                     (buffer-current-index (if (not buffer-current-index) 0 buffer-current-index))
-                    ;;if above is nil then 0
+                    ;;if above is nil then go to 0th tab
                     )
                
-               (force-mode-line-update)
-               (tab-line-select-tab-buffer (nth buffer-current-index buffer-select) (selected-window))
+               (force-mode-line-update) ;; update to get new tab settings
+               (tab-line-select-tab-buffer (nth buffer-current-index buffer-select) (selected-window)) ;; go to buffer
                )
-             (when (not (window-parameter nil 'tab-line-views))
-                 (tab2-select-filter-button t)
-               (tab2-get-tabs)
-               (force-mode-line-update)
+             (when (not (window-parameter nil 'tab-line-views)) ;; don't go up level if in views
+               (tab2-select-filter-button t) ;; go up level
+               (tab2-get-tabs) ;; update to get new tab settings
+               (force-mode-line-update) ;; update to get new tab settings
                )
              )
             )
       )
     )
-  
+  (tab-line-select-tab-buffer "*scratch*" (selected-window))
   )
 
 (use-feature tab-line
@@ -2514,9 +2518,8 @@ This is for when I accidentally make a column in org mode
   (tab-line-highlight ((t (:background "white"))))
   (tab-line-tab ((t (:foreground "#c397d8"))))
   (tab-line-tab-current ((t (:weight bold :box (:line-width -2 :color "#c397d8") :background "gray20" :foreground "#c397d8"))))
-  (tab-line-tab-inactive ((t (:background "#c397d8"))))
-  (tab-line-tab-modified ((t (:background "gray20" :foreground "#c397d8"))))
-
+  (tab-line-tab-inactive ((t (:background "#c397d8" :inverse-video t))))
+  (tab-line-tab-modified ((t (:background "gray20" :foreground "#c397d8" :inverse-video nil))))
   )
 
 ;; https://github.com/benleis1/emacs-init/blob/main/tab-config.el
@@ -2524,45 +2527,11 @@ This is for when I accidentally make a column in org mode
 
 
 #+begin_src emacs-lisp :lexical t :tangle no
-(defun by7 (arg)
-  (* arg 7)
-  )
+;; TODO make it so some things get put into Misc
 
 
 
-(switch-highlighted-tab-or-buffer 1)
 
-(and (not isGroup) (> direction 0))
-(tab-line-switch-to-prev-tab)
-
-
-(tab2-get-tabs)
-
-(assq 'name (nth 0 (tab2-get-tabs)))
-
-(let* ((posnp (tab-line-event-start event)) ;; in groups
-       (tab (tab-line--get-tab-property 'tab (car (posn-string posnp))))
-       (buffer (if (bufferp tab) tab (cdr (assq 'buffer tab)))))
-  (if buffer
-      (tab-line-select-tab-buffer buffer (posn-window posnp))
-    (let ((select (cdr (assq 'select tab))))
-      (when (functionp select)
-        (with-selected-window (posn-window posnp)
-          (funcall select)
-          (force-mode-line-update))))))))
-
-(tab-line-select-tab-buffer "tab-config.el" (selected-window)) ;; move to specific buffer
-(tab-line-tabs-buffer-group-name (current-buffer)) ;; get the buffer group name
-(nth 2 ) ;; get the list of tabs shown at the top. Need to know if in tab line grpup
-;;  true if in groups, false if in buffers
-;; (select-window (nth 2 (window-list))) ;; gets a window (use current) 
-(buffer-file-name (current-buffer)) ;; filename of current buffer
-(set-window-parameter nil 'tab-line-group "Org") ;; highlight specific named dab
-(funcall (cdr (assq 'select (nth 3 (tab2-get-tabs))))) ;; this selects and moves to a group!
-
-;; (set-window-parameter nil 'tab-line-tab (current-buffer))
-(equal "test" "test")
-(equal 'foo 'foo)
 #+end_src
 
 *** tree-sitter
