@@ -607,7 +607,7 @@ This is for when I accidentally make a column in org mode
   :delight
   :defer t
   :bind* ("C-<tab>" . company-other-backend)
-  :hook ((prog-mode org-mode) . company-mode)
+  :hook ((prog-mode org-mode python-mode) . company-mode)
   :custom-face
   (company-preview                      ((t (:background "gray10" :foreground "#c397d8" :extend t))))
   (company-preview-common               ((t (:inherit company-preview :foreground "#c397d8" :extend t))))
@@ -620,19 +620,33 @@ This is for when I accidentally make a column in org mode
   (company-tooltip-annotation           ((t (:inherit company-tooltip :foreground "#70c0b1" :extend t))))
   (company-tooltip-annotation-selection ((t (:inherit company-tooltip-selection :foreground "#70c0b1" :extend t))))
   (company-echo-common                  ((t (:inherit company-echo :foreground "#c397d8" :extend t))))
-  :init
-  (setq company-tooltip-align-annotations t)
-  (setq company-idle-delay nil)
-  (setq company-tooltip-idle-delay 1)
-  (setq company-minimum-prefix-length 0)
-  (setq company-require-match 'never)
-  (setq company-show-numbers t)
-  (setq company-tooltip-limit 20)
-  (setq company-dabbrev-downcase nil)
-  (setq company-dabbrev-ignore-case t)
-  (setq company-dabbrev-code-ignore-case t)
-  (setq company-dabbrev-code-everywhere t)
-  (setq company-etags-ignore-case t)
+  :custom
+  (company-tooltip-align-annotations t)
+  (company-idle-delay nil)
+  (company-tooltip-idle-delay 0)
+  (company-minimum-prefix-length 0)
+  (company-require-match 'never)
+  (company-show-numbers t)
+  (company-tooltip-limit 20)
+  (company-tooltip-maximum-width 80)
+  (company-dabbrev-downcase nil)
+  (company-dabbrev-ignore-case t)
+  (company-dabbrev-code-ignore-case t)
+  (company-dabbrev-code-everywhere t)
+  (company-etags-ignore-case t)
+
+  (setq company-transformers '(delete-consecutive-dups
+                               company-sort-by-backend-importance))
+  
+
+  (company-selection-wrap-around t)
+  (completion-ignore-case t)
+  (company-show-quick-access t)
+  
+  :config
+  (add-to-list 'company-backends 'company-yasnippet)
+
+  ;; TODO add transform function delete consecutuve that splits strings at parens?
   )
 
 #+end_src
@@ -973,100 +987,106 @@ This is for when I accidentally make a column in org mode
 *** dired
 
 #+begin_src emacs-lisp :lexical t
-  (use-package all-the-icons
-    :defer t
-    :if (display-graphic-p)
-    )
+;; (use-package all-the-icons
+;;   :defer t
+;;   :if (display-graphic-p)
+;;   )
+(use-package nerd-icons)
+(use-package nerd-icons-dired
+  :defer t
+  :delight
+  :hook (dired-mode . nerd-icons-dired-mode)
+  ;; :custom
+  ;; (all-the-icons-dired-monochrome nil)
+  )
+;; (use-package all-the-icons-dired
+;;   :defer t
+;;   :delight
+;;   :hook (dired-mode . all-the-icons-dired-mode)
+;;   :custom
+;;   (all-the-icons-dired-monochrome nil)
+;;   )
+;; (use-package dired-subtree
+;;   :delight
+;;   :bind (
+;;          :map dired-mode-map
+;;          ("H-r" . dired-subtree-remove)
+;;          ("<tab>" . dired-subtree-toggle)
+;;          ("H-p" . dired-subtree-up)
+;;          ("H-n" . dired-subtree-down)
+;;          ("H-<up>" . dired-subtree-beginning)
+;;          ("H-<down>" . dired-subtree-end)
+;;          ("H-m" . dired-subtree-mark-subtree)
+;;          ("H-u" . dired-subtree-unmark-subtree)           
+;;          )
+;;   :defer t
+;;   )
 
-  (use-package all-the-icons-dired
-    :defer t
-    :delight
-    :hook (dired-mode . all-the-icons-dired-mode)
-    :custom
-    (all-the-icons-dired-monochrome nil)
-    )
+(use-package dired-filter
+  :custom
+  (dired-listing-switches "-alogh")
+  :defer t
+  :hook (dired-mode)
+  )
 
-  ;; (use-package dired-subtree
-  ;;   :delight
-  ;;   :bind (
-  ;;          :map dired-mode-map
-  ;;          ("H-r" . dired-subtree-remove)
-  ;;          ("<tab>" . dired-subtree-toggle)
-  ;;          ("H-p" . dired-subtree-up)
-  ;;          ("H-n" . dired-subtree-down)
-  ;;          ("H-<up>" . dired-subtree-beginning)
-  ;;          ("H-<down>" . dired-subtree-end)
-  ;;          ("H-m" . dired-subtree-mark-subtree)
-  ;;          ("H-u" . dired-subtree-unmark-subtree)           
+(use-feature dired
+  ;; :bind* ("C-x d" . seth/dired-side-vc)
+  :defer t
+  :delight
+  :custom-face
+  (dired-directory ((t (:foreground "#97c8f7" :extend t)))) 
+  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
+  :config
+  ;; (require 'dired-subtree)
+  (when (string= system-type "darwin")       
+    (setq dired-use-ls-dired nil))
+  ;; (defun seth/dired-side--vc (directory)
+  ;;   "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
+  ;;   (let* (
+  ;;          (backend (vc-responsible-backend directory t))
+  ;;          (dir (if (eq backend nil)
+  ;;                   directory
+  ;;                 (expand-file-name (vc-call-backend backend 'root directory))))
+  ;;          (dired_dir (dired-noselect dir))
+  ;;          (path-list (split-string (first (last (split-string directory dir))) "/"))
   ;;          )
-  ;;   :defer t
+  ;;     (display-buffer-in-side-window
+  ;;      dired_dir `((side . left)
+  ;;                  (slot . 0)
+  ;;                  (window-width . 0.3)
+  ;;                  (window-parameters) . ((no-other-window . t)
+  ;;                                         (no-delete-other-windows . t)
+  ;;                                         (mode-line-format . (" " "%b"))
+  ;;                                         )
+  ;;                  )
+  ;;      )
+  ;;     (with-current-buffer dired_dir
+  ;;       (setq window-size-fixed 'width)
+  ;;       (switch-to-buffer-other-frame dired_dir)
+  ;;       (revert-buffer)
+  ;;       (dired-hide-details-mode)
+  ;;       (goto-char 0)
+  ;;       (cl-loop for p in path-list do
+  ;;                (goto-char (search-forward p))
+  ;;                (dired-subtree-insert)
+  ;;                )
+  ;;       )
+  ;;     )
   ;;   )
-
-  (use-package dired-filter
-    :custom
-    (dired-listing-switches "-alogh")
-    :defer t
-    :hook (dired-mode)
-    )
-
-  (use-feature dired
-    ;; :bind* ("C-x d" . seth/dired-side-vc)
-    :defer t
-    :delight
-    :custom-face
-    (dired-directory ((t (:foreground "#97c8f7" :extend t)))) 
-    (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
-    :config
-    ;; (require 'dired-subtree)
-    (when (string= system-type "darwin")       
-      (setq dired-use-ls-dired nil))
-    ;; (defun seth/dired-side--vc (directory)
-    ;;   "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
-    ;;   (let* (
-    ;;          (backend (vc-responsible-backend directory t))
-    ;;          (dir (if (eq backend nil)
-    ;;                   directory
-    ;;                 (expand-file-name (vc-call-backend backend 'root directory))))
-    ;;          (dired_dir (dired-noselect dir))
-    ;;          (path-list (split-string (first (last (split-string directory dir))) "/"))
-    ;;          )
-    ;;     (display-buffer-in-side-window
-    ;;      dired_dir `((side . left)
-    ;;                  (slot . 0)
-    ;;                  (window-width . 0.3)
-    ;;                  (window-parameters) . ((no-other-window . t)
-    ;;                                         (no-delete-other-windows . t)
-    ;;                                         (mode-line-format . (" " "%b"))
-    ;;                                         )
-    ;;                  )
-    ;;      )
-    ;;     (with-current-buffer dired_dir
-    ;;       (setq window-size-fixed 'width)
-    ;;       (switch-to-buffer-other-frame dired_dir)
-    ;;       (revert-buffer)
-    ;;       (dired-hide-details-mode)
-    ;;       (goto-char 0)
-    ;;       (cl-loop for p in path-list do
-    ;;                (goto-char (search-forward p))
-    ;;                (dired-subtree-insert)
-    ;;                )
-    ;;       )
-    ;;     )
-    ;;   )
-    ;; (defun seth/dired-side-vc (&optional initial-input)
-    ;;   "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
-    ;;   (interactive) 
-    ;;   (ivy-read "Dired: " #'read-file-name-internal
-    ;;             :matcher #'counsel--find-file-matcher
-    ;;             :initial-input initial-input
-    ;;             :action (lambda (d) (seth/dired-side--vc (expand-file-name d)))
-    ;;             :preselect (counsel--preselect-file)
-    ;;             :require-match 'confirm-after-completion
-    ;;             :history 'file-name-history
-    ;;             :keymap counsel-find-file-map
-    ;;             :caller 'counsel-dired)
-    ;;   )    
-    )
+  ;; (defun seth/dired-side-vc (&optional initial-input)
+  ;;   "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
+  ;;   (interactive) 
+  ;;   (ivy-read "Dired: " #'read-file-name-internal
+  ;;             :matcher #'counsel--find-file-matcher
+  ;;             :initial-input initial-input
+  ;;             :action (lambda (d) (seth/dired-side--vc (expand-file-name d)))
+  ;;             :preselect (counsel--preselect-file)
+  ;;             :require-match 'confirm-after-completion
+  ;;             :history 'file-name-history
+  ;;             :keymap counsel-find-file-map
+  ;;             :caller 'counsel-dired)
+  ;;   )    
+  )
 
 
 #+end_src
@@ -1281,6 +1301,12 @@ This is for when I accidentally make a column in org mode
   :delight
   :defer t
   )
+
+(use-package nerd-icons-ivy-rich
+  :ensure t
+  :init
+  (nerd-icons-ivy-rich-mode 1)
+  (ivy-rich-mode 1))
 #+end_src
 
 *** Iscroll
@@ -1325,11 +1351,17 @@ This is for when I accidentally make a column in org mode
   ;; package.
   (marginalia-mode))
 
-(use-package all-the-icons-completion
-  :after (marginalia all-the-icons)
-  :hook (marginalia-mode . all-the-icons-completion-marginalia-setup)
-  :init
-  (all-the-icons-completion-mode))
+(use-package nerd-icons-completion
+  :after marginalia
+  :config
+  (nerd-icons-completion-mode)
+  (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup))
+
+;; (use-package all-the-icons-completion
+;;   :after (marginalia all-the-icons)
+;;   :hook (marginalia-mode . all-the-icons-completion-marginalia-setup)
+;;   :init
+;;   (all-the-icons-completion-mode))
 #+end_src
 
 *** markdown mode
@@ -1570,10 +1602,11 @@ This is for when I accidentally make a column in org mode
                   ("\\*jupyter-output\\*" . hide)
                   ("\\*jupyter-error\\*" . hide)                  
                   )))
-  (setq popper-group-function #'popper-group-by-project)
-  (setq popper-display-control t)  ;This is the DEFAULT behavior
-  ;; (setq popper-display-function #'display-buffer-pop-up-frame)
-  
+  :custom
+  (popper-group-function #'popper-group-by-project)
+  (popper-display-control t)  ;This is the DEFAULT behavior
+  (popper-display-function #'display-buffer-reuse-window)
+
   :bind (
          ("s-;" . popper-toggle)
          ("s-C-;" . popper-cycle)
@@ -1582,8 +1615,8 @@ This is for when I accidentally make a column in org mode
          ("s-M-;" . popper-toggle-type)
          )
   :config
-  (popper-mode)
-  (popper-tab-line-mode)
+  (popper-mode 1)
+  (popper-tab-line-mode 1)
   )
 
 
@@ -1593,15 +1626,20 @@ This is for when I accidentally make a column in org mode
 #+begin_src emacs-lisp :lexical t
 (use-package company-posframe
   :delight
+  :defer nil
+  :custom
+  (company-posframe-quickhelp-show-header t)
+  (company-posframe-quickhelp-delay nil)
   :config
   (company-posframe-mode 1)
-  :bind (
-         :map company-active-map
+  :bind (:map company-active-map
               ("H-<tab>" . company-posframe-quickhelp-toggle)
-              ("H-p" . company-posframe-quickhelp-scroll-up)
-              ("H-n" . company-posframe-quickhelp-scroll-down)
+              ("H-p" . company-posframe-quickhelp-scroll-down)
+              ("H-n" . company-posframe-quickhelp-scroll-up)
+              ("<tab>" . company-complete-selection)
               )
   )
+;; TODO add in function to truly toggle quickhelp by setting nil to 0 and back
 ;; (use-package ivy-posframe
 ;;   :delight
 ;;   :defer t
@@ -1615,7 +1653,7 @@ This is for when I accidentally make a column in org mode
 ;;           ;; (complete-symbol . ivy-posframe-display-at-point)
 ;;           (counsel-M-x     . ivy-posframe-display-at-point)
 ;;           (t               . ivy-posframe-display-at-point)))
-  
+
 ;;   ;; Different command can use different display function.
 ;;   (setq ivy-posframe-height-alist '((swiper . 10)
 ;;                                     (t      . 20)))
@@ -1784,14 +1822,32 @@ This is for when I accidentally make a column in org mode
                                     :autopep8 (:enabled :json-false)
                                     ;; :yapf (:enabled :json-false)
                                     :mccabe (:enabled :json-false)
+                                    :jedi_completion (:enabled t
+                                                               :include_params t
+                                                               :include_class_objects t
+                                                               :include_function_objects t
+                                                               :eager t
+                                                               ;; :cache_for ["pandas", "polars", "torch","numpy", "tensorflow", "matplotlib"]
+                                                               )
                                     ))
                          ))
   (setq eldoc-echo-area-use-multiline-p nil)
   :bind (
          ("C-c p" . start-eglot-python)
          )
+  :custom
+  (eglot-autoshutdown t)
+  (eglot-events-buffer-config '(:size 0 :format short))
+  (eglot-sync-connect nil)
+  (eglot-send-changes-idle-time 3)
+  (flymake-no-changes-timeout 5)
+  (eldoc-echo-area-use-multiline-p nil)
+  (eglot-ignored-server-capabilities '(:documentHighlightProvider))
   :config
   (global-flycheck-eglot-mode 1)
+
+  ;; (setq eglot-stay-out-of '(company))
+  
   (defun start-eglot-python ()
     (interactive)
     (let* (
@@ -1807,11 +1863,25 @@ This is for when I accidentally make a column in org mode
            (class eglot-lsp-server)
            (language-ids (list "python"))
            )
-      (apply 'eglot (list managed-modes project class (list contact) language-ids))
+      ;; (apply 'eglot (list managed-modes project class (list contact) language-ids))
+      (kill-new contact)
+      (call-interactively 'eglot)
+      (yank)
       (jupyter-run-repl env buffer-file-name t 'jupyter-repl-client)
       )
     )  
   )
+
+(use-package eglot-booster
+  :after eglot
+  :ensure (eglot-booster
+           :type git
+           :host github
+           :repo "jdtsmith/eglot-booster"
+           :local-repo "eglot-booster"
+           )
+  :config
+  (eglot-booster-mode))
 
 (use-package jsonrpc
   :defer t
@@ -1819,7 +1889,12 @@ This is for when I accidentally make a column in org mode
 
 (use-package flycheck-eglot
   :defer t
+  :custom
+  (flycheck-help-echo-function nil)
+  (flycheck-display-errors-function nil)
   )
+
+;; TODO figure out why the windows spilt so stupidly
 
 #+end_src
 
@@ -1852,10 +1927,17 @@ This is for when I accidentally make a column in org mode
   :interpreter ("python" . python-mode)
   :bind (
          :map python-mode-map
-              ("H-<left>" . python-indent-shift-left)
-              ("H-<right>" . python-indent-shift-right)
+         ("H-<left>" . python-indent-shift-left)
+         ("H-<right>" . python-indent-shift-right)
          )
-  )
+  :config
+  (defun my-python-company-mode-hook ()
+    (setq-local company-backends
+                '((company-yasnippet company-dabbrev-code :with company-capf)
+                  company-files)))
+  
+  (add-hook 'python-mode-hook #'my-python-company-mode-hook)
+)
 #+end_src
 
 **** yapify
@@ -2185,14 +2267,30 @@ This is for when I accidentally make a column in org mode
 *** smart-mode-line
 #+begin_src emacs-lisp :lexical t :tangle yes
 
-(use-package smart-mode-line
-  :delight
-  :init
-  (setq sml/name-width 50
-        sml/mode-width 50)
-  (setq sml/theme 'respectful)
+;; (use-package smart-mode-line
+;;   :delight
+;;   :init
+;;   (setq sml/name-width 50
+;;         sml/mode-width 50)
+;;   (setq sml/theme 'respectful)
+;;   ;; :config
+;;   ;; (sml/setup)
+;;   )
+
+(use-package doom-modeline
+  :ensure t
+  :init (doom-modeline-mode 1)
+  :custom
+  (doom-modeline-window-width-limit 50)
+  (doom-modeline-time-live-icon nil)
+  (doom-modeline-time-analogue-clock nil)
+  (doom-modeline-env-version nil)
+  (doom-modeline-time-icon nil)
+
+
   :config
-  (sml/setup)
+  (display-time-mode)
+  (display-battery-mode)
   )
   
 #+end_src
@@ -2437,7 +2535,7 @@ This is for when I accidentally make a column in org mode
            :local-repo "tab-config"
            :files (:defaults "tab-config.el" (:exclude "*init.el" "*.md" "*png" "custom.el"))
            )
-  :after tab-line
+  :after (tab-line doom-modeline)
   :defer nil
   :bind* (
           ("M-S-<up>" . (lambda () (interactive) (tab2-select-filter-button t)))
@@ -2450,6 +2548,24 @@ This is for when I accidentally make a column in org mode
           )
   :config
   (global-tab-line-mode t)
+
+  ;; remove a buffer from a view
+  (defun tab-remove-view ()
+    (interactive)
+    (let* (
+	       (buffer (current-buffer)))
+      (if (tab2-buffer-in-multiple-viewsp buffer)
+	      ;; The buffer is in other views so only:
+	      ;; remove this buffer from the buffer list for this view and switch
+	      (let* ((view (tab2-get-current-view))
+	             (new-buffers (remove buffer (tab2-view-buffers view))))
+	        (setf (tab2-view-buffers view) new-buffers)
+	        (if new-buffers
+                (switch-to-buffer (nth 0 new-buffers))
+	          (switch-to-buffer "*scratch*"))
+            )
+        )))
+  
   (defun tab-rotate-list-left (li)
     (nconc (last li) (butlast li))      
     )
@@ -2508,11 +2624,50 @@ This is for when I accidentally make a column in org mode
             )
       )
     )
-  (tab-line-select-tab-buffer "*scratch*" (selected-window))
+  (defvar tab2-white-list-modes
+    '(text-mode lisp-interaction-mode vterm-mode special-mode fundamental-mode magit-status-mode jupyter-repl-mode)
+    "List of modes that will be tracked even if the buffer is not a file")
+
+  (defvar tab2-white-list-buffer-names
+    '()
+    "List of buffer names that will be tracked even if the buffer is not a file")
+
+
+
+
+  ;;; FORMAT FOR DOOM
+;;; Doom modeline integration
+
+  (defvar-keymap tab2-mode-line-view-map
+    "<mode-line> <mouse-3>" #'tab2-next-view
+    "<mode-line> <mouse-1>" #'tab2-prev-view)
+
+
+  (doom-modeline-def-segment tab2-view-segment
+    "show the current tab2 view"
+    (propertize (concat
+	             "₪ "
+	             (tab2-view-name (tab2-get-current-view)))
+                'face `(:foreground "#2fd0f7" :weight bold)
+	            'help-echo "Current tab view - click to switch to the next one"
+	            'local-map tab2-mode-line-view-map
+	            ))
+  
+  (doom-modeline-def-modeline 'tab2-aware-modeline
+    '(bar matches buffer-encoding buffer-info-simple remote-host media-info buffer-position selection-info)
+    '(misc-info battery minor-modes input-method major-mode repl lsp process vcs tab2-view-segment check time))
+
+  ;; Set once on start
+  (doom-modeline-set-modeline 'tab2-aware-modeline 'default)
+  ;; Hook in after that.
+  (add-hook 'doom-modeline-mode-hook
+            (lambda ()
+              (doom-modeline-set-modeline 'tab2-aware-modeline 'default)))
+
+  (add-hook 'emacs-startup-hook (lambda () (tab-line-select-tab-buffer "*Messages*" (selected-window)) (tab2-get-tabs)))
   )
 
 (use-feature tab-line
-
   :custom-face
   (tab-line ((t (:height 150))))
   (tab-line-highlight ((t (:background "white"))))
@@ -2522,7 +2677,7 @@ This is for when I accidentally make a column in org mode
   (tab-line-tab-modified ((t (:background "gray20" :foreground "#c397d8" :inverse-video nil))))
   )
 
-;; https://github.com/benleis1/emacs-init/blob/main/tab-config.el
+
 #+end_src
 
 
@@ -2666,13 +2821,21 @@ This is for when I accidentally make a column in org mode
 
 (use-package yasnippet
   :delight yas-minor-mode
-  :defer t
+  :defer nil
   :config
   (yas-global-mode 1)
   )
 
-(use-package yasnippet-snippets  
+(use-package yasnippet-snippets
+  :ensure t
+  :after yasnippet
   )
+
+(use-package py-snippets
+  :ensure t
+  :after yasnippet
+  :config
+  (py-snippets-initialize))
 
 (use-package ivy-yasnippet
   :bind ("H-," . ivy-yasnippet)
