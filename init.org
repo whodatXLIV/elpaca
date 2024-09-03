@@ -196,6 +196,55 @@ ELP is useful for seeing which functions in a package are "hot".
 
 (setq font-lock-maximum-decoration 2)
 
+
+(defun split-window-sensibly-prefer-horizontal (&optional window)
+"Based on split-window-sensibly, but designed to prefer a horizontal split,
+i.e. windows tiled side-by-side."
+  (interactive)
+  (let ((window (or window (selected-window))))
+    (or (and (window-splittable-p window t)
+         ;; Split window horizontally
+         (with-selected-window window
+           (split-window-right)))
+    (and (window-splittable-p window)
+         ;; Split window vertically
+         (with-selected-window window
+           (split-window-below)))
+    (and
+         ;; If WINDOW is the only usable window on its frame (it is
+         ;; the only one or, not being the only one, all the other
+         ;; ones are dedicated) and is not the minibuffer window, try
+         ;; to split it horizontally disregarding the value of
+         ;; `split-height-threshold'.
+         (let ((frame (window-frame window)))
+           (or
+            (eq window (frame-root-window frame))
+            (catch 'done
+              (walk-window-tree (lambda (w)
+                                  (unless (or (eq w window)
+                                              (window-dedicated-p w))
+                                    (throw 'done nil)))
+                                frame)
+              t)))
+     (not (window-minibuffer-p window))
+     (let ((split-width-threshold 0))
+       (when (window-splittable-p window t)
+         (with-selected-window window
+           (split-window-right))))))))
+
+(defun split-window-really-sensibly (&optional window)
+  (let ((window (or window (selected-window))))
+    (if (> (window-total-width window) (* 2 (window-total-height window)))
+        (with-selected-window window (split-window-sensibly-prefer-horizontal window))
+      (with-selected-window window (split-window-sensibly window)))))
+
+(setq
+   split-height-threshold 10
+   split-width-threshold 240
+   split-window-preferred-function 'split-window-really-sensibly)
+
+
+
 #+end_src
 
 *** global keys
@@ -406,7 +455,6 @@ This is for when I accidentally make a column in org mode
 *** ace
 **** window
 
-# TODO make a toggle for zoom and balance
 #+begin_src emacs-lisp :lexical t
 
 (use-package ace-window
@@ -635,18 +683,35 @@ This is for when I accidentally make a column in org mode
   (company-dabbrev-code-everywhere t)
   (company-etags-ignore-case t)
 
-  (setq company-transformers '(delete-consecutive-dups
-                               company-sort-by-backend-importance))
-  
+  (company-transformers '(seth-delete-consecutive-dups))
 
   (company-selection-wrap-around t)
   (completion-ignore-case t)
   (company-show-quick-access t)
+  :init
+  (defun seth-delete-consecutive-dups (list)
+    "Destructively remove `equal' consecutive duplicates from LIST.
+Of several consecutive `equal' occurrences, the one earliest in
+the list is kept."
+    (let ((tail list) last)
+      (while (cdr tail)
+
+
+        (setq eq1 (substring-no-properties (car tail)))
+        (setq eq2 (substring-no-properties (cadr tail)))
+        (if (equal (car (split-string eq1 "(")) (car (split-string eq2 "(")))
+            (progn
+              (when ( < (length eq1) (length eq2)) (setcar tail (car (cdr tail))))
+              ;; (setcar tail (car (cdr tail)))
+              (setcdr tail (cddr tail))
+              )
+	      (setq last tail
+	            tail (cdr tail))))
+      )
+    list)
   
   :config
   (add-to-list 'company-backends 'company-yasnippet)
-
-  ;; TODO add transform function delete consecutuve that splits strings at parens?
   )
 
 #+end_src
@@ -1598,9 +1663,9 @@ This is for when I accidentally make a column in org mode
                   ;; (special-mode . hide)
                   ;; (fundamental-mode . hide)
                   ("\\*jupyter-display\\*" . hide)
-                  ("\\*jupyter-traceback\\*" . hide)
+                  "\\*jupyter-traceback\\*"
                   ("\\*jupyter-output\\*" . hide)
-                  ("\\*jupyter-error\\*" . hide)                  
+                  "\\*jupyter-error\\*"                  
                   )))
   :custom
   (popper-group-function #'popper-group-by-project)
@@ -1633,13 +1698,21 @@ This is for when I accidentally make a column in org mode
   :config
   (company-posframe-mode 1)
   :bind (:map company-active-map
-              ("H-<tab>" . company-posframe-quickhelp-toggle)
+              ("H-<tab>" . seth-toggle-company-posframe) ;; 
               ("H-p" . company-posframe-quickhelp-scroll-down)
               ("H-n" . company-posframe-quickhelp-scroll-up)
               ("<tab>" . company-complete-selection)
               )
+  :init
+  (defun seth-toggle-company-posframe ()
+    (interactive)
+    (company-posframe-quickhelp-toggle)
+    (setq company-posframe-quickhelp-delay (if (eq 0 company-posframe-quickhelp-delay) nil 0))
+    (when (not company-posframe-quickhelp-delay) (company-posframe-quickhelp-toggle))
+    )
   )
-;; TODO add in function to truly toggle quickhelp by setting nil to 0 and back
+
+
 ;; (use-package ivy-posframe
 ;;   :delight
 ;;   :defer t
@@ -1713,7 +1786,7 @@ This is for when I accidentally make a column in org mode
           )
       (save-excursion
         (goto-char (car bounds))
-        (kill-line)
+        (delete-region (point) (line-end-position))
         (insert (concat
                  "# %% "
                  (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
@@ -1737,10 +1810,22 @@ This is for when I accidentally make a column in org mode
           )
       (save-excursion
         (goto-char (car bounds))
-        (kill-line)
+        (delete-region (point) (line-end-position))
         (insert "# %%")
         )
       )
+    )
+
+  (defun seth-code-cells/split-cell ()
+    (interactive)
+    (save-excursion
+      (move-beginning-of-line 1)
+      (open-line 2)
+      (next-line 1)
+      (insert "# %%")
+      (open-line 1)
+      )
+    (open-line 1)
     )
 
   (defun seth-code-cells/restart-jupyter-execution-count (&rest arg)
@@ -1778,11 +1863,11 @@ This is for when I accidentally make a column in org mode
     (save-excursion
       (goto-char (point-min))
       (when (looking-at "# %%")
-        (kill-line)
+        (delete-region (point) (line-end-position))
         (insert "# %%")
         )
       (while (code-cells-forward-cell 1)
-          (kill-line)
+          (delete-region (point) (line-end-position))
           (insert "# %%")
         ))
     )
@@ -1807,6 +1892,7 @@ This is for when I accidentally make a column in org mode
          ("C-c c ;" . code-cells-comment-or-uncomment)
          ("C-c c h" . code-cells-mark-cell)
          ("C-c c o" . seth-code-cells/clear-timestamps)
+         ("C-c c n" . seth-code-cells/split-cell)
          )
   )
 #+end_src
@@ -1838,15 +1924,15 @@ This is for when I accidentally make a column in org mode
   :custom
   (eglot-autoshutdown t)
   (eglot-events-buffer-config '(:size 0 :format short))
-  (eglot-sync-connect nil)
+  (eglot-sync-connect t)
   (eglot-send-changes-idle-time 3)
   (flymake-no-changes-timeout 5)
   (eldoc-echo-area-use-multiline-p nil)
   (eglot-ignored-server-capabilities '(:documentHighlightProvider))
+  ;; (fset #'jsonrpc--log-event #'ignore)
   :config
   (global-flycheck-eglot-mode 1)
-
-  ;; (setq eglot-stay-out-of '(company))
+  (setq eglot-stay-out-of '(company))
   
   (defun start-eglot-python ()
     (interactive)
@@ -1866,7 +1952,6 @@ This is for when I accidentally make a column in org mode
       ;; (apply 'eglot (list managed-modes project class (list contact) language-ids))
       (kill-new contact)
       (call-interactively 'eglot)
-      (yank)
       (jupyter-run-repl env buffer-file-name t 'jupyter-repl-client)
       )
     )  
@@ -1893,8 +1978,6 @@ This is for when I accidentally make a column in org mode
   (flycheck-help-echo-function nil)
   (flycheck-display-errors-function nil)
   )
-
-;; TODO figure out why the windows spilt so stupidly
 
 #+end_src
 
@@ -1931,13 +2014,13 @@ This is for when I accidentally make a column in org mode
          ("H-<right>" . python-indent-shift-right)
          )
   :config
-  (defun my-python-company-mode-hook ()
+  (defun seth-python-company-mode-hook ()
     (setq-local company-backends
-                '((company-yasnippet company-dabbrev-code :with company-capf)
+                '((company-capf company-dabbrev-code :with company-yasnippet)
                   company-files)))
   
-  (add-hook 'python-mode-hook #'my-python-company-mode-hook)
-)
+  (add-hook 'python-mode-hook #'seth-python-company-mode-hook)
+  )
 #+end_src
 
 **** yapify
@@ -2526,7 +2609,7 @@ This is for when I accidentally make a column in org mode
 *** tab-line
 
 #+begin_src emacs-lisp :lexical t :tangle yes
-;; BUG going left when no files or project does not go to views
+
 (use-package tab-config
   :ensure (tab-config
            :type git
@@ -2541,7 +2624,7 @@ This is for when I accidentally make a column in org mode
           ("M-S-<up>" . (lambda () (interactive) (tab2-select-filter-button t)))
           ("M-S-<left>" . switch-highlighted-tab-or-buffer)
           ("M-S-<right>" . (lambda () (interactive) (switch-highlighted-tab-or-buffer 1)))
-          ("M-S-<down>" . tab2-new-view)
+          ("M-S-<down>" . tab-line-mode)
           ;; ("C-S-<left>" . (lambda () (interactive) (tab2-shift-tab-left t)))
           ;; ("C-S-<right>" . (lambda () (interactive) (tab2-shift-tab-right t)))
           ;; add in new views and stuff
@@ -2863,6 +2946,22 @@ This is for when I accidentally make a column in org mode
   :bind* ("C-x d" . neotree)
   :custom
   (neo-theme 'arrow)
+)
+#+end_src 
+   
+*** transpose-frame
+#+begin_src emacs-lisp :lexical t
+(use-package transpose-frame
+  :delight
+  :defer t
+  :bind* (
+          ("H-f t" . transpose-frame)
+          ("H-f h" . flip-frame)
+          ("H-f v" . flop-frame)
+          ("H-f r" . rotate-frame)
+          ("H-f c" . rotate-frame-clockwise)
+          ("H-f a" . rotate-frame-anti-clockwise)
+          )
 )
 #+end_src 
    
