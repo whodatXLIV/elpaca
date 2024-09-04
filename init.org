@@ -1472,7 +1472,7 @@ the list is kept."
            :map org-mode-map
            ;;("C-M-<up>" . org-shiftmetaup)
            ;;("C-M-<down>" . org-shiftmetadown)
-           ("s-C-l" . seth-clear-all-results)
+           ("s-C-l" . seth-org/clear-all-results)
            ("C-M-<left>" . org-shiftmetaleft)
            ("C-M-<right>" . org-shiftmetaright)
            ("C-M-S-<left>" . org-shiftcontrolleft)
@@ -1484,7 +1484,7 @@ the list is kept."
            ("s-z" . org-babel-switch-to-session)
            ) 
     :init
-    (defun seth-clear-all-results ()
+    (defun seth-org/clear-all-results ()
       "Clear all results in the buffer."
       (interactive)
       (save-excursion
@@ -1892,6 +1892,7 @@ the list is kept."
          ("C-c c ;" . code-cells-comment-or-uncomment)
          ("C-c c h" . code-cells-mark-cell)
          ("C-c c o" . seth-code-cells/clear-timestamps)
+         ("C-c c O" . seth-code-cells/clear-all-results)
          ("C-c c n" . seth-code-cells/split-cell)
          )
   )
@@ -2266,7 +2267,7 @@ the list is kept."
       ("a" (jupyter-org-insert-src-block nil current-prefix-arg) "insert above")
       ("b" (jupyter-org-insert-src-block t current-prefix-arg) "insert below")
       ("l" org-babel-remove-result "clear result")
-      ("L" seth-clear-all-results "clear all results")
+      ("L" seth-org/clear-all-results "clear all results")
       ("h" jupyter-org-edit-header "edit header"))
 
      "Misc"
