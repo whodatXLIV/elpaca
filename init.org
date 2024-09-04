@@ -2632,7 +2632,7 @@ the list is kept."
           )
   :config
   (global-tab-line-mode t)
-
+  (setq tab2-line-tab-buffer-plist (list))
   ;; remove a buffer from a view
   (defun tab-remove-view ()
     (interactive)
@@ -2665,7 +2665,6 @@ the list is kept."
     (interactive)
     (let* ((tablist (tab2-get-tabs))
            (isGroup (window-parameter nil 'tab-line-groups))
-           ;;         (buffern (tab-line-tabs-buffer-group-name (current-buffer))) ;; this is wrong
            (name-select (when isGroup
                           (mapcar (lambda (elt) (list (cdr (assq 'name elt)) (cdr (assq 'select elt)))) tablist)
                           ))
@@ -2682,25 +2681,30 @@ the list is kept."
                (tab-line-switch-to-prev-tab)))
             (isGroup
              (if direction
-                 (funcall (cadr (nth current-index (tab-rotate-list-right name-select)))) ;; change to selected tab (rotated)
-               (funcall (cadr (nth current-index (tab-rotate-list-left name-select)))) 
+                 (setq rotated-list (tab-rotate-list-right name-select))
+               (setq rotated-list (tab-rotate-list-left name-select)) 
                )
-
+             (funcall (cadr (nth current-index rotated-list)))
+             ;; change to selected tab (rotated)
              ;; once the group tab is selected then need to go to the current buffer in that tab
+             ;; or if no current buffer in tab2-line-tab-buffer-plist then go to first buffer
+             ;; if a buffer no longer exists then remove that buffer from plist
              (let* (
-                    (buflist (tab2-get-tabs))
-                    (buffer-select (mapcar (lambda (elt) (cdr (assq 'buffer elt))) buflist))
-                    (buffer-current-name (cdr (assq 'buffer (car (seq-filter (lambda (elt) (cdr (assq 'selected elt))) buflist)))))
-                    (buffer-current-index (tab-current-index buffer-current-name (list buffer-select)))
-                    (buffer-current-index (if (not buffer-current-index) 0 buffer-current-index))
+                    (buflist (tab2-get-tabs)) ;; the buffers I can go to
+                    (buffer-select (mapcar (lambda (elt) (list (cdr (assq 'buffer elt)))) buflist)) ;; the buffer names I can select
+                    (tab-name (car (nth current-index rotated-list))) ;; the tab I want to see if in plist
+                    (last-buffer (plist-get tab2-line-tab-buffer-plist tab-name #'equal)) ;; the last buffer if in plist
+                    (buffer-current-name (when (member (list last-buffer) buffer-select) last-buffer)) ;; if the last buffer still exists
+                    (buffer-current-index (if buffer-current-name
+                                              (tab-current-index buffer-current-name buffer-select)
+                                            0))
                     ;;if above is nil then go to 0th tab
                     )
-               
                (force-mode-line-update) ;; update to get new tab settings
-               (tab-line-select-tab-buffer (nth buffer-current-index buffer-select) (selected-window)) ;; go to buffer
+               (tab-line-select-tab-buffer (car (nth buffer-current-index buffer-select)) (selected-window)) ;; go to buffer
                )
              (when (not (window-parameter nil 'tab-line-views)) ;; don't go up level if in views
-               (tab2-select-filter-button t) ;; go up level
+               (tab2-select-filter-button nil) ;; go up level
                (tab2-get-tabs) ;; update to get new tab settings
                (force-mode-line-update) ;; update to get new tab settings
                )
@@ -2708,6 +2712,27 @@ the list is kept."
             )
       )
     )
+  (defun seth-add-to-tab-line-tab-buffer-plist (arg)
+    ;; update plist
+    (when arg
+      (let* ((tablist (tab2-get-tabs))
+             (isGroup (window-parameter nil 'tab-line-groups))
+             (name-select (when isGroup
+                            (mapcar (lambda (elt) (list (cdr (assq 'name elt)) (cdr (assq 'select elt)))) tablist)
+                            ))
+             (current-name (when isGroup
+                             (cdr (assq 'name (car (seq-filter (lambda (elt) (cdr (assq 'selected elt))) tablist))))
+                             ))
+             )
+        (when isGroup
+          (setq tab2-line-tab-buffer-plist (plist-put tab2-line-tab-buffer-plist current-name (current-buffer) #'equal))
+          )
+        ))
+    )
+
+  (advice-add 'tab2-select-filter-button :after #'seth-add-to-tab-line-tab-buffer-plist)
+  ;; (advice-remove 'tab2-select-filter-button #'seth-add-to-tab-line-tab-buffer-plist)
+
   (defvar tab2-white-list-modes
     '(text-mode lisp-interaction-mode vterm-mode special-mode fundamental-mode magit-status-mode jupyter-repl-mode)
     "List of modes that will be tracked even if the buffer is not a file")
@@ -2748,6 +2773,7 @@ the list is kept."
             (lambda ()
               (doom-modeline-set-modeline 'tab2-aware-modeline 'default)))
 
+  ;;; Start in Messages and with a selected buffer
   (add-hook 'emacs-startup-hook (lambda () (tab-line-select-tab-buffer "*Messages*" (selected-window)) (tab2-get-tabs)))
   )
 
