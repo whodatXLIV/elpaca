@@ -275,6 +275,14 @@ i.e. windows tiled side-by-side."
 (setq python-indent-guess-indent-offset nil)
 
 (which-key-mode)
+
+(prefer-coding-system 'utf-8)
+(set-default-coding-systems 'utf-8)
+(set-selection-coding-system 'utf-8)
+(set-language-environment "UTF-8")
+(set-charset-priority 'unicode)
+(setq default-process-coding-system '(utf-8-unix . utf-8-unix))
+
 #+end_src
 
 *** mouse 
@@ -445,7 +453,8 @@ This is for when I accidentally make a column in org mode
   :config
   (recentf-mode 1)
   (run-at-time nil (* 5 60) 'recentf-save-list)
-  (add-to-list 'recentf-exclude "\\.png\\'")
+  (add-to-list 'recentf-exclude "\\.png$")
+  (add-to-list 'recentf-exclude "/var/folders")
   (recentf-cleanup)
   :defer t
   )
@@ -461,10 +470,10 @@ This is for when I accidentally make a column in org mode
   :delight
   :bind* (
           ("H-SPC" . ace-window)
-          ("H-<left>" . shrink-window-horizontally)
-          ("H-<right>" . enlarge-window-horizontally)
-          ("H-<up>" . enlarge-window)
-          ("H-<down>" . shrink-window)
+          ("H-M-<left>" . shrink-window-horizontally)
+          ("H-M-<right>" . enlarge-window-horizontally)
+          ("H-M-<up>" . enlarge-window)
+          ("H-M-<down>" . shrink-window)
           ("H-z" . seth-toggle-zoom-balance)
           )
   :defer t
@@ -1253,7 +1262,7 @@ the list is kept."
 
   :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
   :defer t
-  :hook ((prog-mode org-mode) . indent-bars-mode)
+  :hook ((prog-mode org-mode python-mode) . indent-bars-mode)
   :config
   (setq
    indent-bars-prefer-character t
@@ -1649,6 +1658,7 @@ the list is kept."
           help-mode
           compilation-mode
           image-mode
+          magit-status-mode
           ))
 
   ;; Match eshell, shell, term and/or vterm buffers
@@ -1929,8 +1939,11 @@ the list is kept."
   (eglot-send-changes-idle-time 3)
   (flymake-no-changes-timeout 5)
   (eldoc-echo-area-use-multiline-p nil)
+  ;; Optimizations
   (eglot-ignored-server-capabilities '(:documentHighlightProvider))
-  ;; (fset #'jsonrpc--log-event #'ignore)
+  (fset #'jsonrpc--log-event #'ignore)
+  (setq jsonrpc-event-hook nil)  
+
   :config
   (global-flycheck-eglot-mode 1)
   (setq eglot-stay-out-of '(company))
@@ -2351,31 +2364,31 @@ the list is kept."
 *** smart-mode-line
 #+begin_src emacs-lisp :lexical t :tangle yes
 
-;; (use-package smart-mode-line
-;;   :delight
-;;   :init
-;;   (setq sml/name-width 50
-;;         sml/mode-width 50)
-;;   (setq sml/theme 'respectful)
-;;   ;; :config
-;;   ;; (sml/setup)
-;;   )
-
-(use-package doom-modeline
-  :ensure t
-  :init (doom-modeline-mode 1)
-  :custom
-  (doom-modeline-window-width-limit 50)
-  (doom-modeline-time-live-icon nil)
-  (doom-modeline-time-analogue-clock nil)
-  (doom-modeline-env-version nil)
-  (doom-modeline-time-icon nil)
-
-
+(use-package smart-mode-line
+  :delight
+  :init
+  (setq sml/name-width 50
+        sml/mode-width 50)
+  (setq sml/theme 'respectful)
   :config
-  (display-time-mode)
-  (display-battery-mode)
+  (sml/setup)
   )
+
+;; (use-package doom-modeline
+;;   :ensure t
+;;   :init (doom-modeline-mode 1)
+;;   :custom
+;;   (doom-modeline-window-width-limit 50)
+;;   (doom-modeline-time-live-icon nil)
+;;   (doom-modeline-time-analogue-clock nil)
+;;   (doom-modeline-env-version nil)
+;;   (doom-modeline-time-icon nil)
+
+
+;;   :config
+;;   (display-time-mode)
+;;   (display-battery-mode)
+;;   )
   
 #+end_src
 
@@ -2619,7 +2632,7 @@ the list is kept."
            :local-repo "tab-config"
            :files (:defaults "tab-config.el" (:exclude "*init.el" "*.md" "*png" "custom.el"))
            )
-  :after (tab-line doom-modeline)
+  :after (tab-line) ;; doom-modeline
   :defer nil
   :bind* (
           ("M-S-<up>" . (lambda () (interactive) (tab2-select-filter-button t)))
@@ -2734,7 +2747,7 @@ the list is kept."
   ;; (advice-remove 'tab2-select-filter-button #'seth-add-to-tab-line-tab-buffer-plist)
 
   (defvar tab2-white-list-modes
-    '(text-mode lisp-interaction-mode vterm-mode special-mode fundamental-mode magit-status-mode jupyter-repl-mode)
+    '(text-mode lisp-interaction-mode vterm-mode fundamental-mode magit-status-mode) ;; special-mode jupyter-repl-mode
     "List of modes that will be tracked even if the buffer is not a file")
 
   (defvar tab2-white-list-buffer-names
@@ -2744,34 +2757,34 @@ the list is kept."
 
 
 
-  ;;; FORMAT FOR DOOM
-;;; Doom modeline integration
+;;   ;;; FORMAT FOR DOOM
+;; ;;; Doom modeline integration
 
-  (defvar-keymap tab2-mode-line-view-map
-    "<mode-line> <mouse-3>" #'tab2-next-view
-    "<mode-line> <mouse-1>" #'tab2-prev-view)
+;;   (defvar-keymap tab2-mode-line-view-map
+;;     "<mode-line> <mouse-3>" #'tab2-next-view
+;;     "<mode-line> <mouse-1>" #'tab2-prev-view)
 
 
-  (doom-modeline-def-segment tab2-view-segment
-    "show the current tab2 view"
-    (propertize (concat
-	             "₪ "
-	             (tab2-view-name (tab2-get-current-view)))
-                'face `(:foreground "#2fd0f7" :weight bold)
-	            'help-echo "Current tab view - click to switch to the next one"
-	            'local-map tab2-mode-line-view-map
-	            ))
+;;   (doom-modeline-def-segment tab2-view-segment
+;;     "show the current tab2 view"
+;;     (propertize (concat
+;; 	             "₪ "
+;; 	             (tab2-view-name (tab2-get-current-view)))
+;;                 'face `(:foreground "#2fd0f7" :weight bold)
+;; 	            'help-echo "Current tab view - click to switch to the next one"
+;; 	            'local-map tab2-mode-line-view-map
+;; 	            ))
   
-  (doom-modeline-def-modeline 'tab2-aware-modeline
-    '(bar matches buffer-encoding buffer-info-simple remote-host media-info buffer-position selection-info)
-    '(misc-info battery minor-modes input-method major-mode repl lsp process vcs tab2-view-segment check time))
+;;   (doom-modeline-def-modeline 'tab2-aware-modeline
+;;     '(bar matches buffer-encoding buffer-info-simple remote-host media-info buffer-position selection-info)
+;;     '(misc-info battery minor-modes input-method major-mode repl lsp process vcs tab2-view-segment check time))
 
-  ;; Set once on start
-  (doom-modeline-set-modeline 'tab2-aware-modeline 'default)
-  ;; Hook in after that.
-  (add-hook 'doom-modeline-mode-hook
-            (lambda ()
-              (doom-modeline-set-modeline 'tab2-aware-modeline 'default)))
+;;   ;; Set once on start
+;;   (doom-modeline-set-modeline 'tab2-aware-modeline 'default)
+;;   ;; Hook in after that.
+;;   (add-hook 'doom-modeline-mode-hook
+;;             (lambda ()
+;;               (doom-modeline-set-modeline 'tab2-aware-modeline 'default)))
 
   ;;; Start in Messages and with a selected buffer
   (add-hook 'emacs-startup-hook (lambda () (tab-line-select-tab-buffer "*Messages*" (selected-window)) (tab2-get-tabs)))
@@ -2991,4 +3004,58 @@ the list is kept."
           )
 )
 #+end_src 
-   
+
+*** ssh-tunnels
+#+begin_src emacs-lisp :lexical t
+(use-package ssh-tunnels
+  :delight
+  :defer t
+  :ensure (ssh-tunnels
+           :type git
+           :host github
+           :repo "death/ssh-tunnels"
+           :local-repo "ssh-tunnels"
+           )
+  :custom
+  (ssh-tunnels-configurations
+      '((:name "dev socket"
+         :local-port 12345
+         :remote-port 12345
+         :login "sfigueroa@dev.focusvq.com"
+         :type "-L")
+        ))
+
+  :bind (:map ssh-tunnels-mode-map
+              ("n" . seth-ssh-tunnel-add)
+              )
+  :config
+  (defun seth-ssh-tunnel-add (name port)
+    (interactive "sName: \nnPort: ")
+    (let ((conf `(:name ,name
+                       :local-port ,port
+                       :remote-port ,port
+                       :login "sfigueroa@dev.focusvq.com"
+                       :type "-L"
+                       )))
+      (add-to-list 'ssh-tunnels-configurations conf)
+      (ssh-tunnels-refresh)
+      )
+    )
+  )
+#+end_src 
+
+*** outline indend
+#+begin_src emacs-lisp :lexical t
+  (use-package outline-indent
+  :ensure t
+  :custom
+  (outline-indent-ellipsis " ▼ ")
+  :config
+  (add-hook 'python-mode-hook #'outline-indent-minor-mode)
+  (add-hook 'python-ts-mode-hook #'outline-indent-minor-mode)
+
+  )
+
+;; https://github.com/jamescherti/minimal-emacs.d?tab=readme-ov-file
+#+end_src
+

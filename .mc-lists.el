@@ -3,6 +3,7 @@
 
 (setq mc/cmds-to-run-for-all
       '(
+        beginning-of-buffer
         end-of-buffer
         indent-for-tab-command
         kill-region
@@ -14,10 +15,12 @@
         org-self-insert-command
         org-yank
         sp-backward-slurp-sexp
+        sp-backward-unwrap-sexp
         sp-beginning-of-sexp
         sp-end-of-sexp
         sp-forward-slurp-sexp
         sp-kill-hybrid-sexp
+        sp-unwrap-sexp
         vterm-end-of-line
         ))
 
