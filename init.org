@@ -7,6 +7,43 @@
 This is a literate configuration for =Emacs=.
 Tangling this file creates an Elisp file, =~/.emacs.d/lisp/init.el=.
 * Bootstrapping
+** pre-early-init
+:PROPERTIES:
+:header-args: :tangle-mode o444 :results silent :tangle ~/.emacs.d/pre-early-init.el
+:END:
+Emacs 27.0 introduced an early-init file. It allows customization before package and UI initialization.
+
+#+begin_src emacs-lisp :lexical t
+    ;;; pre-early-init.el --- Emacs pre package.el & GUI configuration -*- no-byte-compile: t; lexical-binding: t; -*-
+    ;;; Code:
+
+;;; Misc
+(setq package-enable-at-startup nil)
+(setq custom-file null-device)
+(setq minimal-emacs-gc-cons-threshold (* 64 1024 1024))
+
+(setq inhibit-default-init nil)
+(setq server-client-instructions nil)
+(setq desktop-restore-forces-onscreen nil)
+(setq ring-bell-function #'ignore)
+
+(prefer-coding-system 'utf-8)
+(set-default-coding-systems 'utf-8)
+(set-selection-coding-system 'utf-8)
+(set-language-environment "UTF-8")
+(set-charset-priority 'unicode)
+(setq default-process-coding-system '(utf-8-unix . utf-8-unix))
+
+
+;; Set-language-environment sets default-input-method, which is unwanted.
+(setq default-input-method nil)
+
+
+(provide 'pre-early-init)
+  ;;; pre-early-init.el ends here
+
+#+end_src
+
 ** early-init
 :PROPERTIES:
 :header-args: :tangle-mode o444 :results silent :tangle ~/.emacs.d/early-init.el
@@ -14,62 +51,304 @@ Tangling this file creates an Elisp file, =~/.emacs.d/lisp/init.el=.
 Emacs 27.0 introduced an early-init file. It allows customization before package and UI initialization.
 
 #+begin_src emacs-lisp :lexical t
-    ;;; early-init.el --- Emacs pre package.el & GUI configuration -*- lexical-binding: t; -*-
+    ;;; early-init.el --- Emacs pre package.el & GUI configuration -*- no-byte-compile: t; lexical-binding: t; -*-
     ;;; Code:
-(setq package-enable-at-startup nil)
-(setq inhibit-default-init nil)
-
-(setq native-comp-async-report-warnings-errors nil)
-
-(defvar default-file-name-handler-alist file-name-handler-alist)
-(setq file-name-handler-alist nil)
-
-(setq gc-cons-threshold most-positive-fixnum
-      gc-cons-percentage 1)
-
-(defun +gc-after-focus-change ()
-  "Run GC when frame loses focus."
-  (run-with-idle-timer
-   5 nil
-   (lambda () (unless (frame-focus-state) (garbage-collect)))))
-
-(defun +reset-init-values ()
-  (run-with-idle-timer
-   1 nil
-   (lambda ()
-     (setq file-name-handler-alist default-file-name-handler-alist
-           gc-cons-percentage 0.1
-           gc-cons-threshold 16777216)
-     (message "gc-cons-threshold & file-name-handler-alist restored")
-     (when (boundp 'after-focus-change-function)
-       (add-function :after after-focus-change-function #'+gc-after-focus-change)))))
-
-(setq server-client-instructions nil)
-(setq frame-inhibit-implied-resize t)
-
-(advice-add #'x-apply-session-resources :override #'ignore)
-(setq desktop-restore-forces-onscreen nil)
 
 
-(setq ring-bell-function #'ignore
-      inhibit-startup-screen t
-      inhibit-startup-message t)
+(defvar minimal-emacs-ui-features '()
+  "List of user interface features to disable in minimal Emacs setup.
+
+This variable holds a list Emacs UI features that can be enabled:
+- `context-menu`: Enables the context menu in graphical environments.
+- `tool-bar`: Enables the tool bar in graphical environments.
+- `menu-bar`: Enables the menu bar in graphical environments.
+- `dialogs`: Enables both file dialogs and dialog boxes.
+- `tooltips`: Enables tooltips.
+
+Each feature in the list corresponds to a specific UI component that can be
+turned on.")
+
+(defvar minimal-emacs-frame-title-format "%b – Emacs"
+  "Template for displaying the title bar of visible and iconified frame.")
+
+(defvar minimal-emacs-debug nil
+  "Non-nil to enable debug.")
+
+(defvar minimal-emacs-gc-cons-threshold (* 16 1024 1024)
+  "The value of `gc-cons-threshold' after Emacs startup.")
+
+(defvar minimal-emacs-package-initialize-and-refresh t
+  "Whether to automatically initialize and refresh packages.
+When set to non-nil, Emacs will automatically call `package-initialize' and
+`package-refresh-contents' to set up and update the package system.")
+
+(defvar minimal-emacs-user-directory user-emacs-directory
+  "The default value of the `user-emacs-directory' variable.")
+
+;;; Load pre-early-init.el
+
+(defun minimal-emacs-load-user-init (filename)
+  "Execute a file of Lisp code named FILENAME."
+  (let ((user-init-file
+         (expand-file-name filename
+                           minimal-emacs-user-directory)))
+    (when (file-exists-p user-init-file)
+      (load user-init-file nil t))))
+
+(minimal-emacs-load-user-init "pre-early-init.el")
+
+;; Some features that are not represented as packages can be found in
+;; `features', but this can be inconsistent. The following enforce consistency:
+(if (fboundp #'json-parse-string)
+    (push 'jansson features))
+(if (string-match-p "HARFBUZZ" system-configuration-features) ; no alternative
+    (push 'harfbuzz features))
+(if (bound-and-true-p module-file-suffix)
+    (push 'dynamic-modules features))
+
+;;; Garbage collection
+;; Garbage collection significantly affects startup times. This setting delays
+;; garbage collection during startup but will be reset later.
+
+(setq gc-cons-threshold most-positive-fixnum)
+
+(add-hook 'emacs-startup-hook
+          (lambda ()
+            (setq gc-cons-threshold minimal-emacs-gc-cons-threshold)))
+
+;;; Performance
+
+;; Prefer loading newer compiled files
+(setq load-prefer-newer t)
+
+;; Increase how much is read from processes in a single chunk (default is 4kb).
+(setq read-process-output-max (* 512 1024))  ; 512kb
+
+;; Reduce rendering/line scan work by not rendering cursors or regions in
+;; non-focused windows.
+(setq-default cursor-in-non-selected-windows nil)
+(setq highlight-nonselected-windows nil)
+
+;; Disable warnings from the legacy advice API. They aren't useful.
+(setq ad-redefinition-action 'accept)
+
+(setq warning-suppress-types '((lexical-binding)))
+
+;; Don't ping things that look like domain names.
+(setq ffap-machine-p-known 'reject)
+
+;; By default, Emacs "updates" its ui more often than it needs to
+(setq idle-update-delay 1.0)
+
+;; Font compacting can be very resource-intensive, especially when rendering
+;; icon fonts on Windows. This will increase memory usage.
+(setq inhibit-compacting-font-caches t)
+
+(unless (daemonp)
+  (let ((old-value (default-toplevel-value 'file-name-handler-alist)))
+    (set-default-toplevel-value
+     'file-name-handler-alist
+     ;; Determine the state of bundled libraries using calc-loaddefs.el.
+     ;; If compressed, retain the gzip handler in `file-name-handler-alist`.
+     ;; If compiled or neither, omit the gzip handler during startup for
+     ;; improved startup and package load time.
+     (if (eval-when-compile
+           (locate-file-internal "calc-loaddefs.el" load-path))
+         nil
+       (list (rassq 'jka-compr-handler old-value))))
+    ;; Ensure the new value persists through any current let-binding.
+    (set-default-toplevel-value 'file-name-handler-alist
+                                file-name-handler-alist)
+    ;; Remember the old value to reset it as needed.
+    (add-hook 'emacs-startup-hook
+              (lambda ()
+                (set-default-toplevel-value
+                 'file-name-handler-alist
+                 ;; Merge instead of overwrite to preserve any changes made
+                 ;; since startup.
+                 (delete-dups (append file-name-handler-alist old-value))))
+              101))
+
+  (unless noninteractive
+    (unless minimal-emacs-debug
+      ;; Suppress redisplay and redraw during startup to avoid delays and
+      ;; prevent flashing an unstyled Emacs frame.
+      (setq-default inhibit-redisplay t
+                    inhibit-message t)
+
+      ;; Reset the above variables to prevent Emacs from appearing frozen or
+      ;; visually corrupted after startup or if a startup error occurs.
+      (defun minimal-emacs--reset-inhibited-vars-h ()
+        (setq-default inhibit-redisplay nil
+                      inhibit-message nil)
+        (remove-hook 'post-command-hook #'minimal-emacs--reset-inhibited-vars-h))
+      (add-hook 'post-command-hook #'minimal-emacs--reset-inhibited-vars-h -100)
+
+      (dolist (buf (buffer-list))
+        (with-current-buffer buf
+          (setq mode-line-format nil)))
+
+      (put 'mode-line-format 'initial-value
+           (default-toplevel-value 'mode-line-format))
+      (setq-default mode-line-format nil)
+
+      (defun minimal-emacs--startup-load-user-init-file (fn &rest args)
+        "Advice for startup--load-user-init-file to reset mode-line-format."
+        (unwind-protect
+            (progn
+              ;; Start up as normal
+              (apply fn args))
+          ;; If we don't undo inhibit-{message, redisplay} and there's an
+          ;; error, we'll see nothing but a blank Emacs frame.
+          (setq-default inhibit-message nil)
+          (unless (default-toplevel-value 'mode-line-format)
+            (setq-default mode-line-format
+                          (get 'mode-line-format 'initial-value)))))
+
+      (advice-add 'startup--load-user-init-file :around
+                  #'minimal-emacs--startup-load-user-init-file))
+
+    ;; Without this, Emacs will try to resize itself to a specific column size
+    (setq frame-inhibit-implied-resize t)
+
+    ;; A second, case-insensitive pass over `auto-mode-alist' is time wasted.
+    ;; No second pass of case-insensitive search over auto-mode-alist.
+    (setq auto-mode-case-fold nil)
+
+    ;; Reduce *Message* noise at startup. An empty scratch buffer (or the
+    ;; dashboard) is more than enough, and faster to display.
+    (setq inhibit-startup-screen t
+          inhibit-startup-echo-area-message user-login-name)
+    (setq initial-buffer-choice nil
+          inhibit-startup-buffer-menu t
+          inhibit-x-resources t)
+
+    ;; Disable bidirectional text scanning for a modest performance boost.
+    (setq-default bidi-display-reordering 'left-to-right
+                  bidi-paragraph-direction 'left-to-right)
+
+    ;; Give up some bidirectional functionality for slightly faster re-display.
+    (setq bidi-inhibit-bpa t)
+
+    ;; Remove "For information about GNU Emacs..." message at startup
+    (advice-add #'display-startup-echo-area-message :override #'ignore)
+
+    ;; Suppress the vanilla startup screen completely. We've disabled it with
+    ;; `inhibit-startup-screen', but it would still initialize anyway.
+    (advice-add #'display-startup-screen :override #'ignore)
+
+    ;; Shave seconds off startup time by starting the scratch buffer in
+    ;; `fundamental-mode'
+    (setq initial-major-mode 'fundamental-mode
+          initial-scratch-message nil)
+
+    (unless minimal-emacs-debug
+      ;; Unset command line options irrelevant to the current OS. These options
+      ;; are still processed by `command-line-1` but have no effect.
+      (unless (eq system-type 'darwin)
+        (setq command-line-ns-option-alist nil))
+      (unless (memq initial-window-system '(x pgtk))
+        (setq command-line-x-option-alist nil)))))
+
+;;; Native compilation and Byte compilation
+
+(if (and (featurep 'native-compile)
+         (fboundp 'native-comp-available-p)
+         (native-comp-available-p))
+    ;; Activate `native-compile'
+    (setq native-comp-jit-compilation t
+          native-comp-deferred-compilation t  ; Obsolete since Emacs 29.1
+          package-native-compile t)
+  ;; Deactivate the `native-compile' feature if it is not available
+  (setq features (delq 'native-compile features)))
+
+;; Suppress compiler warnings and don't inundate users with their popups.
+(setq native-comp-async-report-warnings-errors
+      (or minimal-emacs-debug 'silent))
+(setq native-comp-warning-on-missing-source minimal-emacs-debug)
+
+(setq debug-on-error minimal-emacs-debug
+      jka-compr-verbose minimal-emacs-debug)
+
+(setq byte-compile-warnings minimal-emacs-debug)
+(setq byte-compile-verbose minimal-emacs-debug)
+
+;;; UI elements
+
+(setq frame-title-format minimal-emacs-frame-title-format
+      icon-title-format minimal-emacs-frame-title-format)
+
+;; Disable startup screens and messages
+(setq inhibit-splash-screen t)
+
+;; I intentionally avoid calling `menu-bar-mode', `tool-bar-mode', and
+;; `scroll-bar-mode' because manipulating frame parameters can trigger or queue
+;; a superfluous and potentially expensive frame redraw at startup, depending
+;; on the window system. The variables must also be set to `nil' so users don't
+;; have to call the functions twice to re-enable them.
+(unless (memq 'menu-bar minimal-emacs-ui-features)
+  (push '(menu-bar-lines . 0) default-frame-alist)
+  (unless (memq window-system '(mac ns))
+    (setq menu-bar-mode nil)))
+
+(unless (daemonp)
+  (unless noninteractive
+    (when (fboundp 'tool-bar-setup)
+      ;; Temporarily override the tool-bar-setup function to prevent it from
+      ;; running during the initial stages of startup
+      (advice-add #'tool-bar-setup :override #'ignore)
+      (define-advice startup--load-user-init-file
+          (:after (&rest _) minimal-emacs-setup-toolbar)
+        (advice-remove #'tool-bar-setup #'ignore)
+        (when tool-bar-mode
+          (tool-bar-setup))))))
+(unless (memq 'tool-bar minimal-emacs-ui-features)
+  (push '(tool-bar-lines . 0) default-frame-alist)
+  (setq tool-bar-mode nil))
+
+(push '(vertical-scroll-bars) default-frame-alist)
+(push '(horizontal-scroll-bars) default-frame-alist)
+(setq scroll-bar-mode nil)
+(when (fboundp 'horizontal-scroll-bar-mode)
+  (horizontal-scroll-bar-mode -1))
+
+(unless (memq 'tooltips minimal-emacs-ui-features)
+  (when (bound-and-true-p tooltip-mode)
+    (tooltip-mode -1)))
+
+;; Disable GUIs because they are inconsistent across systems, desktop
+;; environments, and themes, and they don't match the look of Emacs.
+(unless (memq 'dialogs minimal-emacs-ui-features)
+  (setq use-file-dialog nil)
+  (setq use-dialog-box nil))
+
+;; Allow for shorter responses: "y" for yes and "n" for no.
+(if (boundp 'use-short-answers)
+    (setq use-short-answers t)
+  (advice-add #'yes-or-no-p :override #'y-or-n-p))
+(defalias #'view-hello-file #'ignore)  ; Never show the hello file
+
+;;; Load post-early-init.el
+(minimal-emacs-load-user-init "post-early-init.el")
 
 (provide 'early-init)
   ;;; early-init.el ends here
+
 #+end_src
 
-* Init File
-** lexical binding
-The following line turns on lexical binding for performance reasons.
+** post-early-init
+:PROPERTIES:
+:header-args: :tangle-mode o444 :results silent :tangle ~/.emacs.d/post-early-init.el
+:END:
+Emacs 27.0 introduced an early-init file. It allows customization before package and UI initialization.
+
 #+begin_src emacs-lisp :lexical t
-;; -*- lexical-binding: t; -*-
-#+end_src
+    ;;; post-early-init.el --- Emacs pre package.el & GUI configuration -*- no-byte-compile: t; lexical-binding: t; -*-
+    ;;; Code:
 
-** profiling
-This function displays how long Emacs took to start.
-It's a rough way of knowing when/if I need to optimize my init file.
-#+begin_src emacs-lisp :lexical t :tangle yes
+;;; PROFILING
+;;; This function displays how long Emacs took to start.
+;;; It's a rough way of knowing when/if I need to optimize my init file.
 (add-hook 'elpaca-after-init-hook
           (lambda ()
             (message "Emacs loaded in %s with %d garbage collections."
@@ -80,20 +359,17 @@ It's a rough way of knowing when/if I need to optimize my init file.
 
 ;; (profiler-start 'cpu+mem)
 ;; (add-hook 'elpaca-after-init-hook (lambda () (profiler-stop) (profiler-report)))
-#+end_src
 
-ELP is useful for seeing which functions in a package are "hot".
-#+begin_src emacs-lisp :var file="elpaca" :lexical t :tangle no
-(require 'elp)
-(with-eval-after-load file
-  (elp-instrument-package file))
-(add-hook 'elpaca-after-init-hook
-          (lambda () (elp-results) (elp-restore-package (intern file))))
-#+end_src
 
-** elpaca and preloads
-*** installer
-#+begin_src emacs-lisp :lexical t
+;;; ELP is useful for seeing which functions in a package are "hot".
+;; (require 'elp)
+;; (with-eval-after-load file
+;;   (elp-instrument-package file))
+;; (add-hook 'elpaca-after-init-hook
+;;           (lambda () (elp-results) (elp-restore-package (intern file))))
+
+
+;;; ELPACA INSTALLER
 (defvar elpaca-installer-version 0.7)
 (defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
 (defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
@@ -132,11 +408,8 @@ ELP is useful for seeing which functions in a package are "hot".
     (load "./elpaca-autoloads")))
 (add-hook 'after-init-hook #'elpaca-process-queues)
 (elpaca `(,@elpaca-order))
-#+end_src
 
-*** use package 
-
-#+begin_src emacs-lisp :lexical t
+;;; USE-PACKAGE
 (defmacro use-feature (name &rest args)
   "Like `use-package' but accounting for asynchronous installation.
     NAME and ARGS are in `use-package'."
@@ -151,51 +424,23 @@ ELP is useful for seeing which functions in a package are "hot".
   (setq elpaca-use-package-by-default t))
 
 (elpaca-wait)
+
+
+
+(provide 'post-early-init)
+  ;;; post-early-init.el ends here
+
 #+end_src
 
-*** dependencies
-**** turn off unless needed
-#+begin_src emacs-lisp :lexical t :tangle no
-
-(setq custom-delayed-init-variables '())
-(unload-feature 'eldoc t)
-(use-package eldoc
-  :demand t
-  :config
-  (global-eldoc-mode))
-(elpaca-wait)
-
-(setq custom-delayed-init-variables '())
-(unload-feature 'seq t)
-(use-package seq
-  :demand t
-  )
-(elpaca-wait)
-#+end_src
-**** always on
+** pre-init
+:PROPERTIES:
+:header-args: :tangle-mode o444 :results silent :tangle ~/.emacs.d/pre-init.el
+:END:
+Emacs 27.0 introduced an early-init file. It allows customization before package and UI initialization.
 
 #+begin_src emacs-lisp :lexical t
-(use-package transient
-  :defer t
-  )
-(use-package git-commit
-  :defer t
-  )
-(use-package delight
-  :defer t)
-#+end_src
-
-** my settings and my defs
-*** displays
-#+begin_src emacs-lisp :lexical t
-(global-display-line-numbers-mode t)
-(show-paren-mode 1)
-
-(setq-default indent-tabs-mode nil)
-(setq-default tab-width 4)
-
-(setq font-lock-maximum-decoration 2)
-
+    ;;; pre-init.el --- Emacs pre package.el & GUI configuration -*- no-byte-compile: t; lexical-binding: t; -*-
+    ;;; Code:
 
 (defun split-window-sensibly-prefer-horizontal (&optional window)
 "Based on split-window-sensibly, but designed to prefer a horizontal split,
@@ -244,12 +489,25 @@ i.e. windows tiled side-by-side."
    split-window-preferred-function 'split-window-really-sensibly)
 
 
+(provide 'pre-init)
+  ;;; pre-init.el ends here
 
 #+end_src
 
-*** global keys
+** post-init
+:PROPERTIES:
+:header-args: :tangle-mode o444 :results silent :tangle ~/.emacs.d/post-init.el
+:END:
+Emacs 27.0 introduced an early-init file. It allows customization before package and UI initialization.
 
 #+begin_src emacs-lisp :lexical t
+    ;;; post-init.el --- Emacs pre package.el & GUI configuration -*- no-byte-compile: t; lexical-binding: t; -*-
+    ;;; Code:
+
+(which-key-mode)
+(setq initial-buffer-choice t) ;;*scratch*
+
+
 
 (keymap-global-set "H-r" 'revert-buffer)
 (keymap-global-set "H-l" 'scroll-lock-mode)
@@ -258,42 +516,26 @@ i.e. windows tiled side-by-side."
 (keymap-global-set "C-H-<up>" 'scroll-other-window-down)
 (keymap-global-set "C-H-<down>" 'scroll-other-window)
 
-#+end_src
 
-*** misc.
-
-#+begin_src emacs-lisp :lexical t
 (put 'upcase-region 'disabled nil)
 (put 'downcase-region 'disabled nil)
 
 (setq mark-ring-max 4)
 (setq global-mark-ring-max 4)
 
-(setq initial-buffer-choice t) ;;*scratch*
-
-(setq python-indent-offset 4)
-(setq python-indent-guess-indent-offset nil)
-
-(which-key-mode)
-
-(prefer-coding-system 'utf-8)
-(set-default-coding-systems 'utf-8)
-(set-selection-coding-system 'utf-8)
-(set-language-environment "UTF-8")
-(set-charset-priority 'unicode)
-(setq default-process-coding-system '(utf-8-unix . utf-8-unix))
-
-#+end_src
-
-*** mouse 
-#+begin_src emacs-lisp :lexical t
 (setq mouse-wheel-scroll-amount '(1 ((shift) . 1))) ;; one line at a time
 (setq mouse-wheel-progressive-speed nil) ;; don't accelerate scrolling
 (setq mouse-wheel-follow-mouse 't) ;; scroll window under mouse
-#+end_src
-*** my focus connections
 
-#+begin_src emacs-lisp :lexical t
+
+(global-display-line-numbers-mode t)
+(show-paren-mode 1)
+
+(setq-default indent-tabs-mode nil)
+(setq-default tab-width 4)
+
+(setq font-lock-maximum-decoration 2)
+
 
 (defun connect-focusvq-home ()
   (interactive)
@@ -319,11 +561,83 @@ i.e. windows tiled side-by-side."
 
 (keymap-global-set "H-c h" 'connect-focusvq-home)
 
+
+;;; recolor ansi
+
+(defun ansi-color-on-buffer ()
+  "..."
+  (interactive)
+
+  (replace-string-in-region "[43m" "[45m" (point-min) (point-max) ) ;; replace yellow highlights
+  (replace-string-in-region ";43m" ";45m" (point-min) (point-max) )
+  (replace-string-in-region "[34m" "[33m" (point-min) (point-max) ) ;; replace blue text
+  (replace-string-in-region ";34m" ";33m" (point-min) (point-max) )
+  (ansi-color-apply-on-region (point-min) (point-max)))
+
+;;;This is for when I accidentally make a column in org mode
+
+(defun set-region-writeable (begin end)
+  "Removes the read-only text property from the marked region."
+  ;; See http://stackoverflow.com/questions/7410125
+  (interactive "r")
+  (let ((modified (buffer-modified-p))
+        (inhibit-read-only t))
+    (remove-text-properties begin end '(read-only t))
+    (set-buffer-modified-p modified)))
+
+
+(provide 'post-init)
+  ;;; post-init.el ends here
+
 #+end_src
+
+* Init File
+** preloads
+*** header
+#+begin_src emacs-lisp :lexical t
+
+;;; init.el --- Init -*- no-byte-compile: t; lexical-binding: t; -*-
+(minimal-emacs-load-user-init "pre-init.el")
+  
+#+end_src
+
+*** dependencies
+**** turn off unless needed
+#+begin_src emacs-lisp :lexical t :tangle no
+
+(setq custom-delayed-init-variables '())
+(unload-feature 'eldoc t)
+(use-package eldoc
+  :demand t
+  :config
+  (global-eldoc-mode))
+(elpaca-wait)
+
+(setq custom-delayed-init-variables '())
+(unload-feature 'seq t)
+(use-package seq
+  :demand t
+  )
+(elpaca-wait)
+#+end_src
+**** always on
+
+#+begin_src emacs-lisp :lexical t
+(use-package transient
+  :defer t
+  )
+(use-package git-commit
+  :defer t
+  )
+(use-package delight
+  :defer t)
+#+end_src
+
+** my settings and my defs
 
 *** my gc
 
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
 
 (defun my-minibuffer-setup-hook ()
   "Set high gc when minibuffer is open."
@@ -339,43 +653,13 @@ i.e. windows tiled side-by-side."
 (add-hook 'minibuffer-exit-hook 'my-minibuffer-exit-hook)
 #+end_src
 
-*** recolor ansi
-#+begin_src emacs-lisp :lexical t
-
-(defun ansi-color-on-buffer ()
-  "..."
-  (interactive)
-
-  (replace-string-in-region "[43m" "[45m" (point-min) (point-max) ) ;; replace yellow highlights
-  (replace-string-in-region ";43m" ";45m" (point-min) (point-max) )
-  (replace-string-in-region "[34m" "[33m" (point-min) (point-max) ) ;; replace blue text
-  (replace-string-in-region ";34m" ";33m" (point-min) (point-max) )
-  (ansi-color-apply-on-region (point-min) (point-max)))
-
-#+end_src
-
-*** set region writable
-This is for when I accidentally make a column in org mode
-#+begin_src emacs-lisp :lexical t
-
-(defun set-region-writeable (begin end)
-  "Removes the read-only text property from the marked region."
-  ;; See http://stackoverflow.com/questions/7410125
-  (interactive "r")
-  (let ((modified (buffer-modified-p))
-        (inhibit-read-only t))
-    (remove-text-properties begin end '(read-only t))
-    (set-buffer-modified-p modified)))
-
-#+end_src
-
 *** theme and font
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle yes
 ;; (setq custom-theme-directory "~/.emacs.d/themes/")
 ;; (add-to-list 'load-path custom-theme-directory)
 ;; (load-theme 'base16-chalk t)
 (use-package color-theme-sanityinc-tomorrow
-  ;;  :defer t
+   :defer nil
   :init
   (setq custom-safe-themes t)   ; Treat all themes as safe
   :config
@@ -392,7 +676,6 @@ This is for when I accidentally make a column in org mode
 #+end_src
 *** Mac os use meta
 #+begin_src emacs-lisp :lexical t
-
 ;; :defer t
 ;; :hook after-init-hook
 (use-package exec-path-from-shell
@@ -410,7 +693,7 @@ This is for when I accidentally make a column in org mode
   :config
   (setq exec-path-from-shell-arguments (list "-l")) ;; (list "-l" "-i")
   (exec-path-from-shell-initialize)
-  ;; :defer t
+  :defer nil
   )
 #+end_src
 
@@ -429,6 +712,7 @@ This is for when I accidentally make a column in org mode
   (setq tramp-default-method "scp")
   (with-eval-after-load 'tramp (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
   (with-eval-after-load 'tramp '(setenv "SHELL" "/bin/bash"))
+  :defer t
   )
 
 (use-package counsel-tramp
@@ -1320,7 +1604,8 @@ the list is kept."
 #+begin_src emacs-lisp :lexical t
 (use-package hl-todo
   :delight
-  :defer nil
+  :defer t
+  :hook (prog-mode text-mode)
   :config
   (setq hl-todo-keyword-faces
    '(("TODO" . "#E078F5")
@@ -1701,7 +1986,8 @@ the list is kept."
 #+begin_src emacs-lisp :lexical t
 (use-package company-posframe
   :delight
-  :defer nil
+  :defer t
+  :hook (prog-mode text-mode)
   :custom
   (company-posframe-quickhelp-show-header t)
   (company-posframe-quickhelp-delay nil)
@@ -2034,6 +2320,9 @@ the list is kept."
                   company-files)))
   
   (add-hook 'python-mode-hook #'seth-python-company-mode-hook)
+  
+  (setq python-indent-offset 4)
+  (setq python-indent-guess-indent-offset nil)
   )
 #+end_src
 
@@ -2389,7 +2678,7 @@ the list is kept."
 ;;   (display-time-mode)
 ;;   (display-battery-mode)
 ;;   )
-  
+
 #+end_src
 
 *** smartparens
@@ -2926,6 +3215,8 @@ the list is kept."
   ;; cd build
   ;; cmake ..
   ;; make
+  :config
+  (setq vterm-timer-delay 0.01)
   )
 (use-package multi-vterm
   :init
@@ -2946,17 +3237,20 @@ the list is kept."
   :delight yas-minor-mode
   :defer nil
   :config
-  (yas-global-mode 1)
+  (yas-global-mode)
+  ;; (yas-reload-all)
+  ;; (add-hook 'prog-mode-hook #'yas-minor-mode)
   )
 
 (use-package yasnippet-snippets
   :ensure t
-  :after yasnippet
+  ;; :after yasnippet
+  :defer nil
   )
 
 (use-package py-snippets
   :ensure t
-  :after yasnippet
+  :defer nil
   :config
   (py-snippets-initialize))
 
@@ -3057,5 +3351,15 @@ the list is kept."
   )
 
 ;; https://github.com/jamescherti/minimal-emacs.d?tab=readme-ov-file
+#+end_src
+
+** Ending
+#+begin_src emacs-lisp :lexical t
+;;; Load post-init.el
+(minimal-emacs-load-user-init "post-init.el")
+
+(provide 'init)
+
+;;; init.el ends here
 #+end_src
 
