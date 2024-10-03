@@ -1,6 +1,7 @@
 ;;; post-init.el --- Emacs pre package.el & GUI configuration -*- no-byte-compile: t; lexical-binding: t; -*-
     ;;; Code:
 
+(require 'vc-git)
 (which-key-mode)
 (setq initial-buffer-choice t) ;;*scratch*
 

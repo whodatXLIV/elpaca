@@ -504,6 +504,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     ;;; post-init.el --- Emacs pre package.el & GUI configuration -*- no-byte-compile: t; lexical-binding: t; -*-
     ;;; Code:
 
+(require 'vc-git)
 (which-key-mode)
 (setq initial-buffer-choice t) ;;*scratch*
 
@@ -623,9 +624,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package transient
   :defer t
   )
-(use-package git-commit
-  :defer t
-  )
+;; (use-package git-commit
+;;   :defer t
+;;   )
 (use-package delight
   :defer t)
 #+end_src
@@ -651,7 +652,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+end_src
 
 *** theme and font
-#+begin_src emacs-lisp :lexical t :tangle yes
+#+begin_src emacs-lisp :lexical t 
 ;; (setq custom-theme-directory "~/.emacs.d/themes/")
 ;; (add-to-list 'load-path custom-theme-directory)
 ;; (load-theme 'base16-chalk t)
@@ -1539,7 +1540,7 @@ the list is kept."
 
 *** highlight indend guides
 
-#+begin_src emacs-lisp :lexical t :tangle no
+#+begin_src emacs-lisp :lexical t
 (use-package indent-bars
 
   :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
@@ -1929,7 +1930,7 @@ the list is kept."
 #+end_src
 
 *** popper
-#+begin_src emacs-lisp :lexical t :tangle yes
+#+begin_src emacs-lisp :lexical t
 
 (use-package popper
   :init
@@ -2194,7 +2195,7 @@ the list is kept."
 
 **** eglot
 #+begin_src emacs-lisp :lexical t
-(use-package eglot
+(use-feature eglot 
   :defer t
   :init
   (setq-default eglot-workspace-configuration
@@ -2266,7 +2267,7 @@ the list is kept."
   :config
   (eglot-booster-mode))
 
-(use-package jsonrpc
+(use-feature jsonrpc
   :defer t
   )
 
@@ -2649,7 +2650,7 @@ the list is kept."
 #+end_src
 
 *** smart-mode-line
-#+begin_src emacs-lisp :lexical t :tangle yes
+#+begin_src emacs-lisp :lexical t
 
 (use-package smart-mode-line
   :delight
@@ -2909,16 +2910,25 @@ the list is kept."
 
 *** tab-line
 
-#+begin_src emacs-lisp :lexical t :tangle yes
+#+begin_src emacs-lisp :lexical t 
 
 (use-package tab-config
   :ensure (tab-config
            :type git
            :host github
-           :repo "benleis1/emacs-init"
+           :repo "whodatXLIV/tab-config"
            :local-repo "tab-config"
            :files (:defaults "tab-config.el" (:exclude "*init.el" "*.md" "*png" "custom.el"))
            )
+  
+  ;; :ensure (tab-config
+  ;;          :type git
+  ;;          :host github
+  ;;          :repo "benleis1/emacs-init"
+  ;;          :local-repo "tab-config"
+  ;;          :files (:defaults "tab-config.el" (:exclude "*init.el" "*.md" "*png" "custom.el"))
+  ;;          )
+  
   :after (tab-line) ;; doom-modeline
   :defer nil
   :bind* (
@@ -3086,15 +3096,6 @@ the list is kept."
   (tab-line-tab-inactive ((t (:background "#c397d8" :inverse-video t))))
   (tab-line-tab-modified ((t (:background "gray20" :foreground "#c397d8" :inverse-video nil))))
   )
-
-
-#+end_src
-
-
-#+begin_src emacs-lisp :lexical t :tangle no
-;; TODO make it so some things get put into Misc
-
-
 
 
 #+end_src
@@ -3337,7 +3338,7 @@ the list is kept."
 #+end_src 
 
 *** outline indend
-#+begin_src emacs-lisp :lexical t :tangle no
+#+begin_src emacs-lisp :lexical t
   (use-package outline-indent
   :ensure t
   :delight
