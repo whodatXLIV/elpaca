@@ -4,7 +4,7 @@
 ;;; Misc
 (setq package-enable-at-startup nil)
 (setq custom-file null-device)
-(setq minimal-emacs-gc-cons-threshold (* 64 1024 1024))
+;; (setq minimal-emacs-gc-cons-threshold (* 64 1024 1024))
 
 (setq inhibit-default-init nil)
 (setq server-client-instructions nil)

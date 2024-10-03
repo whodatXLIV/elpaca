@@ -4,8 +4,6 @@
 (which-key-mode)
 (setq initial-buffer-choice t) ;;*scratch*
 
-
-
 (keymap-global-set "H-r" 'revert-buffer)
 (keymap-global-set "H-l" 'scroll-lock-mode)
 (keymap-global-set "C-x e" 'eshell)
@@ -81,7 +79,6 @@
         (inhibit-read-only t))
     (remove-text-properties begin end '(read-only t))
     (set-buffer-modified-p modified)))
-
 
 (provide 'post-init)
   ;;; post-init.el ends here

@@ -20,7 +20,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 ;;; Misc
 (setq package-enable-at-startup nil)
 (setq custom-file null-device)
-(setq minimal-emacs-gc-cons-threshold (* 64 1024 1024))
+;; (setq minimal-emacs-gc-cons-threshold (* 64 1024 1024))
 
 (setq inhibit-default-init nil)
 (setq server-client-instructions nil)
@@ -74,7 +74,7 @@ turned on.")
 (defvar minimal-emacs-debug nil
   "Non-nil to enable debug.")
 
-(defvar minimal-emacs-gc-cons-threshold (* 16 1024 1024)
+(defvar minimal-emacs-gc-cons-threshold (* 64 1024 1024)
   "The value of `gc-cons-threshold' after Emacs startup.")
 
 (defvar minimal-emacs-package-initialize-and-refresh t
@@ -507,8 +507,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (which-key-mode)
 (setq initial-buffer-choice t) ;;*scratch*
 
-
-
 (keymap-global-set "H-r" 'revert-buffer)
 (keymap-global-set "H-l" 'scroll-lock-mode)
 (keymap-global-set "C-x e" 'eshell)
@@ -585,7 +583,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     (remove-text-properties begin end '(read-only t))
     (set-buffer-modified-p modified)))
 
-
 (provide 'post-init)
   ;;; post-init.el ends here
 
@@ -641,12 +638,12 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (defun my-minibuffer-setup-hook ()
   "Set high gc when minibuffer is open."
-  (setq gc-cons-threshold (* 256 1024 1024))
+  (setq gc-cons-threshold most-positive-fixnum)
   (setq gc-cons-percentage 1))
 
 (defun my-minibuffer-exit-hook ()
   "Set low GC when minibuffer exits."
-  (setq gc-cons-threshold 16777216)
+  (setq gc-cons-threshold minimal-emacs-gc-cons-threshold)
   (setq gc-cons-percentage 0.1))
 
 (add-hook 'minibuffer-setup-hook 'my-minibuffer-setup-hook)
@@ -681,6 +678,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package exec-path-from-shell
   :if (memq window-system '(mac ns))
   :ensure t
+  :hook (after-init)
   :init
   (setq mac-option-modifier 'hyper ;; for emacs-mac
         mac-command-modifier 'meta
@@ -689,11 +687,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         ns-option-modifier 'hyper
         ns-right-option-modifier 'super
         )
-  ;;  (setq exec-path-from-shell-debug t)
+   ;; (setq exec-path-from-shell-debug t)
   :config
   (setq exec-path-from-shell-arguments (list "-l")) ;; (list "-l" "-i")
   (exec-path-from-shell-initialize)
-  :defer nil
+  :defer t
   )
 #+end_src
 
@@ -1541,7 +1539,7 @@ the list is kept."
 
 *** highlight indend guides
 
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
 (use-package indent-bars
 
   :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
@@ -2723,10 +2721,10 @@ the list is kept."
 #+begin_src emacs-lisp :lexical t
 (use-package swiper
   :config
-  (defadvice swiper (before dotemacs activate)
-    (setq gc-cons-threshold most-positive-fixnum))
-  (defadvice swiper-all (before dotemacs activate)
-    (setq gc-cons-threshold most-positive-fixnum))
+  ;; (defadvice swiper (before dotemacs activate)
+  ;;   (setq gc-cons-threshold most-positive-fixnum))
+  ;; (defadvice swiper-all (before dotemacs activate)
+  ;;   (setq gc-cons-threshold most-positive-fixnum))
   :defer t
   :delight
   :bind* (
@@ -3339,15 +3337,21 @@ the list is kept."
 #+end_src 
 
 *** outline indend
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
   (use-package outline-indent
   :ensure t
+  :delight
   :custom
   (outline-indent-ellipsis " ▼ ")
   :config
   (add-hook 'python-mode-hook #'outline-indent-minor-mode)
   (add-hook 'python-ts-mode-hook #'outline-indent-minor-mode)
-
+  (setq outline-blank-line t)
+  :bind* (
+          ("H-c <tab>" . outline-cycle)
+          ("H-c c <tab>" . outline-cycle-buffer)
+          ("H-c c a" . outline-show-all)
+          )
   )
 
 ;; https://github.com/jamescherti/minimal-emacs.d?tab=readme-ov-file
