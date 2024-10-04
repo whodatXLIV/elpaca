@@ -624,9 +624,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package transient
   :defer t
   )
-;; (use-package git-commit
-;;   :defer t
-;;   )
+
 (use-package delight
   :defer t)
 #+end_src
@@ -827,6 +825,29 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 #+end_src
 
+*** buffer-expose
+#+begin_src emacs-lisp :lexical t
+
+(use-package buffer-expose
+  :delight
+  :config
+  (setcdr buffer-expose-mode-map nil)
+
+  ;; :defer t
+  :bind* (
+          ("H-b e" . buffer-expose)
+          ("H-b b" . buffer-expose-no-stars)
+          ("H-b c" . buffer-expose-current-mode)
+          ("H-b s" . buffer-expose-major-mode)
+          ("H-b d" . buffer-expose-dired-buffers)
+          ("H-b *" . buffer-expose-stars)
+          )
+  :config
+  (buffer-expose-mode 1)  
+  )
+
+#+end_src
+
 *** bufler
 
 #+begin_src emacs-lisp :lexical t
@@ -913,29 +934,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
           (auto-directory)
           (auto-mode))
         )
-  )
-
-#+end_src
-
-*** buffer-expose
-#+begin_src emacs-lisp :lexical t
-
-(use-package buffer-expose
-  :delight
-  :config
-  (setcdr buffer-expose-mode-map nil)
-
-  ;; :defer t
-  :bind* (
-          ("H-b e" . buffer-expose)
-          ("H-b b" . buffer-expose-no-stars)
-          ("H-b c" . buffer-expose-current-mode)
-          ("H-b s" . buffer-expose-major-mode)
-          ("H-b d" . buffer-expose-dired-buffers)
-          ("H-b *" . buffer-expose-stars)
-          )
-  :config
-  (buffer-expose-mode 1)  
   )
 
 #+end_src
@@ -1316,31 +1314,6 @@ the list is kept."
   )
 #+end_src
 
-*** dashboard
-
-#+begin_src emacs-lisp :lexical t :tangle no
-
-(use-package dashboard
-  :custom
-  (dashboard-banner-logo-title "It's Emacs time!")
-  (dashboard-startup-banner 'logo)
-  (dashboard-items '((recents  . 15)
-                     (projects . 5)
-                     ))
-  :config
-  ;; (add-hook 'elpaca-after-init-hook #'dashboard-insert-startupify-lists)
-  ;; (add-hook 'elpaca-after-init-hook #'dashboard-initialize)
-  (dashboard-setup-startup-hook)
-  )
-
-;; Value can be
-;; 'official which displays the official emacs logo
-;; 'logo which displays an alternative emacs logo
-;; 1, 2 or 3 which displays one of the text banners
-
-
-#+end_src
-
 *** dired
 
 #+begin_src emacs-lisp :lexical t
@@ -1639,6 +1612,16 @@ the list is kept."
   :defer t)
 #+end_src
 
+*** Iscroll
+#+begin_src emacs-lisp :lexical t
+
+(use-package iscroll
+  :delight
+  :defer t
+  )
+
+#+end_src
+
 *** Ivy
 #+begin_src emacs-lisp :lexical t
 
@@ -1665,16 +1648,6 @@ the list is kept."
   :init
   (nerd-icons-ivy-rich-mode 1)
   (ivy-rich-mode 1))
-#+end_src
-
-*** Iscroll
-#+begin_src emacs-lisp :lexical t
-
-(use-package iscroll
-  :delight
-  :defer t
-  )
-
 #+end_src
 
 *** magit
@@ -1747,6 +1720,20 @@ the list is kept."
 
 #+end_src
 
+*** neotree
+#+begin_src emacs-lisp :lexical t
+(use-package neotree
+  :delight
+  :defer t
+  :custom-face
+  (neo-dir-link-face ((t (:foreground "#97c8f7" :extend t)))) 
+  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
+  :bind* ("C-x d" . neotree)
+  :custom
+  (neo-theme 'arrow)
+)
+#+end_src 
+   
 *** org
 **** org general
 
@@ -1918,6 +1905,27 @@ the list is kept."
   )
 #+end_src
 
+*** outline indend
+#+begin_src emacs-lisp :lexical t
+  (use-package outline-indent
+  :ensure t
+  :delight
+  :custom
+  (outline-indent-ellipsis " ▼ ")
+  :config
+  (add-hook 'python-mode-hook #'outline-indent-minor-mode)
+  (add-hook 'python-ts-mode-hook #'outline-indent-minor-mode)
+  (setq outline-blank-line t)
+  :bind* (
+          ("H-c <tab>" . outline-cycle)
+          ("H-c c <tab>" . outline-cycle-buffer)
+          ("H-c c a" . outline-show-all)
+          )
+  )
+
+;; https://github.com/jamescherti/minimal-emacs.d?tab=readme-ov-file
+#+end_src
+
 *** page-break lines
 #+begin_src emacs-lisp :lexical t
   (use-package page-break-lines
@@ -2029,17 +2037,6 @@ the list is kept."
 ;;         '((left-fringe . 10)
 ;;           (right-fringe . 10)))
 ;;   )
-#+end_src
-
-*** projectile
-#+begin_src emacs-lisp :lexical t :tangle no
-
-(use-package projectile
-  :delight '(:eval (concat " [" (projectile-project-name) "]"))
-  :config
-  (projectile-mode t)
-  )
-
 #+end_src
 
 *** python
@@ -2333,291 +2330,6 @@ the list is kept."
 ;; (add-hook 'python-mode-hook 'yapf-mode)
 #+end_src
 
-*** Scimax 
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-feature ox-clip
-  :ensure (ox-clip
-           :type git
-           :host github
-           :repo "jkitchin/ox-clip"
-           :local-repo "ox-clip"
-           :files (:defaults)
-           )
-  :defer t
-  )
-
-(use-package scimax-jupyter
-  :ensure (scimax
-           :type git
-           :host github
-           :repo "jkitchin/scimax"
-           :local-repo "scimax"
-           :files (:defaults (:exclude "*.org" "scimax.el" "bootstrap.el" "init.el" "packages.el" "scimax-evil.el" "debug-windows.el"))
-           )
-  :config
-  (defconst scimax-dir (file-name-directory "./elpaca/builds/scimax/"))  
-  (add-to-list 'load-path scimax-dir)
-  ;; ** helper functions
-  (defun /jupyter-clean-async--results () 
-    "cleans drawer results for async jupyter code blocks"
-    (search-forward "#+begin_example")
-    (beginning-of-line)
-    (delete-region (pos-bol) (pos-bol 2)) 
-    (search-forward "#+end_example")
-    (beginning-of-line)
-    (delete-region (pos-bol) (pos-bol 2))
-    )
-
-  (defun /jupyter-clean-async-ansi--results ()
-    "cleans drawer results for async jupyter code blocks"
-    (let* ((r (org-babel-where-is-src-block-result))
-	       (result (when r
-		             (save-excursion
-		               (goto-char r)
-		               (org-element-context)))))
-      (when result
-        (let* ((sp (org-element-property :begin result))
-               (ep (org-element-property :end result)))
-          (replace-string-in-region "[43m" "[45m" sp ep ) ;; replace yellow highlights
-          (replace-string-in-region ";43m" ";45m" sp ep )
-          (replace-string-in-region "[34m" "[33m" sp ep ) ;; replace blue text
-          (replace-string-in-region ";34m" ";33m" sp ep )
-          t
-          ))
-      t)
-    (scimax-jupyter-ansi)
-    (/jupyter-clean-async--results)
-    )
-
-  (defun seth-interrupt-kernel ()
-    "Clear all results in the buffer."
-    (interactive)
-    (save-excursion
-      (goto-char (point-min))
-      ;; (while (org-babel-next-src-block)
-      ;;   (forward-line 1)
-      ;;   ;; (jupyter-org-interrupt-kernel)
-      ;;   )
-      (let* ((num 0))
-        (while (< num 5)
-          (org-babel-next-src-block)
-          (forward-line 1)
-          (jupyter-org-interrupt-kernel)
-          (setq num (+1 num))))
-      )
-    )
-  ;; *** remove result if empty
-  (with-eval-after-load 'jupyter-client
-    (defun /jupyter-remove-empty-async-results (args)
-      "remove results block if the results are empty"
-      (let*
-          ((req (nth 1 args))
-           (msg (nth 2 args))
-           (is-org-request (eq (type-of req) 'jupyter-org-request)))
-        (when is-org-request
-          (jupyter-with-message-content msg (status payload)
-            (when (and (jupyter-org-request-async-p req)
-                       (equal status "ok")
-                       (not (jupyter-org-request-id-cleared-p req)))
-              (jupyter-org--clear-request-id req)
-              (org-with-point-at (jupyter-org-request-marker req)
-                (org-babel-remove-result)))))
-        args))
-    (unless (advice-member-p #'/jupyter-remove-empty-async-results 'jupyter-handle-execute-reply)
-      (advice-add 'jupyter-handle-execute-reply :filter-args #'/jupyter-remove-empty-async-results)))
-
-  ;; *** remove example and clean up errors
-  (with-eval-after-load 'jupyter-client
-    (defun /jupyter-ansi-async-results (args)
-      "Translate the ansi key code in results with errors"
-      (let*
-          ((req (nth 1 args))
-           (msg (nth 2 args))
-           (is-org-request (eq (type-of req) 'jupyter-org-request)))
-        (when is-org-request
-          (jupyter-with-message-content msg (status payload)
-            (when (and (jupyter-org-request-async-p req)
-                       (not (equal status "ok")))
-              (org-with-point-at (jupyter-org-request-marker req)
-                (/jupyter-clean-async-ansi--results)
-                )
-              (org-with-point-at (jupyter-org-request-marker req)
-                (when (not (search-forward "KeyboardInterrupt" nil t))
-                  (seth-interrupt-kernel)))
-              )))
-        args))
-    (unless (advice-member-p #'/jupyter-ansi-async-results 'jupyter-handle-execute-reply)
-      (advice-add 'jupyter-handle-execute-reply :filter-args #'/jupyter-ansi-async-results)))
-
-  ;; *** remove example src block from result
-  (with-eval-after-load 'jupyter-client
-    (defun /jupyter-clean-async-results (args)
-      "calls the cleaning of async results in jupyter blocks"
-      (let*
-          ((req (nth 1 args))
-           (msg (nth 2 args))
-           (is-org-request (eq (type-of req) 'jupyter-org-request)))
-        (when is-org-request
-          (jupyter-with-message-content msg (status payload)
-            (when (and (jupyter-org-request-async-p req)
-                       (equal status "ok")
-                       (jupyter-org-request-id-cleared-p req))
-              (org-with-point-at (jupyter-org-request-marker req)
-                (/jupyter-clean-async--results)
-                ))))
-        args))
-
-    (unless (advice-member-p #'/jupyter-clean-async-results 'jupyter-handle-execute-reply)
-      (advice-add 'jupyter-handle-execute-reply :filter-args #'/jupyter-clean-async-results)))
-
-  ;; * Numbered lines in code blocks
-  (defvar number-line-overlays '()
-    "List of overlays for line numbers.")
-
-  (make-variable-buffer-local 'number-line-overlays)
-
-  (defun number-line-src-block ()
-    "Add line numbers to an org src-block."
-    (interactive)
-    (save-excursion
-      (let* ((src-block (org-element-context))
-             (nlines (- (length
-                         (s-split
-                          "\n"
-                          (org-element-property :value src-block)))
-                        1)))
-        ;; clear any existing overlays
-        (when number-line-overlays
-	      (mapc 'delete-overlay
-	            number-line-overlays)
-	      (setq number-line-overlays '()))
-
-        (goto-char (org-element-property :begin src-block))
-        ;; the beginning may be header, so we move forward to get the #+BEGIN
-        ;; line. Then jump one more to get in the code block
-        (while (not (looking-at "#\\+BEGIN"))
-	      (forward-line))
-        (forward-line)
-        (cl-loop for i from 1 to nlines
-                 do
-                 (beginning-of-line)
-                 (let (ov)
-		           (setq ov (make-overlay (point)(point)))
-		           (overlay-put
-		            ov
-		            'before-string (propertize
-				                    (format "%03s: " (number-to-string i))
-				                    'font-lock-face '(:foreground "WhiteSmoke" :background "gray10")
-				                    'local-map (let ((map (make-sparse-keymap)))
-					                             (define-key map [mouse-1]
-						                                     (lambda ()
-						                                       (interactive)
-						                                       (mapc 'delete-overlay
-							                                         number-line-overlays)
-						                                       (setq number-line-overlays '())))
-					                             map)))
-		           (overlay-put ov 'mouse-face 'highlight)
-		           (overlay-put ov 'help-echo "Click to remove")
-		           (overlay-put ov 'local-map (let ((map (make-sparse-keymap)))
-					                            (define-key map [mouse-1]
-						                                    (lambda ()
-						                                      (interactive)
-						                                      (mapc 'delete-overlay
-							                                        number-line-overlays)
-						                                      (setq number-line-overlays '())))
-					                            map))
-		           (add-to-list 'number-line-overlays ov))
-                 (forward-line))))
-    (add-hook 'post-command-hook 'number-line-src-block nil 'local)
-    )
-
-  (add-hook 'jupyter-repl-mode-hook 'company-mode)
-  (add-hook 'jupyter-repl-mode-hook 'smartparens-mode)
-  (add-hook 'jupyter-repl-mode-hook ;; org mode
-            '(lambda ()
-               (local-set-key (kbd "H-h h") 'scimax-jupyter-org-hydra/body)
-               ))
-
-  (pretty-hydra-define scimax-jupyter-org-hydra (:color blue :hint nil)
-    ("Execute"
-     (
-      ("<return>" nil "quit" :color red)
-      ("C-c C-c" org-ctrl-c-ctrl-c "current" :color red)
-      ("C-<return>" jupyter-org-execute-and-next-block "current and next" :color red)
-      ("H-<return>" (progn (org-ctrl-c-ctrl-c) (scimax-ob-insert-src-block t)) "current and new")
-      ("S-C-<return>" jupyter-org-execute-to-point "Execute to point")
-      ("S-M-<return>" jupyter-org-execute-subtree "Execute Subtree"))
-
-     "Navigate"
-     (("p" org-babel-previous-src-block "previous" :color red)
-      ;; ("P" jupyter-org-previous-busy-src-block "previous busy")
-      ("n" org-babel-next-src-block  "next" :color red)
-      ;; ("N" jupyter-org-next-busy-src-block "next busy" :color red)
-      ("g" jupyter-org-jump-to-visible-block "jump to visible src")
-      ("G" jupyter-org-jump-to-block "jump to src block")
-      ("e" scimax-jupyter-jump-to-error "Jump to error"))
-
-     "Edit"
-     (("<up>" jupyter-org-move-src-block "move up" :color red)
-      ("<down>" (jupyter-org-move-src-block t) "move down" :color red)
-      ("x" jupyter-org-kill-block-and-results "kill block")
-      ("c" jupyter-org-copy-block-and-results "copy block")
-      ("o" (jupyter-org-clone-block t) "clone")
-      ("m" jupyter-org-merge-blocks "merge")
-      ("s" jupyter-org-split-src-block "split")
-      ("a" (jupyter-org-insert-src-block nil current-prefix-arg) "insert above")
-      ("b" (jupyter-org-insert-src-block t current-prefix-arg) "insert below")
-      ("l" org-babel-remove-result "clear result")
-      ("L" seth-org/clear-all-results "clear all results")
-      ("h" jupyter-org-edit-header "edit header"))
-
-     "Misc"
-     (("i" jupyter-org-inspect-src-block "inspect")
-      ("<tab>" completion-at-point "Complete")
-      
-      ("O" scimax-ob/body "scimax-ob")
-      ("E" ox-ipynb-export-to-ipynb-no-results-file-and-open "Export to ipynb no results")
-      ("q" nil "quit"))
-     
-     "Kernel"
-     (("s" org-babel-jupyter-scratch-buffer "scratch")
-      ("z" org-babel-switch-to-session "REPL")
-      ("u" jupyter-org-interrupt-kernel "interrupt")
-      ("r" (progn (setq-local seth-jupyter-execution-count 1)
-                  (jupyter-org-with-src-block-client
-	               (jupyter-repl-restart-kernel))) "restart")
-      ("k" (progn (setq-local seth-jupyter-execution-count 1) (scimax-jupyter-org-kill-kernel)) "kill"))))
-
-  :bind (
-         ;; ("H-h w" . words-hydra/body)
-         :map jupyter-org-interaction-mode-map
-         ("H-h j" . scimax-jupyter-org-hydra/body)
-         ("H-<left>" . python-indent-shift-left)
-         ("H-<right>" . python-indent-shift-right)
-         ("C-<return>" . jupyter-org-execute-and-next-block)
-         ("s-g" . jupyter-org-jump-to-visible-block)              
-         ("s-e" . scimax-jupyter-jump-to-error)
-         ("s-<up>" . jupyter-org-move-src-block)
-         ("s-<down>" . (lambda () (interactive) (jupyter-org-move-src-block t)))
-         ("s-x" . jupyter-org-kill-block-and-results)
-         ("s-c" . jupyter-org-copy-block-and-results)
-         ("s-o" . (lambda () (interactive) (jupyter-org-clone-block t)))
-         ("s-m" . jupyter-org-merge-blocks)
-         ("s-s" . jupyter-org-split-src-block)
-         ("s-a" . jupyter-org-insert-src-block)
-         ("s-b" . (lambda () (interactive) (jupyter-org-insert-src-block t)))
-         ("s-i" . jupyter-org-inspect-src-block)
-         ("s-u" . jupyter-org-interrupt-kernel)
-         ("s-k" . (lambda () (interactive) (progn (setq-local seth-jupyter-execution-count 1)
-                                                  (scimax-jupyter-org-kill-kernel))))
-         ("s-r" . (lambda () (interactive) (progn (setq-local seth-jupyter-execution-count 1)
-                                                  (jupyter-org-with-src-block-client
-                                                   (jupyter-repl-restart-kernel))))) 
-         )
-  ) 
-
-#+end_src
-
 *** sideline mode
 #+begin_src emacs-lisp :lexical t
 (use-package sideline
@@ -2718,6 +2430,45 @@ the list is kept."
   
 #+end_src
 
+*** ssh-tunnels
+#+begin_src emacs-lisp :lexical t
+(use-package ssh-tunnels
+  :delight
+  :defer t
+  :ensure (ssh-tunnels
+           :type git
+           :host github
+           :repo "death/ssh-tunnels"
+           :local-repo "ssh-tunnels"
+           )
+  :custom
+  (ssh-tunnels-configurations
+      '((:name "dev socket"
+         :local-port 12345
+         :remote-port 12345
+         :login "sfigueroa@dev.focusvq.com"
+         :type "-L")
+        ))
+
+  :bind (:map ssh-tunnels-mode-map
+              ("n" . seth-ssh-tunnel-add)
+              )
+  :config
+  (defun seth-ssh-tunnel-add (name port)
+    (interactive "sName: \nnPort: ")
+    (let ((conf `(:name ,name
+                       :local-port ,port
+                       :remote-port ,port
+                       :login "sfigueroa@dev.focusvq.com"
+                       :type "-L"
+                       )))
+      (add-to-list 'ssh-tunnels-configurations conf)
+      (ssh-tunnels-refresh)
+      )
+    )
+  )
+#+end_src 
+
 *** Swiper
 #+begin_src emacs-lisp :lexical t
 (use-package swiper
@@ -2734,178 +2485,6 @@ the list is kept."
          )
   )
 
-#+end_src
-
-*** tabbar
-
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-package tabbar
-  :defer t
-  :bind* (
-          ("M-S-<up>" . tabbar-press-home)
-          ("M-S-<left>" . tabbar-backward-tab)
-          ("M-S-<right>" . tabbar-forward-tab)
-          ("M-S-<down>" . tabbar-local-mode)
-          ("C-S-<left>" . tabbar-move-group-backward)
-          ("C-S-<right>" . tabbar-move-group-forward)
-          )
-
-  :config
-  (tabbar-mode t)
-  (defun tabbar-buffer-groups ()
-    "Return the list of group names the current buffer belongs to.
-       This function is a custom function for tabbar-mode's tabbar-buffer-groups.
-       This function group all buffers into 3 groups:
-       Those Dired, those user buffer, and those emacs buffer.
-       Emacs buffer are those starting with “*”."
-    (list
-     (cond
-      ((eq major-mode 'dired-mode)
-       "Dired"
-       )
-      ((eq major-mode 'jupyter-repl-mode)
-       "Kernels"
-       )
-      ((eq major-mode 'js2-mode)
-       "js"
-       )
-      ((eq major-mode 'eshell-mode)
-       "Eshell"
-       )
-      ((eq major-mode 'vterm-mode)
-       "Term"
-       )
-      ((eq major-mode 'go-mode)
-       "Go"
-       )
-      ((eq major-mode 'org-mode)
-       "Org"
-       )
-      ((eq major-mode 'python-mode)
-       "Python"
-       )
-      ((string-equal "*ein:" (substring (buffer-name) 0 5))
-       "EIN"
-       )
-      ((string-equal "*Pyth" (substring (buffer-name) 0 5))
-       "Python"
-       )
-      ((eq major-mode 'php-mode)
-       "PHP"
-       )
-      ((eq major-mode 'csv-mode)
-       "CSV"
-       )
-      ((eq major-mode 'text-mode)
-       "TXT"
-       )
-      ((eq major-mode 'shell-script-mode)
-       "Script"
-       )
-      ((eq major-mode 'sh-mode)
-       "Script"
-       )
-      ((string-equal "*PHP*" (substring (buffer-name) 0 5))
-       "PHP"
-       )
-      ;; ((string-equal "*jupyter-" (substring (buffer-name) 0 9))
-      ;;  "Jupyter"
-      ;;  )
-      ((string-equal "*" (substring (buffer-name) 0 1))
-       "Emacs Buffer"
-       )
-      ((string-equal "magit:" (substring (buffer-name) 0 6))
-       "Magit"
-       )
-      ((eq major-mode 'lispy-mode)
-       "Lisp"
-       )
-      ((eq major-mode 'lisp-mode)
-       "Lisp"
-       )
-      ((eq major-mode 'emacs-lisp-mode)
-       "Lisp"
-       )
-      ((eq major-mode 'image-mode)
-       "Images"
-       )
-      (t
-       "Misc"
-       )
-      )))
-
-  (defun tabbar-move-current-tab-one-place-left ()
-    "Move current tab one place left, unless it's already the leftmost."
-    (interactive)
-    (let* ((bufset (tabbar-current-tabset t))
-           (old-bufs (tabbar-tabs bufset))
-           (first-buf (car old-bufs))
-           (new-bufs (list)))
-      (if (string= (buffer-name) (format "%s" (car first-buf)))
-          old-bufs                     ; the current tab is the leftmost
-        (setq not-yet-this-buf first-buf)
-        (setq old-bufs (cdr old-bufs))
-        (while (and
-                old-bufs
-                (not (string= (buffer-name) (format "%s" (car (car old-bufs))))))
-          (push not-yet-this-buf new-bufs)
-          (setq not-yet-this-buf (car old-bufs))
-          (setq old-bufs (cdr old-bufs)))
-        (if old-bufs ; if this is false, then the current tab's buffer name is mysteriously missing
-            (progn
-              (push (car old-bufs) new-bufs) ; this is the tab that was to be moved
-              (push not-yet-this-buf new-bufs)
-              (setq new-bufs (reverse new-bufs))
-              (setq new-bufs (append new-bufs (cdr old-bufs))))
-          (error "Error: current buffer's name was not found in Tabbar's buffer list."))
-        (set bufset new-bufs)
-        (tabbar-set-template bufset nil)
-        (tabbar-display-update))))
-
-  (defun tabbar-move-current-tab-one-place-right ()
-    "Move current tab one place right, unless it's already the rightmost."
-    (interactive)
-    (let* ((bufset (tabbar-current-tabset t))
-           (old-bufs (tabbar-tabs bufset))
-           (first-buf (car old-bufs))
-           (new-bufs (list)))
-      (while (and
-              old-bufs
-              (not (string= (buffer-name) (format "%s" (car (car old-bufs))))))
-        (push (car old-bufs) new-bufs)
-        (setq old-bufs (cdr old-bufs)))
-      (if old-bufs ; if this is false, then the current tab's buffer name is mysteriously missing
-          (progn
-            (setq the-buffer (car old-bufs))
-            (setq old-bufs (cdr old-bufs))
-            (if old-bufs ; if this is false, then the current tab is the rightmost
-                (push (car old-bufs) new-bufs))
-            (push the-buffer new-bufs)) ; this is the tab that was to be moved
-        (error "Error: current buffer's name was not found in Tabbar's buffer list."))
-      (setq new-bufs (reverse new-bufs))
-      (setq new-bufs (append new-bufs (cdr old-bufs)))
-      (set bufset new-bufs)
-      (tabbar-set-template bufset nil)
-      (tabbar-display-update)))
-
-  (setq tabbar-buffer-groups-function 'tabbar-buffer-groups)
-
-  (setq tabbar-use-images nil)
-
-  (defun tabbar-move-group-backward ()
-    "My version of keeping groups visible."
-    (interactive)
-    (tabbar-backward-tab)
-    (tabbar-press-home)
-    )
-  (defun tabbar-move-group-forward ()
-    "My version of keeping groups visible."
-    (interactive)
-    (tabbar-forward-tab)
-    (tabbar-press-home)
-    )
-
-  )
 #+end_src
 
 *** tab-line
@@ -3100,6 +2679,22 @@ the list is kept."
 
 #+end_src
 
+*** transpose-frame
+#+begin_src emacs-lisp :lexical t
+(use-package transpose-frame
+  :delight
+  :defer t
+  :bind* (
+          ("H-f t" . transpose-frame)
+          ("H-f h" . flip-frame)
+          ("H-f v" . flop-frame)
+          ("H-f r" . rotate-frame)
+          ("H-f c" . rotate-frame-clockwise)
+          ("H-f a" . rotate-frame-anti-clockwise)
+          )
+)
+#+end_src 
+
 *** tree-sitter
 #+begin_src emacs-lisp :lexical t
 (use-package tree-sitter
@@ -3266,96 +2861,6 @@ the list is kept."
   (zoom-size '(0.618 . 0.618))
   :defer t
   )
-#+end_src
-
-*** neotree
-#+begin_src emacs-lisp :lexical t
-(use-package neotree
-  :delight
-  :defer t
-  :custom-face
-  (neo-dir-link-face ((t (:foreground "#97c8f7" :extend t)))) 
-  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
-  :bind* ("C-x d" . neotree)
-  :custom
-  (neo-theme 'arrow)
-)
-#+end_src 
-   
-*** transpose-frame
-#+begin_src emacs-lisp :lexical t
-(use-package transpose-frame
-  :delight
-  :defer t
-  :bind* (
-          ("H-f t" . transpose-frame)
-          ("H-f h" . flip-frame)
-          ("H-f v" . flop-frame)
-          ("H-f r" . rotate-frame)
-          ("H-f c" . rotate-frame-clockwise)
-          ("H-f a" . rotate-frame-anti-clockwise)
-          )
-)
-#+end_src 
-
-*** ssh-tunnels
-#+begin_src emacs-lisp :lexical t
-(use-package ssh-tunnels
-  :delight
-  :defer t
-  :ensure (ssh-tunnels
-           :type git
-           :host github
-           :repo "death/ssh-tunnels"
-           :local-repo "ssh-tunnels"
-           )
-  :custom
-  (ssh-tunnels-configurations
-      '((:name "dev socket"
-         :local-port 12345
-         :remote-port 12345
-         :login "sfigueroa@dev.focusvq.com"
-         :type "-L")
-        ))
-
-  :bind (:map ssh-tunnels-mode-map
-              ("n" . seth-ssh-tunnel-add)
-              )
-  :config
-  (defun seth-ssh-tunnel-add (name port)
-    (interactive "sName: \nnPort: ")
-    (let ((conf `(:name ,name
-                       :local-port ,port
-                       :remote-port ,port
-                       :login "sfigueroa@dev.focusvq.com"
-                       :type "-L"
-                       )))
-      (add-to-list 'ssh-tunnels-configurations conf)
-      (ssh-tunnels-refresh)
-      )
-    )
-  )
-#+end_src 
-
-*** outline indend
-#+begin_src emacs-lisp :lexical t
-  (use-package outline-indent
-  :ensure t
-  :delight
-  :custom
-  (outline-indent-ellipsis " ▼ ")
-  :config
-  (add-hook 'python-mode-hook #'outline-indent-minor-mode)
-  (add-hook 'python-ts-mode-hook #'outline-indent-minor-mode)
-  (setq outline-blank-line t)
-  :bind* (
-          ("H-c <tab>" . outline-cycle)
-          ("H-c c <tab>" . outline-cycle-buffer)
-          ("H-c c a" . outline-show-all)
-          )
-  )
-
-;; https://github.com/jamescherti/minimal-emacs.d?tab=readme-ov-file
 #+end_src
 
 ** Ending
