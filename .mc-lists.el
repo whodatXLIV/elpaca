@@ -21,6 +21,7 @@
         sp-forward-slurp-sexp
         sp-kill-hybrid-sexp
         sp-unwrap-sexp
+        tab-line-select-tab
         vterm-end-of-line
         ))
 
@@ -36,6 +37,7 @@
         ace-window
         counsel-M-x
         embark-dwim
+        swiper
         tabbar-move-group-backward
         tabbar-press-home
         ))

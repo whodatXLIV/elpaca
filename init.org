@@ -240,7 +240,7 @@ When set to non-nil, Emacs will automatically call `package-initialize' and
     ;; Shave seconds off startup time by starting the scratch buffer in
     ;; `fundamental-mode'
     (setq initial-major-mode 'fundamental-mode
-          initial-scratch-message nil)
+          initial-scratch-message "*Scratch Buffer*\n\n")
 
     (unless minimal-emacs-debug
       ;; Unset command line options irrelevant to the current OS. These options
@@ -506,7 +506,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (require 'vc-git)
 (which-key-mode)
-(setq initial-buffer-choice t) ;;*scratch*
+;; (setq initial-buffer-choice t) ;;*scratch*
 
 (keymap-global-set "H-r" 'revert-buffer)
 (keymap-global-set "H-l" 'scroll-lock-mode)
@@ -800,6 +800,28 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :delight
   :bind* ("H-;" . ace-mc-add-multiple-cursors)
   :defer t
+  )
+#+end_src
+*** activities
+#+begin_src emacs-lisp :lexical t
+
+(use-package activities
+  :delight
+  :bind* (
+          ("s-a n" . activities-new)
+          ("s-a d" . activities-define)
+          ("s-a a" . activities-resume)
+          ("s-a r" . activities-revert)
+          ("s-a s" . activities-suspend)
+          ("s-a k" . activities-kill)
+          ("s-a RET" . activities-switch)
+          ("s-a b" . activities-switch-buffer)
+          ("s-a l" . activities-list)
+          )
+  
+  :defer t
+  :config
+  (activities-mode t)
   )
 #+end_src
 
@@ -1591,6 +1613,18 @@ the list is kept."
          ("H-t n" . hl-todo-next)
          ("H-t p" . hl-todo-previous)
          )
+  )
+
+#+end_src
+*** magit-todos
+
+#+begin_src emacs-lisp :lexical t
+(use-package magit-todos
+  :delight
+  :defer t
+  :after magit
+  :config
+  (magit-todos-mode 1)
   )
 
 #+end_src
@@ -2509,11 +2543,11 @@ the list is kept."
   ;;          )
   
   :after (tab-line) ;; doom-modeline
-  :defer nil
+  :defer t
   :bind* (
-          ("M-S-<up>" . (lambda () (interactive) (tab2-select-filter-button t)))
+          ("M-S-<up>" . seth-tab-config-tab2-select-filter-button)
           ("M-S-<left>" . switch-highlighted-tab-or-buffer)
-          ("M-S-<right>" . (lambda () (interactive) (switch-highlighted-tab-or-buffer 1)))
+          ("M-S-<right>" . seth-switch-highlighted-tab-or-buffer)
           ("M-S-<down>" . tab-line-mode)
           ;; ("C-S-<left>" . (lambda () (interactive) (tab2-shift-tab-left t)))
           ;; ("C-S-<right>" . (lambda () (interactive) (tab2-shift-tab-right t)))
@@ -2522,6 +2556,15 @@ the list is kept."
   :config
   (global-tab-line-mode t)
   (setq tab2-line-tab-buffer-plist (list))
+
+  (defun seth-tab-config-tab2-select-filter-button ()
+    (interactive)
+    (tab2-select-filter-button t)
+    )
+  (defun seth-switch-highlighted-tab-or-buffer ()
+    (interactive)
+    (switch-highlighted-tab-or-buffer 1)
+    )
   ;; remove a buffer from a view
   (defun tab-remove-view ()
     (interactive)
@@ -2633,37 +2676,37 @@ the list is kept."
 
 
 
-;;   ;;; FORMAT FOR DOOM
-;; ;;; Doom modeline integration
+  ;;   ;;; FORMAT FOR DOOM
+  ;; ;;; Doom modeline integration
 
-;;   (defvar-keymap tab2-mode-line-view-map
-;;     "<mode-line> <mouse-3>" #'tab2-next-view
-;;     "<mode-line> <mouse-1>" #'tab2-prev-view)
+  ;;   (defvar-keymap tab2-mode-line-view-map
+  ;;     "<mode-line> <mouse-3>" #'tab2-next-view
+  ;;     "<mode-line> <mouse-1>" #'tab2-prev-view)
 
 
-;;   (doom-modeline-def-segment tab2-view-segment
-;;     "show the current tab2 view"
-;;     (propertize (concat
-;; 	             "₪ "
-;; 	             (tab2-view-name (tab2-get-current-view)))
-;;                 'face `(:foreground "#2fd0f7" :weight bold)
-;; 	            'help-echo "Current tab view - click to switch to the next one"
-;; 	            'local-map tab2-mode-line-view-map
-;; 	            ))
+  ;;   (doom-modeline-def-segment tab2-view-segment
+  ;;     "show the current tab2 view"
+  ;;     (propertize (concat
+  ;; 	             "₪ "
+  ;; 	             (tab2-view-name (tab2-get-current-view)))
+  ;;                 'face `(:foreground "#2fd0f7" :weight bold)
+  ;; 	            'help-echo "Current tab view - click to switch to the next one"
+  ;; 	            'local-map tab2-mode-line-view-map
+  ;; 	            ))
   
-;;   (doom-modeline-def-modeline 'tab2-aware-modeline
-;;     '(bar matches buffer-encoding buffer-info-simple remote-host media-info buffer-position selection-info)
-;;     '(misc-info battery minor-modes input-method major-mode repl lsp process vcs tab2-view-segment check time))
+  ;;   (doom-modeline-def-modeline 'tab2-aware-modeline
+  ;;     '(bar matches buffer-encoding buffer-info-simple remote-host media-info buffer-position selection-info)
+  ;;     '(misc-info battery minor-modes input-method major-mode repl lsp process vcs tab2-view-segment check time))
 
-;;   ;; Set once on start
-;;   (doom-modeline-set-modeline 'tab2-aware-modeline 'default)
-;;   ;; Hook in after that.
-;;   (add-hook 'doom-modeline-mode-hook
-;;             (lambda ()
-;;               (doom-modeline-set-modeline 'tab2-aware-modeline 'default)))
+  ;;   ;; Set once on start
+  ;;   (doom-modeline-set-modeline 'tab2-aware-modeline 'default)
+  ;;   ;; Hook in after that.
+  ;;   (add-hook 'doom-modeline-mode-hook
+  ;;             (lambda ()
+  ;;               (doom-modeline-set-modeline 'tab2-aware-modeline 'default)))
 
   ;;; Start in Messages and with a selected buffer
-  (add-hook 'emacs-startup-hook (lambda () (tab-line-select-tab-buffer "*Messages*" (selected-window)) (tab2-get-tabs)))
+  ;; (add-hook 'emacs-startup-hook (lambda () (tab-line-select-tab-buffer "*Messages*" (selected-window)) (tab2-get-tabs)))
   )
 
 (use-feature tab-line
@@ -2783,9 +2826,9 @@ the list is kept."
   (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
   (backup-directory-alist `(("." . "~/.emacs.d/.saves")))
   (backup-by-copying t)
-  (delete-old-versions t)
-  (kept-new-versions 2)
-  (kept-old-versions 6)
+  (delete-old-versions nil)
+  (kept-new-versions 20)
+  (kept-old-versions 60)
   (version-control t)       ; use versioned backups 
   (undo-tree-enable-undo-in-region t)
   ;; (undo-strong-limit (* 1024 1024 1024)) 
@@ -2867,7 +2910,7 @@ the list is kept."
 #+begin_src emacs-lisp :lexical t
 ;;; Load post-init.el
 (minimal-emacs-load-user-init "post-init.el")
-
+(winner-mode t)
 (provide 'init)
 
 ;;; init.el ends here

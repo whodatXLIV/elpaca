@@ -3,7 +3,7 @@
 
 (require 'vc-git)
 (which-key-mode)
-(setq initial-buffer-choice t) ;;*scratch*
+;; (setq initial-buffer-choice t) ;;*scratch*
 
 (keymap-global-set "H-r" 'revert-buffer)
 (keymap-global-set "H-l" 'scroll-lock-mode)
