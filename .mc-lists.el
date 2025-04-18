@@ -4,9 +4,13 @@
 (setq mc/cmds-to-run-for-all
       '(
         beginning-of-buffer
+        comment-line
+        company-other-backend
         end-of-buffer
         indent-for-tab-command
         kill-region
+        mwim-beginning-of-code-or-line
+        mwim-end-of-code-or-line
         org-beginning-of-line
         org-cycle
         org-delete-char
@@ -14,6 +18,7 @@
         org-open-line
         org-self-insert-command
         org-yank
+        smart-hungry-delete-backward-char
         sp-backward-slurp-sexp
         sp-backward-unwrap-sexp
         sp-beginning-of-sexp
@@ -37,6 +42,8 @@
         ace-window
         counsel-M-x
         embark-dwim
+        ivy-switch-buffer
+        seth-tab-config-tab2-select-filter-button
         swiper
         tabbar-move-group-backward
         tabbar-press-home

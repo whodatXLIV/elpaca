@@ -689,8 +689,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
    ;; (setq exec-path-from-shell-debug t)
   :config
   (setq exec-path-from-shell-arguments (list "-l")) ;; (list "-l" "-i")
+  (setq exec-path-from-shell-variables '("PATH"))
   (exec-path-from-shell-initialize)
-  :defer t
+  :defer nil
   )
 #+end_src
 
@@ -1649,10 +1650,10 @@ the list is kept."
 *** Iscroll
 #+begin_src emacs-lisp :lexical t
 
-(use-package iscroll
-  :delight
-  :defer t
-  )
+;; (use-package iscroll
+;;   :delight
+;;   :defer t
+;;   )
 
 #+end_src
 
@@ -1663,7 +1664,13 @@ the list is kept."
   :init
   (setq ivy-use-virtual-buffers t)
   (setq ivy-virtual-abbreviate 'full)
-  (setq ivy-re-builders-alist '((t . ivy--regex-ignore-order)))
+  (setq ivy-re-builders-alist '(
+                                (t . ivy--regex-ignore-order)
+                                (t . ivy--regex-plus)
+                                (t . ivy--regex-fuzzy)
+                                (t . ivy--regex)
+                                (t . regexp-quote)
+                                ))
   (setq ivy-height 12)
   (setq ivy-display-style 'fancy)
   (setq ivy-count-format "[%d/%d] ")
@@ -1671,8 +1678,8 @@ the list is kept."
   (setq ivy-use-selectable-prompt t)
   (setq ivy-magic-slash-non-match-action 'ivy-magic-slash-non-match-create)
   ;; default pattern ignores order.
-  (setf (cdr (assoc t ivy-re-builders-alist))
-	    'ivy--regex-ignore-order)
+  ;; (setf (cdr (assoc t ivy-re-builders-alist))
+  ;;       'ivy--regex-ignore-order)
   :delight
   :defer t
   )
@@ -1736,6 +1743,17 @@ the list is kept."
   :defer t
   )
   
+#+end_src
+
+*** mwim
+#+begin_src emacs-lisp :lexical t
+(use-package mwim
+  :bind (
+         ;; My personal favorites
+         ("C-a" . mwim-beginning-of-code-or-line)
+         ("C-e" . mwim-end-of-code-or-line)
+         ))
+
 #+end_src
 
 *** Multiple cursors
@@ -2341,7 +2359,7 @@ the list is kept."
   :bind (
          :map python-mode-map
          ("H-<left>" . python-indent-shift-left)
-         ("H-<right>" . python-indent-shift-right)
+         ("H-<right>" . python-indent-shift-right)        
          )
   :config
   (defun seth-python-company-mode-hook ()
@@ -2840,6 +2858,17 @@ the list is kept."
   :config
   (global-undo-tree-mode)
   )
+#+end_src
+
+*** ultra scroll
+#+begin_src emacs-lisp :lexical t
+(use-package ultra-scroll
+  :ensure (ultra-scroll :host github :repo "jdtsmith/ultra-scroll")
+  :init
+  (setq scroll-conservatively 101 ; important!
+        scroll-margin 0)
+  :config
+  (ultra-scroll-mode 1))
 #+end_src
 
 *** vterm
