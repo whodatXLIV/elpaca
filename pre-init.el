@@ -2,19 +2,19 @@
     ;;; Code:
 
 (defun split-window-sensibly-prefer-horizontal (&optional window)
-"Based on split-window-sensibly, but designed to prefer a horizontal split,
+  "Based on split-window-sensibly, but designed to prefer a horizontal split,
 i.e. windows tiled side-by-side."
   (interactive)
   (let ((window (or window (selected-window))))
     (or (and (window-splittable-p window t)
-         ;; Split window horizontally
-         (with-selected-window window
-           (split-window-right)))
-    (and (window-splittable-p window)
-         ;; Split window vertically
-         (with-selected-window window
-           (split-window-below)))
-    (and
+             ;; Split window horizontally
+             (with-selected-window window
+               (split-window-right)))
+        (and (window-splittable-p window)
+             ;; Split window vertically
+             (with-selected-window window
+               (split-window-below)))
+        (and
          ;; If WINDOW is the only usable window on its frame (it is
          ;; the only one or, not being the only one, all the other
          ;; ones are dedicated) and is not the minibuffer window, try
@@ -30,11 +30,11 @@ i.e. windows tiled side-by-side."
                                     (throw 'done nil)))
                                 frame)
               t)))
-     (not (window-minibuffer-p window))
-     (let ((split-width-threshold 0))
-       (when (window-splittable-p window t)
-         (with-selected-window window
-           (split-window-right))))))))
+         (not (window-minibuffer-p window))
+         (let ((split-width-threshold 0))
+           (when (window-splittable-p window t)
+             (with-selected-window window
+               (split-window-right))))))))
 
 (defun split-window-really-sensibly (&optional window)
   (let ((window (or window (selected-window))))
@@ -43,9 +43,9 @@ i.e. windows tiled side-by-side."
       (with-selected-window window (split-window-sensibly window)))))
 
 (setq
-   split-height-threshold 10
-   split-width-threshold 240
-   split-window-preferred-function 'split-window-really-sensibly)
+ split-height-threshold 10
+ split-width-threshold 240
+ split-window-preferred-function 'split-window-really-sensibly)
 
 
 (provide 'pre-init)

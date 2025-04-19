@@ -51,22 +51,22 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 Emacs 27.0 introduced an early-init file. It allows customization before package and UI initialization.
 
 #+begin_src emacs-lisp :lexical t
-    ;;; early-init.el --- Emacs pre package.el & GUI configuration -*- no-byte-compile: t; lexical-binding: t; -*-
-    ;;; Code:
+      ;;; early-init.el --- Emacs pre package.el & GUI configuration -*- no-byte-compile: t; lexical-binding: t; -*-
+      ;;; Code:
 
 
 (defvar minimal-emacs-ui-features '()
   "List of user interface features to disable in minimal Emacs setup.
 
-This variable holds a list Emacs UI features that can be enabled:
-- `context-menu`: Enables the context menu in graphical environments.
-- `tool-bar`: Enables the tool bar in graphical environments.
-- `menu-bar`: Enables the menu bar in graphical environments.
-- `dialogs`: Enables both file dialogs and dialog boxes.
-- `tooltips`: Enables tooltips.
+  This variable holds a list Emacs UI features that can be enabled:
+  - `context-menu`: Enables the context menu in graphical environments.
+  - `tool-bar`: Enables the tool bar in graphical environments.
+  - `menu-bar`: Enables the menu bar in graphical environments.
+  - `dialogs`: Enables both file dialogs and dialog boxes.
+  - `tooltips`: Enables tooltips.
 
-Each feature in the list corresponds to a specific UI component that can be
-turned on.")
+  Each feature in the list corresponds to a specific UI component that can be
+  turned on.")
 
 (defvar minimal-emacs-frame-title-format "%b – Emacs"
   "Template for displaying the title bar of visible and iconified frame.")
@@ -79,13 +79,13 @@ turned on.")
 
 (defvar minimal-emacs-package-initialize-and-refresh t
   "Whether to automatically initialize and refresh packages.
-When set to non-nil, Emacs will automatically call `package-initialize' and
-`package-refresh-contents' to set up and update the package system.")
+  When set to non-nil, Emacs will automatically call `package-initialize' and
+  `package-refresh-contents' to set up and update the package system.")
 
 (defvar minimal-emacs-user-directory user-emacs-directory
   "The default value of the `user-emacs-directory' variable.")
 
-;;; Load pre-early-init.el
+  ;;; Load pre-early-init.el
 
 (defun minimal-emacs-load-user-init (filename)
   "Execute a file of Lisp code named FILENAME."
@@ -106,7 +106,7 @@ When set to non-nil, Emacs will automatically call `package-initialize' and
 (if (bound-and-true-p module-file-suffix)
     (push 'dynamic-modules features))
 
-;;; Garbage collection
+  ;;; Garbage collection
 ;; Garbage collection significantly affects startup times. This setting delays
 ;; garbage collection during startup but will be reset later.
 
@@ -116,7 +116,7 @@ When set to non-nil, Emacs will automatically call `package-initialize' and
           (lambda ()
             (setq gc-cons-threshold minimal-emacs-gc-cons-threshold)))
 
-;;; Performance
+  ;;; Performance
 
 ;; Prefer loading newer compiled files
 (setq load-prefer-newer t)
@@ -250,7 +250,7 @@ When set to non-nil, Emacs will automatically call `package-initialize' and
       (unless (memq initial-window-system '(x pgtk))
         (setq command-line-x-option-alist nil)))))
 
-;;; Native compilation and Byte compilation
+  ;;; Native compilation and Byte compilation
 
 (if (and (featurep 'native-compile)
          (fboundp 'native-comp-available-p)
@@ -273,7 +273,7 @@ When set to non-nil, Emacs will automatically call `package-initialize' and
 (setq byte-compile-warnings minimal-emacs-debug)
 (setq byte-compile-verbose minimal-emacs-debug)
 
-;;; UI elements
+  ;;; UI elements
 
 (setq frame-title-format minimal-emacs-frame-title-format
       icon-title-format minimal-emacs-frame-title-format)
@@ -328,11 +328,62 @@ When set to non-nil, Emacs will automatically call `package-initialize' and
   (advice-add #'yes-or-no-p :override #'y-or-n-p))
 (defalias #'view-hello-file #'ignore)  ; Never show the hello file
 
-;;; Load post-early-init.el
+;; (defun homebrew-gcc-paths ()
+;;   "Return GCC library paths from Homebrew installations.
+;; Detects paths for gcc and libgccjit packages to be used in LIBRARY_PATH."
+;;   (let* ((paths '())
+;;          (brew-bin (or (executable-find "brew")
+;;                        (let ((arm-path "/opt/homebrew/bin/brew")
+;;                              (intel-path "/usr/local/bin/brew"))
+;;                          (cond
+;;                           ((file-exists-p arm-path) arm-path)
+;;                           ((file-exists-p intel-path) intel-path))))))
+
+;;     (when brew-bin
+;;       ;; Get gcc paths.
+;;       (let* ((gcc-prefix (string-trim
+;;                           (shell-command-to-string
+;;                            (concat brew-bin " --prefix gcc"))))
+;;              (gcc-lib-current (expand-file-name "lib/gcc/current" gcc-prefix)))
+;;         (push gcc-lib-current paths)
+
+;;         ;; Find apple-darwin directory.
+;;         (let* ((default-directory gcc-lib-current)
+;;                (arch-dirs (file-expand-wildcards "gcc/*-apple-darwin*/*[0-9]")))
+;;           (when arch-dirs
+;;             (push (expand-file-name
+;;                    (car (sort arch-dirs #'string>)))
+;;                   paths))))
+
+;;       ;; Get libgccjit paths
+;;       (let* ((jit-prefix (string-trim
+;;                           (shell-command-to-string
+;;                            (concat brew-bin " --prefix libgccjit"))))
+;;              (jit-lib-current (expand-file-name "lib/gcc/current" jit-prefix)))
+;;         (push jit-lib-current paths)))
+
+;;     (nreverse paths)))
+
+;; (defun setup-macos-native-comp-library-paths ()
+;;   "Set up LIBRARY_PATH for native compilation on macOS.
+;; Includes Homebrew GCC paths and CommandLineTools SDK libraries."
+;;   (let* ((existing-paths (split-string (or (getenv "LIBRARY_PATH") "") ":" t))
+;;          (gcc-paths (homebrew-gcc-paths))
+;;          (clt-paths '("/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib"))
+;;          (unique-paths (delete-dups
+;;                         (append existing-paths gcc-paths clt-paths))))
+
+;;     (setenv "LIBRARY_PATH" (mapconcat #'identity unique-paths ":"))))
+
+;; ;; Set up library paths for native compilation on macOS.
+;; (when (eq system-type 'darwin)
+;;   (setup-macos-native-comp-library-paths))
+
+  ;;; Load post-early-init.el
 (minimal-emacs-load-user-init "post-early-init.el")
 
 (provide 'early-init)
-  ;;; early-init.el ends here
+    ;;; early-init.el ends here
 
 #+end_src
 
@@ -370,7 +421,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 
 ;;; ELPACA INSTALLER
-(defvar elpaca-installer-version 0.7)
+(defvar elpaca-installer-version 0.11)
 (defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
 (defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
 (defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
@@ -443,19 +494,19 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     ;;; Code:
 
 (defun split-window-sensibly-prefer-horizontal (&optional window)
-"Based on split-window-sensibly, but designed to prefer a horizontal split,
+  "Based on split-window-sensibly, but designed to prefer a horizontal split,
 i.e. windows tiled side-by-side."
   (interactive)
   (let ((window (or window (selected-window))))
     (or (and (window-splittable-p window t)
-         ;; Split window horizontally
-         (with-selected-window window
-           (split-window-right)))
-    (and (window-splittable-p window)
-         ;; Split window vertically
-         (with-selected-window window
-           (split-window-below)))
-    (and
+             ;; Split window horizontally
+             (with-selected-window window
+               (split-window-right)))
+        (and (window-splittable-p window)
+             ;; Split window vertically
+             (with-selected-window window
+               (split-window-below)))
+        (and
          ;; If WINDOW is the only usable window on its frame (it is
          ;; the only one or, not being the only one, all the other
          ;; ones are dedicated) and is not the minibuffer window, try
@@ -471,11 +522,11 @@ i.e. windows tiled side-by-side."
                                     (throw 'done nil)))
                                 frame)
               t)))
-     (not (window-minibuffer-p window))
-     (let ((split-width-threshold 0))
-       (when (window-splittable-p window t)
-         (with-selected-window window
-           (split-window-right))))))))
+         (not (window-minibuffer-p window))
+         (let ((split-width-threshold 0))
+           (when (window-splittable-p window t)
+             (with-selected-window window
+               (split-window-right))))))))
 
 (defun split-window-really-sensibly (&optional window)
   (let ((window (or window (selected-window))))
@@ -484,9 +535,9 @@ i.e. windows tiled side-by-side."
       (with-selected-window window (split-window-sensibly window)))))
 
 (setq
-   split-height-threshold 10
-   split-width-threshold 240
-   split-window-preferred-function 'split-window-really-sensibly)
+ split-height-threshold 10
+ split-width-threshold 240
+ split-window-preferred-function 'split-window-really-sensibly)
 
 
 (provide 'pre-init)
@@ -596,7 +647,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 ;;; init.el --- Init -*- no-byte-compile: t; lexical-binding: t; -*-
 (minimal-emacs-load-user-init "pre-init.el")
-  
+
 #+end_src
 
 *** dependencies
@@ -655,13 +706,13 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 ;; (add-to-list 'load-path custom-theme-directory)
 ;; (load-theme 'base16-chalk t)
 (use-package color-theme-sanityinc-tomorrow
-   :defer nil
+  :defer nil
   :init
   (setq custom-safe-themes t)   ; Treat all themes as safe
   :config
   (global-hl-line-mode 1)
   (set-face-attribute 'hl-line nil :inherit nil :background "gray6")
- 
+  
   (add-to-list 'default-frame-alist
                '(font . "Hack-12")) 
   (tool-bar-mode -1)
@@ -686,7 +737,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         ns-option-modifier 'hyper
         ns-right-option-modifier 'super
         )
-   ;; (setq exec-path-from-shell-debug t)
+  ;; (setq exec-path-from-shell-debug t)
   :config
   (setq exec-path-from-shell-arguments (list "-l")) ;; (list "-l" "-i")
   (setq exec-path-from-shell-variables '("PATH"))
@@ -1035,18 +1086,18 @@ the list is kept."
 (use-package counsel
   :defer t
   :bind* (
-         ("M-x" . counsel-M-x)
-         ("C-x b" . ivy-switch-buffer)
-;;         ("C-x C-b" . counsel-ibuffer)
-         ("C-x C-f" . counsel-find-file)
-         ("C-x M-f" . counsel-file-jump)
-         ("C-x C-d" . counsel-dired)
-         ("C-x f" . counsel-recentf)
-         ("C-x C-a" . counsel-ag)
-         ("C-h f" . counsel-describe-function)
-         ("C-h v" . counsel-describe-variable)
-         ("C-h i" . counsel-info-lookup-symbol) 
-         )
+          ("M-x" . counsel-M-x)
+          ("C-x b" . ivy-switch-buffer)
+          ;;         ("C-x C-b" . counsel-ibuffer)
+          ("C-x C-f" . counsel-find-file)
+          ("C-x M-f" . counsel-file-jump)
+          ("C-x C-d" . counsel-dired)
+          ("C-x f" . counsel-recentf)
+          ("C-x C-a" . counsel-ag)
+          ("C-h f" . counsel-describe-function)
+          ("C-h v" . counsel-describe-variable)
+          ("C-h i" . counsel-info-lookup-symbol) 
+          )
   :delight
   ;; :custom
   ;; (counsel-yank-pop-separator "\n----\n")
@@ -1057,9 +1108,9 @@ the list is kept."
 
 *** csv
 #+begin_src emacs-lisp :lexical t 
-  (use-package csv-mode
-    :mode "\\.csv\\'"
-    )
+(use-package csv-mode
+  :mode "\\.csv\\'"
+  )
 #+end_src
 
 *** d20
@@ -1453,9 +1504,9 @@ the list is kept."
   :config
   (drag-stuff-global-mode 1)
   :bind* (
-         ("C-M-<down>" . drag-stuff-down)
-         ("C-M-<up>" . drag-stuff-up)  
-         )
+          ("C-M-<down>" . drag-stuff-down)
+          ("C-M-<up>" . drag-stuff-up)  
+          )
   )
 #+end_src
 
@@ -1546,7 +1597,7 @@ the list is kept."
   (setq
    indent-bars-prefer-character t
    indent-bars-color '(highlight :face-bg t :blend 0.5)
-;;   indent-bars-pattern ". . . . . . . . ." ; play with the number of dots for your usual font size
+   ;;   indent-bars-pattern ". . . . . . . . ." ; play with the number of dots for your usual font size
    indent-bars-width-frac 0.3
    indent-bars-pad-frac 0.1
    indent-bars-display-on-blank-lines t
@@ -1603,17 +1654,17 @@ the list is kept."
   :hook (prog-mode text-mode)
   :config
   (setq hl-todo-keyword-faces
-   '(("TODO" . "#E078F5")
-     ("NOTE" . "#1EAFFF")
-     ("HACK" . "#FF5B24")
-     ("BUG"  . "#FF0000")
-     ))
+        '(("TODO" . "#E078F5")
+          ("NOTE" . "#1EAFFF")
+          ("HACK" . "#FF5B24")
+          ("BUG"  . "#FF0000")
+          ))
   (global-hl-todo-mode)
   :bind* (
-         ("H-t t" . hl-todo-insert)
-         ("H-t n" . hl-todo-next)
-         ("H-t p" . hl-todo-previous)
-         )
+          ("H-t t" . hl-todo-insert)
+          ("H-t n" . hl-todo-next)
+          ("H-t p" . hl-todo-previous)
+          )
   )
 
 #+end_src
@@ -1742,7 +1793,7 @@ the list is kept."
 (use-package markdown-mode
   :defer t
   )
-  
+
 #+end_src
 
 *** mwim
@@ -1783,108 +1834,108 @@ the list is kept."
   :bind* ("C-x d" . neotree)
   :custom
   (neo-theme 'arrow)
-)
+  )
 #+end_src 
    
 *** org
 **** org general
 
 #+begin_src emacs-lisp :lexical t
-  (use-feature org
-    :defer t
-    :custom
-    (enable-local-variables t)
-    (org-display-remote-inline-images 'cache)
-    (org-startup-folded t)
-    (org-startup-indented t)
-    (org-log-done t)
-    (org-return-follows-link t)
-    (org-confirm-babel-evaluate nil)
-    :bind (
-           :map org-mode-map
-           ;;("C-M-<up>" . org-shiftmetaup)
-           ;;("C-M-<down>" . org-shiftmetadown)
-           ("s-C-l" . seth-org/clear-all-results)
-           ("C-M-<left>" . org-shiftmetaleft)
-           ("C-M-<right>" . org-shiftmetaright)
-           ("C-M-S-<left>" . org-shiftcontrolleft)
-           ("C-M-S-<right>" . org-shiftcontrolright)
-           ("s-p" . org-babel-previous-src-block)
-           ("s-n" . org-babel-next-src-block)
-           ("s-l" . org-babel-remove-result)
-           ("s-<tab>" . completion-at-point)
-           ("s-z" . org-babel-switch-to-session)
-           ) 
-    :init
-    (defun seth-org/clear-all-results ()
-      "Clear all results in the buffer."
-      (interactive)
-      (save-excursion
-        (goto-char (point-min))
-        (while (org-babel-next-src-block)
-          (forward-line -1)
-          (beginning-of-line)
-          (when (looking-at "#\\+LASTRUN:")
-            (delete-region (pos-bol) (1- (pos-bol 2)))
-            (delete-line)
-            )
-          (forward-line 1)
-          (org-babel-remove-result))))
+(use-feature org
+  :defer t
+  :custom
+  (enable-local-variables t)
+  (org-display-remote-inline-images 'cache)
+  (org-startup-folded t)
+  (org-startup-indented t)
+  (org-log-done t)
+  (org-return-follows-link t)
+  (org-confirm-babel-evaluate nil)
+  :bind (
+         :map org-mode-map
+         ;;("C-M-<up>" . org-shiftmetaup)
+         ;;("C-M-<down>" . org-shiftmetadown)
+         ("s-C-l" . seth-org/clear-all-results)
+         ("C-M-<left>" . org-shiftmetaleft)
+         ("C-M-<right>" . org-shiftmetaright)
+         ("C-M-S-<left>" . org-shiftcontrolleft)
+         ("C-M-S-<right>" . org-shiftcontrolright)
+         ("s-p" . org-babel-previous-src-block)
+         ("s-n" . org-babel-next-src-block)
+         ("s-l" . org-babel-remove-result)
+         ("s-<tab>" . completion-at-point)
+         ("s-z" . org-babel-switch-to-session)
+         ) 
+  :init
+  (defun seth-org/clear-all-results ()
+    "Clear all results in the buffer."
+    (interactive)
+    (save-excursion
+      (goto-char (point-min))
+      (while (org-babel-next-src-block)
+        (forward-line -1)
+        (beginning-of-line)
+        (when (looking-at "#\\+LASTRUN:")
+          (delete-region (pos-bol) (1- (pos-bol 2)))
+          (delete-line)
+          )
+        (forward-line 1)
+        (org-babel-remove-result))))
 
-    (add-hook 'org-mode-hook (lambda ()
-                               (setq-local seth-jupyter-execution-count 1)))
-    ;; (setq seth-jupyter-execution-count 1)
-    
-    (setq org-src-fontify-natively t
-          org-src-window-setup 'current-window ;; edit in current window
-          org-src-strip-leading-and-trailing-blank-lines t
-          org-src-preserve-indentation t ;; do not put two spaces on the left
-          org-src-tab-acts-natively t)
+  (add-hook 'org-mode-hook (lambda ()
+                             (setq-local seth-jupyter-execution-count 1)))
+  ;; (setq seth-jupyter-execution-count 1)
+  
+  (setq org-src-fontify-natively t
+        org-src-window-setup 'current-window ;; edit in current window
+        org-src-strip-leading-and-trailing-blank-lines t
+        org-src-preserve-indentation t ;; do not put two spaces on the left
+        org-src-tab-acts-natively t)
 
-    :config
-    ;; (require 'scimax-jupyter)
-    ;; (defun seth-org-babel-add-time-stamp-after-execute-before-src-block ()
-    ;;   ;; (sleep-for 2)    
-    ;;   (end-of-line)
-    ;;   (save-excursion
-    ;;     (search-backward "#+BEGIN_SRC" 0 t)
-    ;;     (forward-line -1)
-    ;;     (beginning-of-line)
+  :config
+  ;; (require 'scimax-jupyter)
+  ;; (defun seth-org-babel-add-time-stamp-after-execute-before-src-block ()
+  ;;   ;; (sleep-for 2)    
+  ;;   (end-of-line)
+  ;;   (save-excursion
+  ;;     (search-backward "#+BEGIN_SRC" 0 t)
+  ;;     (forward-line -1)
+  ;;     (beginning-of-line)
 
-    ;;     (if (looking-at "#\\+LASTRUN:")
-    ;;         (delete-region (pos-bol) (1- (pos-bol 2)))
-    ;;       (open-line 1)
-    ;;       (next-line 1)
-    ;;       )
-        
-    ;;     (insert (concat
-    ;;              "#+LASTRUN: "
-    ;;              (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
-    ;;              " ["
-    ;;              (int-to-string seth-jupyter-execution-count)
-    ;;              "]"
-    ;;              ))
-    ;;     (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))
-    ;;     )
-    ;;   )
+  ;;     (if (looking-at "#\\+LASTRUN:")
+  ;;         (delete-region (pos-bol) (1- (pos-bol 2)))
+  ;;       (open-line 1)
+  ;;       (next-line 1)
+  ;;       )
+  
+  ;;     (insert (concat
+  ;;              "#+LASTRUN: "
+  ;;              (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
+  ;;              " ["
+  ;;              (int-to-string seth-jupyter-execution-count)
+  ;;              "]"
+  ;;              ))
+  ;;     (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))
+  ;;     )
+  ;;   )
 
-    ;; (add-hook 'org-babel-after-execute-hook
-    ;;           'seth-org-babel-add-time-stamp-after-execute-before-src-block)
+  ;; (add-hook 'org-babel-after-execute-hook
+  ;;           'seth-org-babel-add-time-stamp-after-execute-before-src-block)
 
-    )
+  )
 
-  ;; Backend for HTML Table export
+;; Backend for HTML Table export
 
-  ;;(require 'ox-html)
-  ;;(defun ox-mrkup-filter-bold
-  ;;    (text back-end info)
-  ;;  "Markup TEXT as <bold>TEXT</bold>. Ignore BACK-END and INFO."
-  ;;  (format "<bold>%s</bold>" text))
-  ;;
-  ;;(org-export-define-derived-backend 'htmlTable 'html
-  ;;  :filters-alist
-  ;;  '((:filter-body . ox-mrkup-filter-body)
-  ;;    ))
+;;(require 'ox-html)
+;;(defun ox-mrkup-filter-bold
+;;    (text back-end info)
+;;  "Markup TEXT as <bold>TEXT</bold>. Ignore BACK-END and INFO."
+;;  (format "<bold>%s</bold>" text))
+;;
+;;(org-export-define-derived-backend 'htmlTable 'html
+;;  :filters-alist
+;;  '((:filter-body . ox-mrkup-filter-body)
+;;    ))
 
 #+end_src
 
@@ -1959,7 +2010,7 @@ the list is kept."
 
 *** outline indend
 #+begin_src emacs-lisp :lexical t
-  (use-package outline-indent
+(use-package outline-indent
   :ensure t
   :delight
   :custom
@@ -1980,12 +2031,12 @@ the list is kept."
 
 *** page-break lines
 #+begin_src emacs-lisp :lexical t
-  (use-package page-break-lines
-    :defer t
-    :delight
-    :config
-    (global-page-break-lines-mode)
-    )
+(use-package page-break-lines
+  :defer t
+  :delight
+  :config
+  (global-page-break-lines-mode)
+  )
 
 #+end_src
 
@@ -2111,7 +2162,7 @@ the list is kept."
 - [X] add in cells above, cells below
   
 ***** things I want to keep in mind
- I like this
+I like this
 (setq jupyter-repl-echo-eval-p nil) is there a mini of this where just the output is sent to the repl cells?
 
 **** code-cells
@@ -2211,8 +2262,8 @@ the list is kept."
         (insert "# %%")
         )
       (while (code-cells-forward-cell 1)
-          (delete-region (point) (line-end-position))
-          (insert "# %%")
+        (delete-region (point) (line-end-position))
+        (insert "# %%")
         ))
     )
 
@@ -2454,22 +2505,22 @@ the list is kept."
   (require 'smartparens-config)
   (smartparens-global-mode t)
   :bind* (
-         ("M-<up>"  . sp-beginning-of-sexp)
-         ("M-<down>"  . sp-end-of-sexp)
-         ("C-<right>"  . sp-forward-slurp-sexp)
-         ("M-<right>"  . sp-forward-barf-sexp)
-         ("C-<left>"   . sp-backward-slurp-sexp)
-         ("M-<left>"   . sp-backward-barf-sexp)
-         ("C-M-k"  . sp-kill-sexp)
-         ("C-k"    . sp-kill-hybrid-sexp)
-         ("M-k"    . sp-backward-kill-sexp)
-         ("C-M-w"  . sp-copy-sexp)
-         ("M-s s"  . sp-split-sexp)
-         ("M-s j"  . sp-join-sexp)
-         ("M-]"  . sp-backward-unwrap-sexp)
-         ("M-["  . sp-unwrap-sexp)
-         ("C-x C-t"  . sp-transpose-hybrid-sexp)
-         )
+          ("M-<up>"  . sp-beginning-of-sexp)
+          ("M-<down>"  . sp-end-of-sexp)
+          ("C-<right>"  . sp-forward-slurp-sexp)
+          ("M-<right>"  . sp-forward-barf-sexp)
+          ("C-<left>"   . sp-backward-slurp-sexp)
+          ("M-<left>"   . sp-backward-barf-sexp)
+          ("C-M-k"  . sp-kill-sexp)
+          ("C-k"    . sp-kill-hybrid-sexp)
+          ("M-k"    . sp-backward-kill-sexp)
+          ("C-M-w"  . sp-copy-sexp)
+          ("M-s s"  . sp-split-sexp)
+          ("M-s j"  . sp-join-sexp)
+          ("M-]"  . sp-backward-unwrap-sexp)
+          ("M-["  . sp-unwrap-sexp)
+          ("C-x C-t"  . sp-transpose-hybrid-sexp)
+          )
   :demand t
   )
 
@@ -2479,7 +2530,7 @@ the list is kept."
 #+begin_src emacs-lisp :lexical t
 ;; keep recent commands available in M-x
 (use-package smex)
-  
+
 #+end_src
 
 *** ssh-tunnels
@@ -2495,12 +2546,12 @@ the list is kept."
            )
   :custom
   (ssh-tunnels-configurations
-      '((:name "dev socket"
-         :local-port 12345
-         :remote-port 12345
-         :login "sfigueroa@dev.focusvq.com"
-         :type "-L")
-        ))
+   '((:name "dev socket"
+            :local-port 12345
+            :remote-port 12345
+            :login "sfigueroa@dev.focusvq.com"
+            :type "-L")
+     ))
 
   :bind (:map ssh-tunnels-mode-map
               ("n" . seth-ssh-tunnel-add)
@@ -2509,11 +2560,11 @@ the list is kept."
   (defun seth-ssh-tunnel-add (name port)
     (interactive "sName: \nnPort: ")
     (let ((conf `(:name ,name
-                       :local-port ,port
-                       :remote-port ,port
-                       :login "sfigueroa@dev.focusvq.com"
-                       :type "-L"
-                       )))
+                        :local-port ,port
+                        :remote-port ,port
+                        :login "sfigueroa@dev.focusvq.com"
+                        :type "-L"
+                        )))
       (add-to-list 'ssh-tunnels-configurations conf)
       (ssh-tunnels-refresh)
       )
@@ -2532,9 +2583,9 @@ the list is kept."
   :defer t
   :delight
   :bind* (
-         ("C-s" . swiper)
-         ("H-s" . swiper-all)
-         )
+          ("C-s" . swiper)
+          ("H-s" . swiper-all)
+          )
   )
 
 #+end_src
@@ -2753,7 +2804,7 @@ the list is kept."
           ("H-f c" . rotate-frame-clockwise)
           ("H-f a" . rotate-frame-anti-clockwise)
           )
-)
+  )
 #+end_src 
 
 *** tree-sitter
@@ -2881,13 +2932,14 @@ the list is kept."
   ;; cd build
   ;; cmake ..
   ;; make
+  :init
+  (setq vterm-tramp-shells '(("scp" "/usr/bin/zsh")))
+  (setq vterm-shell "/bin/zsh")
   :config
   (setq vterm-timer-delay 0.01)
   )
+
 (use-package multi-vterm
-  :init
-  (setq vterm-tramp-shells '(("scp" "/usr/bin/zsh")))
-  (setq vterm-shell "/usr/local/bin/zsh")
   :bind (
          ("C-x t" . multi-vterm-project)
          ("C-x M-t" . multi-vterm)
@@ -2945,3 +2997,8 @@ the list is kept."
 ;;; init.el ends here
 #+end_src
 
+* NOTES
+Use brew to install everything needed and point it to the right directory
+vterm should install itself and not need manual anymore
+jupyter and eglot need conda environments and their kernels. Look for any kernels that are dissapeared.
+I use this to isntall emacs > brew install emacs-plus@30 --with-modern-black-dragon-icon --with-ctags --with-debug --with-dbus --with-no-frame-refocus --with-xwidgets --with-imagemagick
