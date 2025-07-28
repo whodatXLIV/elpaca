@@ -1892,7 +1892,27 @@ the list is kept."
         org-src-preserve-indentation t ;; do not put two spaces on the left
         org-src-tab-acts-natively t)
 
+  
   :config
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((emacs-lisp . t)
+     (julia . t)
+     (python . t)
+     (sql . t)
+     ;; (sql-mode . t)
+     ;; (sql-session . t)
+     (jupyter . t)))
+  
+  (defun do-org-confirm-babel-evaluations (lang body)
+    (not
+     (or
+      (string= lang "elisp")
+      (string= lang "sql")
+      (string= lang "sql-mode")
+      ;; (string= lang "sql-session")
+      )))
+  (setq org-confirm-babel-evaluate 'do-org-confirm-babel-evaluations)
   ;; (require 'scimax-jupyter)
   ;; (defun seth-org-babel-add-time-stamp-after-execute-before-src-block ()
   ;;   ;; (sleep-for 2)    
@@ -1937,6 +1957,20 @@ the list is kept."
 ;;  '((:filter-body . ox-mrkup-filter-body)
 ;;    ))
 
+;; (use-package ob-sql-mode
+;;   :ensure t
+;;   ;; :hook (org-mode)
+;;   :config
+;;   (require 'ob-sql-mode)
+;; )
+
+;; (use-package ob-sql-session
+;;   :defer t
+;;   :hook (org-mode)
+;;   :ensure (:host github
+;;            :repo "flintforge/ob-sql-session"
+;;            )
+;;   )
 #+end_src
 
 **** org modern
@@ -2300,9 +2334,13 @@ I like this
   :init
   (setq-default eglot-workspace-configuration
                 '(:pylsp (:plugins (
+                                    :black (:enabled t :cache_config t :skip_magic_trailing_comma :json-false)
+                                    :pyflakes (:enabled t)
+                                    :pycodestyle (:enabled :json-false)
+                                    :autopep8 (:enabled :json-false)
                                     :pylint (:enabled :json-false)
                                     :autopep8 (:enabled :json-false)
-                                    ;; :yapf (:enabled :json-false)
+                                    :yapf (:enabled :json-false)
                                     :mccabe (:enabled :json-false)
                                     :jedi_completion (:enabled t
                                                                :include_params t
@@ -2348,7 +2386,7 @@ I like this
            (class eglot-lsp-server)
            (language-ids (list "python"))
            )
-      (jupyter-run-repl env buffer-file-name t 'jupyter-repl-client)
+      ;; (jupyter-run-repl env buffer-file-name t 'jupyter-repl-client)
       ;; (kill-new contact)
       (apply 'eglot (list managed-modes project class (list contact) language-ids))
       ;; (call-interactively 'eglot)
@@ -2389,12 +2427,6 @@ I like this
   :config
   (defvaralias 'org-babel-jupyter-resource-directory 'jupyter-org-resource-directory)
   (setq org-babel-jupyter-resource-directory "./plots/")
-  (org-babel-do-load-languages
-   'org-babel-load-languages
-   '((emacs-lisp . t)
-     (julia . t)
-     (python . t)
-     (jupyter . t)))
   )
 
 (use-package zmq
@@ -2427,9 +2459,9 @@ I like this
 
 **** yapify
 #+begin_src emacs-lisp :lexical t
-(use-package yapfify
-  :defer t
-  :hook (python-mode . yapf-mode))
+;; (use-package yapfify
+;;   :defer t
+;;   :hook (python-mode . yapf-mode))
 ;; (add-hook 'python-mode-hook 'yapf-mode)
 #+end_src
 
