@@ -795,6 +795,23 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 ** Install Packages
 *** ace
+**** jump mode
+#+begin_src emacs-lisp :lexical t
+(use-package ace-jump-mode
+  :delight
+  :bind* ("H-j" . ace-jump-mode)
+  :defer t
+  )
+#+end_src
+
+**** multiple cursors
+#+begin_src emacs-lisp :lexical t
+(use-package ace-mc
+  :delight
+  :bind* ("H-;" . ace-mc-add-multiple-cursors)
+  :defer t
+  )
+#+end_src
 **** window
 
 #+begin_src emacs-lisp :lexical t
@@ -837,23 +854,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   )
 #+end_src
 
-**** jump mode
-#+begin_src emacs-lisp :lexical t
-(use-package ace-jump-mode
-  :delight
-  :bind* ("H-j" . ace-jump-mode)
-  :defer t
-  )
-#+end_src
-
-**** multiple cursors
-#+begin_src emacs-lisp :lexical t
-(use-package ace-mc
-  :delight
-  :bind* ("H-;" . ace-mc-add-multiple-cursors)
-  :defer t
-  )
-#+end_src
 *** activities
 #+begin_src emacs-lisp :lexical t
 
@@ -876,7 +876,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (activities-mode t)
   )
 #+end_src
-
 *** auto-tangle-mode
 
 #+begin_src emacs-lisp :lexical t
@@ -1668,19 +1667,6 @@ the list is kept."
   )
 
 #+end_src
-*** magit-todos
-
-#+begin_src emacs-lisp :lexical t
-(use-package magit-todos
-  :delight
-  :defer t
-  :after magit
-  :config
-  (magit-todos-mode 1)
-  )
-
-#+end_src
-
 *** hydra
 
 
@@ -1742,6 +1728,18 @@ the list is kept."
   (ivy-rich-mode 1))
 #+end_src
 
+*** latex
+#+begin_src emacs-lisp :lexical t
+(use-package latex
+  :defer t
+  :delight
+  :ensure auctex
+  :config
+  (setq TeX-auto-save t)
+  :mode
+  (("\\.tex$" . LaTeX-mode ))
+)
+#+end_src
 *** magit
 
 #+begin_src emacs-lisp :lexical t
@@ -1756,6 +1754,19 @@ the list is kept."
   (setq magit-completing-read-function 'ivy-completing-read)
   (setenv "GIT_ASKPASS" "git-gui--askpass")
   )
+#+end_src
+
+*** magit-todos
+
+#+begin_src emacs-lisp :lexical t
+(use-package magit-todos
+  :delight
+  :defer t
+  :after magit
+  :config
+  (magit-todos-mode 1)
+  )
+
 #+end_src
 
 *** marginalia
@@ -1796,17 +1807,6 @@ the list is kept."
 
 #+end_src
 
-*** mwim
-#+begin_src emacs-lisp :lexical t
-(use-package mwim
-  :bind (
-         ;; My personal favorites
-         ("C-a" . mwim-beginning-of-code-or-line)
-         ("C-e" . mwim-end-of-code-or-line)
-         ))
-
-#+end_src
-
 *** Multiple cursors
 #+begin_src emacs-lisp :lexical t
 (use-package multiple-cursors
@@ -1820,6 +1820,17 @@ the list is kept."
          ("C-;" . mc-hide-unmatched-lines-mode)
          )
   ) 
+
+#+end_src
+
+*** mwim
+#+begin_src emacs-lisp :lexical t
+(use-package mwim
+  :bind (
+         ;; My personal favorites
+         ("C-a" . mwim-beginning-of-code-or-line)
+         ("C-e" . mwim-end-of-code-or-line)
+         ))
 
 #+end_src
 
@@ -2071,6 +2082,33 @@ the list is kept."
   :config
   (global-page-break-lines-mode)
   )
+
+#+end_src
+
+*** pdf-tools
+#+begin_src emacs-lisp :lexical t
+(use-package pdf-tools
+  :defer t
+  :delight
+  :mode
+  (("\\.pdf$" . pdf-view-mode))
+  :custom
+  pdf-annot-activate-created-annotations t 
+  pdf-view-resize-factor 1.1
+  :hook
+  ((pdf-view-mode) . (lambda () (cua-mode 0)))
+ 
+  :config
+  (pdf-tools-install)
+  (pdf-loader-install)
+  (setq TeX-view-program-selection '((output-pdf "PDF Tools"))
+        TeX-view-program-list '(("PDF Tools" TeX-pdf-tools-sync-view))
+        TeX-source-correlate-start-server t)
+  (add-hook 'TeX-after-compilation-finished-functions #'TeX-revert-document-buffer)
+  (setq-default pdf-view-display-size 'fit-page)
+  (add-hook 'pdf-view-mode-hook
+            (lambda () (display-line-numbers-mode -1)))
+)
 
 #+end_src
 
@@ -2867,6 +2905,17 @@ I like this
   )
 #+end_src
 
+*** ultra scroll
+#+begin_src emacs-lisp :lexical t
+(use-package ultra-scroll
+  :ensure (ultra-scroll :host github :repo "jdtsmith/ultra-scroll")
+  :init
+  (setq scroll-conservatively 101 ; important!
+        scroll-margin 0)
+  :config
+  (ultra-scroll-mode 1))
+#+end_src
+
 *** undo
 #+begin_src emacs-lisp :lexical t
 ;; (use-package undo-fu-session
@@ -2941,17 +2990,6 @@ I like this
   :config
   (global-undo-tree-mode)
   )
-#+end_src
-
-*** ultra scroll
-#+begin_src emacs-lisp :lexical t
-(use-package ultra-scroll
-  :ensure (ultra-scroll :host github :repo "jdtsmith/ultra-scroll")
-  :init
-  (setq scroll-conservatively 101 ; important!
-        scroll-margin 0)
-  :config
-  (ultra-scroll-mode 1))
 #+end_src
 
 *** vterm
