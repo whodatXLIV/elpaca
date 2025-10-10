@@ -794,6 +794,20 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+END_SRC
 
 ** Install Packages
+*** 20/20/20
+#+begin_src emacs-lisp :lexical t :tangle no
+
+(use-package twen-twen-tw
+  :delight
+  :ensure (twen-twen-tw
+           :type git
+           :host github
+           :repo "benbellick/twen-twen-tw.el"
+           :local-repo "twen-twen-tw")
+  :config
+  (twen-twen-tw-mode 1)
+  )
+#+end_src
 *** ace
 **** jump mode
 #+begin_src emacs-lisp :lexical t
@@ -853,7 +867,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     "List of actions for `aw-dispatch-default'.")
   )
 #+end_src
-
 *** activities
 #+begin_src emacs-lisp :lexical t
 
@@ -1017,8 +1030,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package company
   :delight
   :defer t
+  :ensure company-spell
   :bind* ("C-<tab>" . company-other-backend)
-  :hook ((prog-mode org-mode python-mode) . company-mode)
+  :hook ((prog-mode org-mode python-mode LaTeX-mode) . company-mode)
   :custom-face
   (company-preview                      ((t (:background "gray10" :foreground "#c397d8" :extend t))))
   (company-preview-common               ((t (:inherit company-preview :foreground "#c397d8" :extend t))))
@@ -1074,7 +1088,7 @@ the list is kept."
     list)
   
   :config
-  (add-to-list 'company-backends 'company-yasnippet)
+  (add-to-list 'company-backends 'company-yasnippet 'company-ispell)
   )
 
 #+end_src
@@ -1387,13 +1401,38 @@ the list is kept."
   )
 #+end_src
 
+*** denote
+#+begin_src emacs-lisp :lexical t
+(use-package denote
+  :bind* (
+          ("H-n n" . denote-subdirectory)
+          ("H-n l" . denote-link)
+          ("H-n b" . denote-backlinks)
+          ("H-n q" . denote-query-contents-link)
+          ("H-n f" . denote-query-filenames-link)
+          ("H-n k" . denote-rename-file-keywords)
+          ("H-n o" . denote-open-link-at-point)
+          ("H-n s l" . denote-find-link)
+          ("H-n s b" . denote-find-backlink)
+          )
+  :config
+  (setq denote-directory (expand-file-name "~/Google Drive/My Drive/Denote/"))
+  (add-hook 'dired-mode-hook #'denote-dired-mode)
+  (setq denote-rename-buffer-mode t)
+  )
+
+(use-package denote-markdown
+  :after denote
+  :config
+  (setq denote-file-type 'markdown-yaml)
+  )
+
+#+end_src
+
 *** dired
 
 #+begin_src emacs-lisp :lexical t
-;; (use-package all-the-icons
-;;   :defer t
-;;   :if (display-graphic-p)
-;;   )
+
 (use-package nerd-icons)
 (use-package nerd-icons-dired
   :defer t
@@ -1402,13 +1441,7 @@ the list is kept."
   ;; :custom
   ;; (all-the-icons-dired-monochrome nil)
   )
-;; (use-package all-the-icons-dired
-;;   :defer t
-;;   :delight
-;;   :hook (dired-mode . all-the-icons-dired-mode)
-;;   :custom
-;;   (all-the-icons-dired-monochrome nil)
-;;   )
+
 ;; (use-package dired-subtree
 ;;   :delight
 ;;   :bind (
@@ -1427,13 +1460,38 @@ the list is kept."
 
 (use-package dired-filter
   :custom
+  (dired-filter-prefix "/ f")
+  (dired-filter-mark-prefix "/ m")
   (dired-listing-switches "-alogh")
   :defer t
   :hook (dired-mode)
   )
 
+(use-package dired-sort
+  :after dired
+  :ensure (dired-sort :type git :host github :repo "MichaelKazarian/dired-sort")
+  :defer t
+  :bind (:map dired-mode-map
+              ("/ s n" . dired-sort-by-name)
+              ("/ s r n" . dired-sort-by-name-reverse)
+              ("/ s d" . dired-sort-by-date)	
+              ("/ s r d" . dired-sort-by-date-reverse)
+              ("/ s x" . dired-sort-by-extension)	
+              ("/ s r x" . dired-sort-by-extension-reverse)
+              ("/ f h" . dired-sort-toggle-hidden)	
+              ("/ s m" . dired-sort-show-menu)	
+              ("/ s c" . dired-sort-show-completion)              
+              )
+
+  :config
+  (dired-sort-mode 1)
+  (require 'ls-lisp)
+  (setq ls-lisp-use-insert-directory-program nil)
+  (setq ls-lisp-dirs-first t)
+  )
+
+
 (use-feature dired
-  ;; :bind* ("C-x d" . seth/dired-side-vc)
   :defer t
   :delight
   :custom-face
@@ -1442,53 +1500,7 @@ the list is kept."
   :config
   ;; (require 'dired-subtree)
   (when (string= system-type "darwin")       
-    (setq dired-use-ls-dired nil))
-  ;; (defun seth/dired-side--vc (directory)
-  ;;   "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
-  ;;   (let* (
-  ;;          (backend (vc-responsible-backend directory t))
-  ;;          (dir (if (eq backend nil)
-  ;;                   directory
-  ;;                 (expand-file-name (vc-call-backend backend 'root directory))))
-  ;;          (dired_dir (dired-noselect dir))
-  ;;          (path-list (split-string (first (last (split-string directory dir))) "/"))
-  ;;          )
-  ;;     (display-buffer-in-side-window
-  ;;      dired_dir `((side . left)
-  ;;                  (slot . 0)
-  ;;                  (window-width . 0.3)
-  ;;                  (window-parameters) . ((no-other-window . t)
-  ;;                                         (no-delete-other-windows . t)
-  ;;                                         (mode-line-format . (" " "%b"))
-  ;;                                         )
-  ;;                  )
-  ;;      )
-  ;;     (with-current-buffer dired_dir
-  ;;       (setq window-size-fixed 'width)
-  ;;       (switch-to-buffer-other-frame dired_dir)
-  ;;       (revert-buffer)
-  ;;       (dired-hide-details-mode)
-  ;;       (goto-char 0)
-  ;;       (cl-loop for p in path-list do
-  ;;                (goto-char (search-forward p))
-  ;;                (dired-subtree-insert)
-  ;;                )
-  ;;       )
-  ;;     )
-  ;;   )
-  ;; (defun seth/dired-side-vc (&optional initial-input)
-  ;;   "Open the root directory of the current version-controlled repository or th present working directory with `dired' and bespoke window parameters."
-  ;;   (interactive) 
-  ;;   (ivy-read "Dired: " #'read-file-name-internal
-  ;;             :matcher #'counsel--find-file-matcher
-  ;;             :initial-input initial-input
-  ;;             :action (lambda (d) (seth/dired-side--vc (expand-file-name d)))
-  ;;             :preselect (counsel--preselect-file)
-  ;;             :require-match 'confirm-after-completion
-  ;;             :history 'file-name-history
-  ;;             :keymap counsel-find-file-map
-  ;;             :caller 'counsel-dired)
-  ;;   )    
+    (setq dired-use-ls-dired nil))    
   )
 
 
@@ -1734,10 +1746,14 @@ the list is kept."
   :defer t
   :delight
   :ensure auctex
-  :config
-  (setq TeX-auto-save t)
   :mode
   (("\\.tex$" . LaTeX-mode ))
+  :config
+  (setq TeX-auto-save t)
+  (setq TeX-view-program-selection '((output-pdf "PDF Tools"))
+        TeX-view-program-list '(("PDF Tools" TeX-pdf-tools-sync-view))
+        TeX-source-correlate-start-server t)
+  (add-hook 'TeX-after-compilation-finished-functions #'TeX-revert-document-buffer)
 )
 #+end_src
 *** magit
@@ -1803,7 +1819,15 @@ the list is kept."
 
 (use-package markdown-mode
   :defer t
-  )
+  :custom-face
+  (markdown-header-delimiter-face ((t  :foreground "#616161" :height 0.9)))
+  (markdown-header-face-1 ((t  :height 1.4 :foreground "#A3BE8C" :weight extra-bold :inherit markdown-header-face)))
+  (markdown-header-face-2 ((t  :height 1.2 :foreground "#EBCB8B" :weight extra-bold :inherit markdown-header-face)))
+  (markdown-header-face-3 ((t  :height 1.15 :foreground "#D08770" :weight extra-bold :inherit markdown-header-face)))
+  (markdown-header-face-4 ((t  :height 1.1 :foreground "#BF616A" :weight bold :inherit markdown-header-face)))
+  (markdown-header-face-5 ((t  :height 1.05 :foreground "#b48ead" :weight bold :inherit markdown-header-face)))
+  (markdown-header-face-6 ((t  :height 1 :foreground "#5e81ac" :weight semi-bold :inherit markdown-header-face)))
+)
 
 #+end_src
 
@@ -2101,10 +2125,6 @@ the list is kept."
   :config
   (pdf-tools-install)
   (pdf-loader-install)
-  (setq TeX-view-program-selection '((output-pdf "PDF Tools"))
-        TeX-view-program-list '(("PDF Tools" TeX-pdf-tools-sync-view))
-        TeX-source-correlate-start-server t)
-  (add-hook 'TeX-after-compilation-finished-functions #'TeX-revert-document-buffer)
   (setq-default pdf-view-display-size 'fit-page)
   (add-hook 'pdf-view-mode-hook
             (lambda () (display-line-numbers-mode -1)))

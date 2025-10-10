@@ -3,9 +3,12 @@
 
 (setq mc/cmds-to-run-for-all
       '(
+        LaTeX-babel-insert-hyphen
+        abbrev-prefix-mark
         beginning-of-buffer
         comment-line
         company-other-backend
+        counsel-yank-pop
         end-of-buffer
         indent-for-tab-command
         kill-region
@@ -27,6 +30,7 @@
         sp-kill-hybrid-sexp
         sp-unwrap-sexp
         tab-line-select-tab
+        ultra-scroll
         vterm-end-of-line
         ))
 
@@ -41,10 +45,12 @@
         ace-mc-quick-exchange
         ace-window
         counsel-M-x
+        counsel-ag
         embark-dwim
         ivy-switch-buffer
         seth-tab-config-tab2-select-filter-button
         swiper
         tabbar-move-group-backward
         tabbar-press-home
+        ultra-scroll
         ))
