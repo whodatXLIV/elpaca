@@ -570,8 +570,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (put 'upcase-region 'disabled nil)
 (put 'downcase-region 'disabled nil)
 
-(setq mark-ring-max 4)
-(setq global-mark-ring-max 4)
+(setq mark-ring-max 10)
+(setq global-mark-ring-max 10)
 
 (setq mouse-wheel-scroll-amount '(1 ((shift) . 1))) ;; one line at a time
 (setq mouse-wheel-progressive-speed nil) ;; don't accelerate scrolling
@@ -584,12 +584,12 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (setq-default indent-tabs-mode nil)
 (setq-default tab-width 4)
 
-(setq font-lock-maximum-decoration 2)
+(setq font-lock-maximum-decoration 4)
 
 
 (defun connect-focusvq-home ()
   (interactive)
-  (dired "/scp:sfigueroa@dev:~"))
+  (dired "/ssh:sfigueroa@dev:~"))
 
 (setq sql-connection-alist
       '(
@@ -606,6 +606,13 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                       (sql-user "fds")
                       (sql-password "WnJSuqmND9i0ePYw")
                       (sql-database "elcano"))
+       
+      (mysql-deploy (sql-product 'mysql)
+                      (sql-port 0)
+                      (sql-server "db.internal.focusvq.com")
+                      (sql-user "fds")
+                      (sql-password "WnJSuqmND9i0ePYw")
+                      (sql-database "fvq_account_manager"))
         )
       )
 
@@ -748,7 +755,39 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 *** tramp
 #+begin_src emacs-lisp :lexical t
-(use-feature tramp 
+;; (use-package msgpack
+;;   :ensure t)
+
+;; (use-package tramp-rpc
+;;   :ensure (tramp-rpc
+;;            :host github
+;;            :repo "ArthurHeymans/emacs-tramp-rpc"
+;;            :files ("lisp/*.el")
+;;            :main "lisp/tramp-rpc.el"
+;;            )
+;;   :after msgpack
+;;   ;; :config
+;;   ;; Prefer building from source over downloading (default: nil)
+;;   ;; (setq tramp-rpc-deploy-prefer-build t)
+
+;;   ;; Local cache directory (default: ~/.emacs.d/tramp-rpc/)
+;;   ;; (setq tramp-rpc-deploy-local-cache-directory "~/.cache/tramp-rpc-binaries")
+
+;;   ;; Remote installation directory (default: ~/.cache/tramp-rpc)
+;;   ;; (setq tramp-rpc-deploy-remote-directory "~/.local/bin/tramp-rpc")
+
+;;   ;; Disable automatic deployment (default: t)
+;;   ;; (setq tramp-rpc-deploy-auto-deploy nil)
+
+;;   ;; Use different GitHub repo for downloads
+;;   ;; (setq tramp-rpc-deploy-github-repo "myuser/my-fork")
+
+;;   ;; Download timeout in seconds (default: 120)
+;;   ;; (setq tramp-rpc-deploy-download-timeout 60)
+;;   )
+
+
+(use-package tramp 
   :config
   ;; (when (string-equal emacs-version "29.2")
   ;;   (with-current-buffer
@@ -758,9 +797,79 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;;     (while (looking-at "^.+$") (forward-line))
   ;;     (eval-region (point) (point-max))))
   (setq shell-file-name "/bin/bash") 
-  (setq tramp-default-method "scp")
+  (setq tramp-default-method "ssh")
   (with-eval-after-load 'tramp (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
   (with-eval-after-load 'tramp '(setenv "SHELL" "/bin/bash"))
+
+  ;;;;;;;
+  (setq remote-file-name-inhibit-locks t
+        tramp-use-scp-direct-remote-copying t
+        remote-file-name-inhibit-auto-save-visited t)
+  (setq tramp-copy-size-limit (* 1024 1024)
+        tramp-verbose 2)
+
+  ;; ;; this is where things break for eglot
+  ;; (connection-local-set-profile-variables
+  ;;  'remote-direct-async-process
+  ;;  '((tramp-direct-async-process . t)))
+
+  ;; (connection-local-set-profiles
+  ;;  '(:application tramp :protocol "scp")
+  ;;  'remote-direct-async-process)
+  ;; ;;;;;; to here it breaks
+
+  (setq magit-tramp-pipe-stty-settings 'pty)
+
+  (with-eval-after-load 'tramp
+    (with-eval-after-load 'compile
+      (remove-hook 'compilation-mode-hook #'tramp-compile-disable-ssh-controlmaster-options)))
+
+  (defun memoize-remote (key cache orig-fn &rest args)
+    "Memoize a value if the key is a remote path."
+    (if (and key
+             (file-remote-p key))
+        (if-let ((current (assoc key (symbol-value cache))))
+            (cdr current)
+          (let ((current (apply orig-fn args)))
+            (set cache (cons (cons key current) (symbol-value cache)))
+            current))
+      (apply orig-fn args)))
+
+
+  ;; Memoize current project
+  (defvar project-current-cache nil)
+  (defun memoize-project-current (orig &optional prompt directory)
+    (memoize-remote (or directory
+                        project-current-directory-override
+                        default-directory)
+                    'project-current-cache orig prompt directory))
+
+  (advice-add 'project-current :around #'memoize-project-current)
+
+  ;; Memoize magit top level
+  (defvar magit-toplevel-cache nil)
+  (defun memoize-magit-toplevel (orig &optional directory)
+    (memoize-remote (or directory default-directory)
+                    'magit-toplevel-cache orig directory))
+  (advice-add 'magit-toplevel :around #'memoize-magit-toplevel)
+
+  ;; memoize vc-git-root
+  (defvar vc-git-root-cache nil)
+  (defun memoize-vc-git-root (orig file)
+    (let ((value (memoize-remote (file-name-directory file) 'vc-git-root-cache orig file)))
+      ;; sometimes vc-git-root returns nil even when there is a root there
+      (when (null (cdr (car vc-git-root-cache)))
+        (setq vc-git-root-cache (cdr vc-git-root-cache)))
+      value))
+  (advice-add 'vc-git-root :around #'memoize-vc-git-root)
+
+  ;; memoize all git candidates in the current project
+  (defvar $counsel-git-cands-cache nil)
+  (defun $memoize-counsel-git-cands (orig dir)
+    ($memoize-remote (magit-toplevel dir) '$counsel-git-cands-cache orig dir))
+  (advice-add 'counsel-git-cands :around #'$memoize-counsel-git-cands)
+
+  
   :defer t
   )
 
@@ -768,7 +877,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :bind* ("C-c f" . counsel-tramp)
   :defer t
   :init
-  (setq counsel-tramp-custom-connections '(/scp:sfigueroa@dev:~/ /scp:sfigueroa@dev:~/elcano/ ))
+  (setq counsel-tramp-custom-connections '(/ssh:sfigueroa@dev:~/ /ssh:sfigueroa@dev:~/elcano/ ))
+  (setq counsel-tramp-default-method "ssh")
   (setq make-backup-files nil)
   (setq create-lockfiles nil) 
   )
@@ -777,7 +887,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 *** recentf
 #+BEGIN_SRC emacs-lisp :lexical t
 (use-feature recentf
-  :after tramp
+  ;; :after tramp
   :init
   (setq recentf-auto-cleanup nil) ;; disable before we start recentf!
   (setq recentf-max-menu-items 25)
@@ -785,12 +895,15 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   
   :config
   (recentf-mode 1)
+  (savehist-mode 1)
   (run-at-time nil (* 5 60) 'recentf-save-list)
   (add-to-list 'recentf-exclude "\\.png$")
   (add-to-list 'recentf-exclude "/var/folders")
-  (recentf-cleanup)
-  :defer t
+  ;; (recentf-cleanup)
+  ;; (setq recentf-auto-cleanup t)
+  ;; :defer t
   )
+
 #+END_SRC
 
 ** Install Packages
@@ -1093,23 +1206,15 @@ the list is kept."
 
 #+end_src
 
-*** counsel
+*** consult
 
 #+begin_src emacs-lisp :lexical t
 (use-package counsel
   :defer t
   :bind* (
-          ("M-x" . counsel-M-x)
-          ("C-x b" . ivy-switch-buffer)
-          ;;         ("C-x C-b" . counsel-ibuffer)
           ("C-x C-f" . counsel-find-file)
           ("C-x M-f" . counsel-file-jump)
           ("C-x C-d" . counsel-dired)
-          ("C-x f" . counsel-recentf)
-          ("C-x C-a" . counsel-ag)
-          ("C-h f" . counsel-describe-function)
-          ("C-h v" . counsel-describe-variable)
-          ("C-h i" . counsel-info-lookup-symbol) 
           )
   :delight
   ;; :custom
@@ -1117,6 +1222,45 @@ the list is kept."
   :config
   (counsel-mode)
   )
+
+(use-package vertico
+  :ensure t
+  :config
+  (setq vertico-cycle t)
+  (setq vertico-resize nil)
+  (setq enable-recursive-minibuffers t)
+  (setq read-extended-command-predicate #'command-completion-default-include-p)
+  (setq minibuffer-prompt-properties
+        '(read-only t cursor-intangible t face minibuffer-prompt))
+  (vertico-mode 1)
+  )
+
+(use-package orderless
+  :ensure t
+  :custom
+  (completion-styles '(orderless basic))
+  (completion-category-overrides '((file (styles . (partial-completion substring)))))
+  (completion-pcm-leading-wildcard t))
+
+(use-package consult
+  :ensure t
+  :bind (
+         ("C-x b" . consult-buffer)
+         ("M-y" . consult-yank-pop)
+         ("M-g M-g" . consult-goto-line)
+         ("C-c C-SPC" . consult-mark)
+         ("M-g i" . consult-imenu)
+         ("C-x C-a" . consult-grep)
+         ("C-x f" . consult-recent-file)
+         )
+
+  :config
+  (setq consult-preview-key 'any)
+  )
+
+(use-package embark-consult
+  :ensure t)
+
 #+end_src
 
 *** csv
@@ -1474,7 +1618,7 @@ the list is kept."
   :bind (:map dired-mode-map
               ("/ s n" . dired-sort-by-name)
               ("/ s r n" . dired-sort-by-name-reverse)
-              ("/ s d" . dired-sort-by-date)	
+              ("/ s d" . dired-sort-by-date)
               ("/ s r d" . dired-sort-by-date-reverse)
               ("/ s x" . dired-sort-by-extension)	
               ("/ s r x" . dired-sort-by-extension-reverse)
@@ -1482,7 +1626,6 @@ the list is kept."
               ("/ s m" . dired-sort-show-menu)	
               ("/ s c" . dired-sort-show-completion)              
               )
-
   :config
   (dired-sort-mode 1)
   (require 'ls-lisp)
@@ -1490,10 +1633,43 @@ the list is kept."
   (setq ls-lisp-dirs-first t)
   )
 
+(use-package dired-preview
+  :after dired
+  :defer t
+  :init
+  (defun dired-preview-toggle ()
+    "just a dummy function to toggle preview"
+    (interactive)
+    )
+  :bind (
+         (:map dired-preview-mode-map
+               ("<tab>" . dired-preview-toggle))
+         
+         
+         )
+  :config
+  ;; Default values for demo purposes
+  ;; (setq dired-preview-delay 0.1)
+  (setq dired-preview-on-start nil)
+  (setq dired-preview-trigger-commands (list 'dired-preview-toggle))
+  (setq dired-preview-max-size (expt 2 20))
+  (setq dired-preview-ignored-extensions-regexp
+        (concat "\\."
+                "\\(gz\\|"
+                "zst\\|"
+                "tar\\|"
+                "xz\\|"
+                "rar\\|"
+                "zip\\|"
+                "iso\\|"
+                "epub"
+                "\\)")) 
+  )
 
 (use-feature dired
   :defer t
   :delight
+  :bind* (("C-x C-d" . dired))
   :custom-face
   (dired-directory ((t (:foreground "#97c8f7" :extend t)))) 
   (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
@@ -1710,7 +1886,7 @@ the list is kept."
 #+begin_src emacs-lisp :lexical t
 
 (use-package ivy
-  :init
+  :config
   (setq ivy-use-virtual-buffers t)
   (setq ivy-virtual-abbreviate 'full)
   (setq ivy-re-builders-alist '(
@@ -1731,6 +1907,9 @@ the list is kept."
   ;;       'ivy--regex-ignore-order)
   :delight
   :defer t
+  :custom-face
+  (ivy-current-match ((t (:inherit nil :background "gray20"))))
+  (ivy-virtual ((t (:inherit font-lock-builtin-face))))
   )
 
 (use-package nerd-icons-ivy-rich
@@ -1738,6 +1917,8 @@ the list is kept."
   :init
   (nerd-icons-ivy-rich-mode 1)
   (ivy-rich-mode 1))
+
+
 #+end_src
 
 *** latex
@@ -1769,6 +1950,12 @@ the list is kept."
   (setq split-width-threshold 0)
   (setq magit-completing-read-function 'ivy-completing-read)
   (setenv "GIT_ASKPASS" "git-gui--askpass")
+  ;; don't show the diff by default in the commit buffer. Use `C-c C-d' to display it
+  (setq magit-commit-show-diff nil)
+  ;; don't show git variables in magit branch
+  (setq magit-branch-direct-configure nil)
+  ;; don't automatically refresh the status buffer after running a git command
+  (setq magit-refresh-status-buffer nil)
   )
 #+end_src
 
@@ -1799,7 +1986,9 @@ the list is kept."
   ;; Marginalia must be activated in the :init section of use-package such that
   ;; the mode gets enabled right away. Note that this forces loading the
   ;; package.
-  (marginalia-mode))
+  (marginalia-mode)
+  :after vertico
+  )
 
 (use-package nerd-icons-completion
   :after marginalia
@@ -2079,21 +2268,40 @@ the list is kept."
 
 *** outline indend
 #+begin_src emacs-lisp :lexical t
-(use-package outline-indent
-  :ensure t
-  :delight
-  :custom
-  (outline-indent-ellipsis " ▼ ")
-  :config
-  (add-hook 'python-mode-hook #'outline-indent-minor-mode)
-  (add-hook 'python-ts-mode-hook #'outline-indent-minor-mode)
-  (setq outline-blank-line t)
+;; (use-package outline-indent
+;;   :ensure t
+;;   :delight
+;;   :custom
+;;   (outline-indent-ellipsis " ▼ ")
+;;   :config
+;;   (add-hook 'python-mode-hook #'outline-indent-minor-mode)
+;;   (add-hook 'python-ts-mode-hook #'outline-indent-minor-mode)
+;;   (setq outline-blank-line t)
+;;   :bind* (
+;;           ("H-c <tab>" . outline-cycle)
+;;           ("H-c c <tab>" . outline-cycle-buffer)
+;;           ("H-c c a" . outline-show-all)
+;;           )
+;;   )
+
+(use-package kirigami
+  :ensure (kirigami
+             :type git
+             :host github
+             :repo "jamescherti/kirigami.el")
   :bind* (
-          ("H-c <tab>" . outline-cycle)
-          ("H-c c <tab>" . outline-cycle-buffer)
-          ("H-c c a" . outline-show-all)
+          ("H-<tab> o" . kirigami-open-fold)     ; Open fold at point
+          ("H-<tab> c" . kirigami-close-fold)    ; Close fold at point
+          ("H-<tab> r" . kirigami-open-fold-rec) ; Open fold recursively
+          ("H-<tab> a" . kirigami-open-folds)    ; Open all folds
+          ("H-<tab> k" . kirigami-close-folds)   ; Close all folds
+          ("H-<tab> <tab>" . kirigami-toggle-fold) ; Toggle fold at point
           )
   )
+
+
+
+
 
 ;; https://github.com/jamescherti/minimal-emacs.d?tab=readme-ov-file
 #+end_src
@@ -2387,7 +2595,11 @@ I like this
 
 **** eglot
 #+begin_src emacs-lisp :lexical t
-(use-feature eglot 
+
+
+
+(use-package flymake)
+(use-package eglot 
   :defer t
   :init
   (setq-default eglot-workspace-configuration
@@ -2426,17 +2638,37 @@ I like this
   (setq jsonrpc-event-hook nil)  
 
   :config
+
   (global-flycheck-eglot-mode 1)
   (setq eglot-stay-out-of '(company))
+
+  (defun pixi-get-environment ()
+    "Interactively select a pixi environment and return its bin path."
+    (interactive)
+    (let* ((project-root (locate-dominating-file default-directory "pixi.toml"))
+           (raw-output (shell-command-to-string "pixi project environment list"))
+           (envs '()))
+      ;; Parse names from the list
+      (dolist (line (split-string raw-output "\n" t))
+        (when (string-match "^[[:space:]]*- \\([[:alnum:]_-]+\\)" line)
+          (push (match-string 1 line) envs)))
+      
+      (if (and project-root envs)
+          (let* ((choice (completing-read "Select Environment: " (reverse envs)))
+                 ;; Construct the path: <root>/.pixi/envs/<choice>/bin
+                 (env-path (file-local-name (expand-file-name 
+                            (concat ".pixi/envs/" choice "/bin/") 
+                            project-root))))
+            ;; (message "Path: %s" env-path)
+            env-path)
+        (message "Not in a pixi project or no environments found."))))
   
   (defun start-eglot-python ()
     (interactive)
     (let* (
-           (spec (jupyter-completing-read-kernelspec nil nil))
-           (env (jupyter-kernelspec-name spec))
            (contact (concat
-                     (shell-command-to-string "conda info --base | tr -d '\n'")
-                     (concat "/envs/" env "/bin/pylsp")
+                     (pixi-get-environment)
+                     "pylsp"
                      )
                     )
            (managed-modes (list major-mode))
@@ -2446,6 +2678,7 @@ I like this
            )
       ;; (jupyter-run-repl env buffer-file-name t 'jupyter-repl-client)
       ;; (kill-new contact)
+      (message "Starting Eglot with: %s" contact)
       (apply 'eglot (list managed-modes project class (list contact) language-ids))
       ;; (call-interactively 'eglot)
       )
@@ -2463,7 +2696,7 @@ I like this
   :config
   (eglot-booster-mode))
 
-(use-feature jsonrpc
+(use-package jsonrpc
   :defer t
   )
 
@@ -2500,7 +2733,7 @@ I like this
   :bind (
          :map python-mode-map
          ("H-<left>" . python-indent-shift-left)
-         ("H-<right>" . python-indent-shift-right)        
+         ("H-<right>" . python-indent-shift-right)
          )
   :config
   (defun seth-python-company-mode-hook ()
@@ -2512,6 +2745,17 @@ I like this
   
   (setq python-indent-offset 4)
   (setq python-indent-guess-indent-offset nil)
+
+  (defun python-indent-dedent-line-backspace (arg)
+   
+    (interactive "*p")
+    (when (or
+           (and (use-region-p) (= arg 1))
+           (not (python-indent-dedent-line)))
+      (backward-delete-char-untabify arg)))
+
+  (put 'python-indent-dedent-line-backspace 'delete-selection 'supersede)
+
   )
 #+end_src
 
@@ -2876,6 +3120,8 @@ I like this
   (tab-line-tab-current ((t (:weight bold :box (:line-width -2 :color "#c397d8") :background "gray20" :foreground "#c397d8"))))
   (tab-line-tab-inactive ((t (:background "#c397d8" :inverse-video t))))
   (tab-line-tab-modified ((t (:background "gray20" :foreground "#c397d8" :inverse-video nil))))
+  :config
+  (tab-line-mode)
   )
 
 
@@ -2897,32 +3143,65 @@ I like this
   )
 #+end_src 
 
+*** tramp-hlo
+#+begin_src emacs-lisp :lexical t :tangle yes
+(use-package tramp-hlo
+  :ensure (tramp-hlo
+           :type git
+           :host github
+           :repo "jsadusk/tramp-hlo"
+           )
+  :config
+  (tramp-hlo-setup)
+  )
+#+end_src
+
+
 *** tree-sitter
 #+begin_src emacs-lisp :lexical t
+;; (use-package tree-sitter
+;;   :delight
+;;   :hook
+;;   ((lua-mode
+;;     python-mode
+;;     emacs-lisp-mode
+;;     csv-mode
+;;     json-mode
+;;     sh-mode
+;;     typescript-mode
+;;     yaml-mode
+;;     ) . siren-tree-sitter-mode-enable)
+
+;;   :config
+;;   (defun siren-tree-sitter-mode-enable ()
+;;     (tree-sitter-mode t)
+;;     (tree-sitter-hl-mode)
+;;     )
+;;   :defer t)
+
 (use-package tree-sitter
   :delight
-  :hook
-  ((lua-mode
-    python-mode
-    emacs-lisp-mode
-    csv-mode
-    json-mode
-    sh-mode
-    typescript-mode
-    yaml-mode
-    ) . siren-tree-sitter-mode-enable)
-
   :config
-  (defun siren-tree-sitter-mode-enable ()
-    (tree-sitter-mode t)
-    (tree-sitter-hl-mode)
-    )
-  :defer t)
+  (global-tree-sitter-mode)
+  (add-hook 'python-mode-hook #'tree-sitter-hl-mode)
+  (add-hook 'yaml-mode-hook #'tree-sitter-hl-mode)
+  (add-hook 'prod-mode-hook #'tree-sitter-hl-mode)
+  )
+
 
 (use-package tree-sitter-langs
   :defer t
   :after tree-sitter
   )
+
+;; Not liking the bottom ones highlights. Instead use above, install languages and use the tree-sitter-hl-mode with the x-mode
+;; do not use the x-ts-mode
+;; (use-package treesit-auto
+;;   :custom
+;;   (treesit-auto-install 'prompt)
+;;   :config
+;;   (treesit-auto-add-to-auto-mode-alist 'all)
+;;   (global-treesit-auto-mode))
 #+end_src
 
 *** ultra scroll
@@ -3023,7 +3302,7 @@ I like this
   ;; cmake ..
   ;; make
   :init
-  (setq vterm-tramp-shells '(("scp" "/usr/bin/zsh")))
+  (setq vterm-tramp-shells '(("ssh" "/usr/bin/zsh")))
   (setq vterm-shell "/bin/zsh")
   :config
   (setq vterm-timer-delay 0.01)
@@ -3063,9 +3342,23 @@ I like this
   (py-snippets-initialize))
 
 (use-package ivy-yasnippet
+  :ensure (:repo "emacsattic/ivy-yasnippet")
   :bind ("H-," . ivy-yasnippet)
   )
 #+end_src
+
+*** YAML
+#+begin_src emacs-lisp :lexical t
+  (use-package yaml-mode
+    :defer t
+    :config
+    (add-to-list 'auto-mode-alist '("\\.yml\\'" . yaml-mode))
+    (add-hook 'yaml-mode-hook
+      '(lambda ()
+        (define-key yaml-mode-map "\C-m" 'newline-and-indent)))
+    )
+#+end_src
+
 
 *** zoom
 #+begin_src emacs-lisp :lexical t
@@ -3074,6 +3367,12 @@ I like this
   :custom
   (zoom-size '(0.618 . 0.618))
   :defer t
+  )
+#+end_src
+
+*** zoom
+#+begin_src emacs-lisp :lexical t
+(use-package project
   )
 #+end_src
 

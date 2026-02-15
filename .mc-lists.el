@@ -8,10 +8,13 @@
         beginning-of-buffer
         comment-line
         company-other-backend
+        consult-yank-pop
         counsel-yank-pop
         end-of-buffer
         indent-for-tab-command
         kill-region
+        markdown-cycle
+        markdown-outdent-or-delete
         mwim-beginning-of-code-or-line
         mwim-end-of-code-or-line
         org-beginning-of-line

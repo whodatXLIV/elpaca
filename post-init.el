@@ -16,8 +16,8 @@
 (put 'upcase-region 'disabled nil)
 (put 'downcase-region 'disabled nil)
 
-(setq mark-ring-max 4)
-(setq global-mark-ring-max 4)
+(setq mark-ring-max 10)
+(setq global-mark-ring-max 10)
 
 (setq mouse-wheel-scroll-amount '(1 ((shift) . 1))) ;; one line at a time
 (setq mouse-wheel-progressive-speed nil) ;; don't accelerate scrolling
@@ -30,12 +30,12 @@
 (setq-default indent-tabs-mode nil)
 (setq-default tab-width 4)
 
-(setq font-lock-maximum-decoration 2)
+(setq font-lock-maximum-decoration 4)
 
 
 (defun connect-focusvq-home ()
   (interactive)
-  (dired "/scp:sfigueroa@dev:~"))
+  (dired "/ssh:sfigueroa@dev:~"))
 
 (setq sql-connection-alist
       '(
@@ -52,6 +52,13 @@
                       (sql-user "fds")
                       (sql-password "WnJSuqmND9i0ePYw")
                       (sql-database "elcano"))
+       
+      (mysql-deploy (sql-product 'mysql)
+                      (sql-port 0)
+                      (sql-server "db.internal.focusvq.com")
+                      (sql-user "fds")
+                      (sql-password "WnJSuqmND9i0ePYw")
+                      (sql-database "fvq_account_manager"))
         )
       )
 
