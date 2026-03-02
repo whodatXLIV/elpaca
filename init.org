@@ -765,7 +765,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 ;;            :files ("lisp/*.el")
 ;;            :main "lisp/tramp-rpc.el"
 ;;            )
-;;   :after msgpack
+;;   :after (msgpack tramp)
 ;;   ;; :config
 ;;   ;; Prefer building from source over downloading (default: nil)
 ;;   ;; (setq tramp-rpc-deploy-prefer-build t)
@@ -802,11 +802,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (with-eval-after-load 'tramp '(setenv "SHELL" "/bin/bash"))
 
   ;;;;;;;
-  (setq remote-file-name-inhibit-locks t
-        tramp-use-scp-direct-remote-copying t
-        remote-file-name-inhibit-auto-save-visited t)
-  (setq tramp-copy-size-limit (* 1024 1024)
-        tramp-verbose 2)
+  ;; (setq remote-file-name-inhibit-locks t
+  ;;       tramp-use-scp-direct-remote-copying t
+  ;;       remote-file-name-inhibit-auto-save-visited t)
+  ;; (setq tramp-copy-size-limit (* 1024 1024)
+  ;;       tramp-verbose 2)
 
   ;; ;; this is where things break for eglot
   ;; (connection-local-set-profile-variables
@@ -818,56 +818,56 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;;  'remote-direct-async-process)
   ;; ;;;;;; to here it breaks
 
-  (setq magit-tramp-pipe-stty-settings 'pty)
+  ;; (setq magit-tramp-pipe-stty-settings 'pty)
 
-  (with-eval-after-load 'tramp
-    (with-eval-after-load 'compile
-      (remove-hook 'compilation-mode-hook #'tramp-compile-disable-ssh-controlmaster-options)))
+  ;; (with-eval-after-load 'tramp
+  ;;   (with-eval-after-load 'compile
+  ;;     (remove-hook 'compilation-mode-hook #'tramp-compile-disable-ssh-controlmaster-options)))
 
-  (defun memoize-remote (key cache orig-fn &rest args)
-    "Memoize a value if the key is a remote path."
-    (if (and key
-             (file-remote-p key))
-        (if-let ((current (assoc key (symbol-value cache))))
-            (cdr current)
-          (let ((current (apply orig-fn args)))
-            (set cache (cons (cons key current) (symbol-value cache)))
-            current))
-      (apply orig-fn args)))
+  ;; (defun memoize-remote (key cache orig-fn &rest args)
+  ;;   "Memoize a value if the key is a remote path."
+  ;;   (if (and key
+  ;;            (file-remote-p key))
+  ;;       (if-let ((current (assoc key (symbol-value cache))))
+  ;;           (cdr current)
+  ;;         (let ((current (apply orig-fn args)))
+  ;;           (set cache (cons (cons key current) (symbol-value cache)))
+  ;;           current))
+  ;;     (apply orig-fn args)))
 
 
-  ;; Memoize current project
-  (defvar project-current-cache nil)
-  (defun memoize-project-current (orig &optional prompt directory)
-    (memoize-remote (or directory
-                        project-current-directory-override
-                        default-directory)
-                    'project-current-cache orig prompt directory))
+  ;; ;; Memoize current project
+  ;; (defvar project-current-cache nil)
+  ;; (defun memoize-project-current (orig &optional prompt directory)
+  ;;   (memoize-remote (or directory
+  ;;                       project-current-directory-override
+  ;;                       default-directory)
+  ;;                   'project-current-cache orig prompt directory))
 
-  (advice-add 'project-current :around #'memoize-project-current)
+  ;; (advice-add 'project-current :around #'memoize-project-current)
 
-  ;; Memoize magit top level
-  (defvar magit-toplevel-cache nil)
-  (defun memoize-magit-toplevel (orig &optional directory)
-    (memoize-remote (or directory default-directory)
-                    'magit-toplevel-cache orig directory))
-  (advice-add 'magit-toplevel :around #'memoize-magit-toplevel)
+  ;; ;; Memoize magit top level
+  ;; (defvar magit-toplevel-cache nil)
+  ;; (defun memoize-magit-toplevel (orig &optional directory)
+  ;;   (memoize-remote (or directory default-directory)
+  ;;                   'magit-toplevel-cache orig directory))
+  ;; (advice-add 'magit-toplevel :around #'memoize-magit-toplevel)
 
-  ;; memoize vc-git-root
-  (defvar vc-git-root-cache nil)
-  (defun memoize-vc-git-root (orig file)
-    (let ((value (memoize-remote (file-name-directory file) 'vc-git-root-cache orig file)))
-      ;; sometimes vc-git-root returns nil even when there is a root there
-      (when (null (cdr (car vc-git-root-cache)))
-        (setq vc-git-root-cache (cdr vc-git-root-cache)))
-      value))
-  (advice-add 'vc-git-root :around #'memoize-vc-git-root)
+  ;; ;; memoize vc-git-root
+  ;; (defvar vc-git-root-cache nil)
+  ;; (defun memoize-vc-git-root (orig file)
+  ;;   (let ((value (memoize-remote (file-name-directory file) 'vc-git-root-cache orig file)))
+  ;;     ;; sometimes vc-git-root returns nil even when there is a root there
+  ;;     (when (null (cdr (car vc-git-root-cache)))
+  ;;       (setq vc-git-root-cache (cdr vc-git-root-cache)))
+  ;;     value))
+  ;; (advice-add 'vc-git-root :around #'memoize-vc-git-root)
 
-  ;; memoize all git candidates in the current project
-  (defvar $counsel-git-cands-cache nil)
-  (defun $memoize-counsel-git-cands (orig dir)
-    ($memoize-remote (magit-toplevel dir) '$counsel-git-cands-cache orig dir))
-  (advice-add 'counsel-git-cands :around #'$memoize-counsel-git-cands)
+  ;; ;; memoize all git candidates in the current project
+  ;; (defvar $counsel-git-cands-cache nil)
+  ;; (defun $memoize-counsel-git-cands (orig dir)
+  ;;   ($memoize-remote (magit-toplevel dir) '$counsel-git-cands-cache orig dir))
+  ;; (advice-add 'counsel-git-cands :around #'$memoize-counsel-git-cands)
 
   
   :defer t
@@ -2641,6 +2641,9 @@ I like this
 
   (global-flycheck-eglot-mode 1)
   (setq eglot-stay-out-of '(company))
+  (setq eglot-connect-timeout 120)
+  (setq eglot-sync-connect nil)
+  (setq eglot-send-changes-idle-time 3)
 
   (defun pixi-get-environment ()
     "Interactively select a pixi environment and return its bin path."
