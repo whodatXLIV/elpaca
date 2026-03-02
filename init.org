@@ -77,7 +77,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (defvar minimal-emacs-gc-cons-threshold (* 64 1024 1024)
   "The value of `gc-cons-threshold' after Emacs startup.")
 
-(defvar minimal-emacs-package-initialize-and-refresh t
+(defvar minimal-emacs-package-initialize-and-refresh nil
   "Whether to automatically initialize and refresh packages.
   When set to non-nil, Emacs will automatically call `package-initialize' and
   `package-refresh-contents' to set up and update the package system.")
@@ -575,7 +575,10 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (setq mouse-wheel-scroll-amount '(1 ((shift) . 1))) ;; one line at a time
 (setq mouse-wheel-progressive-speed nil) ;; don't accelerate scrolling
-(setq mouse-wheel-follow-mouse 't) ;; scroll window under mouse
+(setq mouse-wheel-follow-mouse t) ;; scroll window under mouse
+(global-unset-key (kbd "C-<wheel-up>")) ;; disable scrolling to zoom
+(global-unset-key (kbd "C-<wheel-down>"))
+
 
 
 (global-display-line-numbers-mode t)
@@ -589,7 +592,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (defun connect-focusvq-home ()
   (interactive)
-  (dired "/ssh:sfigueroa@dev:~"))
+  (dired "/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/"))
 
 (setq sql-connection-alist
       '(
@@ -688,7 +691,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+end_src
 
 ** my settings and my defs
-
 *** my gc
 
 #+begin_src emacs-lisp :lexical t :tangle no
@@ -708,10 +710,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+end_src
 
 *** theme and font
-#+begin_src emacs-lisp :lexical t 
-;; (setq custom-theme-directory "~/.emacs.d/themes/")
-;; (add-to-list 'load-path custom-theme-directory)
-;; (load-theme 'base16-chalk t)
+#+begin_src emacs-lisp :lexical t :tangle yes
+
 (use-package color-theme-sanityinc-tomorrow
   :defer nil
   :init
@@ -754,138 +754,119 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+end_src
 
 *** tramp
-#+begin_src emacs-lisp :lexical t
-;; (use-package msgpack
-;;   :ensure t)
+#+begin_src emacs-lisp :lexical t :tangle yes
+  (use-package msgpack
+    :ensure t)
 
-;; (use-package tramp-rpc
-;;   :ensure (tramp-rpc
-;;            :host github
-;;            :repo "ArthurHeymans/emacs-tramp-rpc"
-;;            :files ("lisp/*.el")
-;;            :main "lisp/tramp-rpc.el"
-;;            )
-;;   :after (msgpack tramp)
-;;   ;; :config
-;;   ;; Prefer building from source over downloading (default: nil)
-;;   ;; (setq tramp-rpc-deploy-prefer-build t)
+  (use-package tramp-rpc
+    :ensure (tramp-rpc
+             :host github
+             :repo "ArthurHeymans/emacs-tramp-rpc"
+             :files ("lisp/*.el")
+             :main "lisp/tramp-rpc.el"
+             )
+    :after (msgpack tramp)
+    )
 
-;;   ;; Local cache directory (default: ~/.emacs.d/tramp-rpc/)
-;;   ;; (setq tramp-rpc-deploy-local-cache-directory "~/.cache/tramp-rpc-binaries")
+  (use-package tramp 
+    :config
+    ;; (when (string-equal emacs-version "29.2")
+    ;;   (with-current-buffer
+    ;;       (url-retrieve-synchronously
+    ;;        "https://git.savannah.gnu.org/cgit/emacs.git/plain/lisp/emacs-lisp/loaddefs-gen.el?h=emacs-29")
+    ;;     (goto-char (point-min))
+    ;;     (while (looking-at "^.+$") (forward-line))
+    ;;     (eval-region (point) (point-max))))
+    (setq shell-file-name "/bin/bash") 
+    (setq tramp-default-method "rpc")
+    (with-eval-after-load 'tramp (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
+    (with-eval-after-load 'tramp '(setenv "SHELL" "/bin/bash"))
 
-;;   ;; Remote installation directory (default: ~/.cache/tramp-rpc)
-;;   ;; (setq tramp-rpc-deploy-remote-directory "~/.local/bin/tramp-rpc")
+    ;;;;;;;
+    ;; (setq remote-file-name-inhibit-locks t
+    ;;       tramp-use-scp-direct-remote-copying t
+    ;;       remote-file-name-inhibit-auto-save-visited t)
+    ;; (setq tramp-copy-size-limit (* 1024 1024)
+    ;;       tramp-verbose 2)
 
-;;   ;; Disable automatic deployment (default: t)
-;;   ;; (setq tramp-rpc-deploy-auto-deploy nil)
+    ;; ;; this is where things break for eglot
+    ;; (connection-local-set-profile-variables
+    ;;  'remote-direct-async-process
+    ;;  '((tramp-direct-async-process . t)))
 
-;;   ;; Use different GitHub repo for downloads
-;;   ;; (setq tramp-rpc-deploy-github-repo "myuser/my-fork")
+    ;; (connection-local-set-profiles
+    ;;  '(:application tramp :protocol "scp")
+    ;;  'remote-direct-async-process)
+    ;; ;;;;;; to here it breaks
 
-;;   ;; Download timeout in seconds (default: 120)
-;;   ;; (setq tramp-rpc-deploy-download-timeout 60)
-;;   )
+    ;; (setq magit-tramp-pipe-stty-settings 'pty)
 
+    ;; (with-eval-after-load 'tramp
+    ;;   (with-eval-after-load 'compile
+    ;;     (remove-hook 'compilation-mode-hook #'tramp-compile-disable-ssh-controlmaster-options)))
 
-(use-package tramp 
-  :config
-  ;; (when (string-equal emacs-version "29.2")
-  ;;   (with-current-buffer
-  ;;       (url-retrieve-synchronously
-  ;;        "https://git.savannah.gnu.org/cgit/emacs.git/plain/lisp/emacs-lisp/loaddefs-gen.el?h=emacs-29")
-  ;;     (goto-char (point-min))
-  ;;     (while (looking-at "^.+$") (forward-line))
-  ;;     (eval-region (point) (point-max))))
-  (setq shell-file-name "/bin/bash") 
-  (setq tramp-default-method "ssh")
-  (with-eval-after-load 'tramp (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
-  (with-eval-after-load 'tramp '(setenv "SHELL" "/bin/bash"))
-
-  ;;;;;;;
-  ;; (setq remote-file-name-inhibit-locks t
-  ;;       tramp-use-scp-direct-remote-copying t
-  ;;       remote-file-name-inhibit-auto-save-visited t)
-  ;; (setq tramp-copy-size-limit (* 1024 1024)
-  ;;       tramp-verbose 2)
-
-  ;; ;; this is where things break for eglot
-  ;; (connection-local-set-profile-variables
-  ;;  'remote-direct-async-process
-  ;;  '((tramp-direct-async-process . t)))
-
-  ;; (connection-local-set-profiles
-  ;;  '(:application tramp :protocol "scp")
-  ;;  'remote-direct-async-process)
-  ;; ;;;;;; to here it breaks
-
-  ;; (setq magit-tramp-pipe-stty-settings 'pty)
-
-  ;; (with-eval-after-load 'tramp
-  ;;   (with-eval-after-load 'compile
-  ;;     (remove-hook 'compilation-mode-hook #'tramp-compile-disable-ssh-controlmaster-options)))
-
-  ;; (defun memoize-remote (key cache orig-fn &rest args)
-  ;;   "Memoize a value if the key is a remote path."
-  ;;   (if (and key
-  ;;            (file-remote-p key))
-  ;;       (if-let ((current (assoc key (symbol-value cache))))
-  ;;           (cdr current)
-  ;;         (let ((current (apply orig-fn args)))
-  ;;           (set cache (cons (cons key current) (symbol-value cache)))
-  ;;           current))
-  ;;     (apply orig-fn args)))
+    ;; (defun memoize-remote (key cache orig-fn &rest args)
+    ;;   "Memoize a value if the key is a remote path."
+    ;;   (if (and key
+    ;;            (file-remote-p key))
+    ;;       (if-let ((current (assoc key (symbol-value cache))))
+    ;;           (cdr current)
+    ;;         (let ((current (apply orig-fn args)))
+    ;;           (set cache (cons (cons key current) (symbol-value cache)))
+    ;;           current))
+    ;;     (apply orig-fn args)))
 
 
-  ;; ;; Memoize current project
-  ;; (defvar project-current-cache nil)
-  ;; (defun memoize-project-current (orig &optional prompt directory)
-  ;;   (memoize-remote (or directory
-  ;;                       project-current-directory-override
-  ;;                       default-directory)
-  ;;                   'project-current-cache orig prompt directory))
+    ;; ;; Memoize current project
+    ;; (defvar project-current-cache nil)
+    ;; (defun memoize-project-current (orig &optional prompt directory)
+    ;;   (memoize-remote (or directory
+    ;;                       project-current-directory-override
+    ;;                       default-directory)
+    ;;                   'project-current-cache orig prompt directory))
 
-  ;; (advice-add 'project-current :around #'memoize-project-current)
+    ;; (advice-add 'project-current :around #'memoize-project-current)
 
-  ;; ;; Memoize magit top level
-  ;; (defvar magit-toplevel-cache nil)
-  ;; (defun memoize-magit-toplevel (orig &optional directory)
-  ;;   (memoize-remote (or directory default-directory)
-  ;;                   'magit-toplevel-cache orig directory))
-  ;; (advice-add 'magit-toplevel :around #'memoize-magit-toplevel)
+    ;; ;; Memoize magit top level
+    ;; (defvar magit-toplevel-cache nil)
+    ;; (defun memoize-magit-toplevel (orig &optional directory)
+    ;;   (memoize-remote (or directory default-directory)
+    ;;                   'magit-toplevel-cache orig directory))
+    ;; (advice-add 'magit-toplevel :around #'memoize-magit-toplevel)
 
-  ;; ;; memoize vc-git-root
-  ;; (defvar vc-git-root-cache nil)
-  ;; (defun memoize-vc-git-root (orig file)
-  ;;   (let ((value (memoize-remote (file-name-directory file) 'vc-git-root-cache orig file)))
-  ;;     ;; sometimes vc-git-root returns nil even when there is a root there
-  ;;     (when (null (cdr (car vc-git-root-cache)))
-  ;;       (setq vc-git-root-cache (cdr vc-git-root-cache)))
-  ;;     value))
-  ;; (advice-add 'vc-git-root :around #'memoize-vc-git-root)
+    ;; ;; memoize vc-git-root
+    ;; (defvar vc-git-root-cache nil)
+    ;; (defun memoize-vc-git-root (orig file)
+    ;;   (let ((value (memoize-remote (file-name-directory file) 'vc-git-root-cache orig file)))
+    ;;     ;; sometimes vc-git-root returns nil even when there is a root there
+    ;;     (when (null (cdr (car vc-git-root-cache)))
+    ;;       (setq vc-git-root-cache (cdr vc-git-root-cache)))
+    ;;     value))
+    ;; (advice-add 'vc-git-root :around #'memoize-vc-git-root)
 
-  ;; ;; memoize all git candidates in the current project
-  ;; (defvar $counsel-git-cands-cache nil)
-  ;; (defun $memoize-counsel-git-cands (orig dir)
-  ;;   ($memoize-remote (magit-toplevel dir) '$counsel-git-cands-cache orig dir))
-  ;; (advice-add 'counsel-git-cands :around #'$memoize-counsel-git-cands)
+    ;; ;; memoize all git candidates in the current project
+    ;; (defvar $counsel-git-cands-cache nil)
+    ;; (defun $memoize-counsel-git-cands (orig dir)
+    ;;   ($memoize-remote (magit-toplevel dir) '$counsel-git-cands-cache orig dir))
+    ;; (advice-add 'counsel-git-cands :around #'$memoize-counsel-git-cands)
 
-  
-  :defer t
-  )
+    
+    :defer t
+    )
 
-(use-package counsel-tramp
-  :bind* ("C-c f" . counsel-tramp)
-  :defer t
-  :init
-  (setq counsel-tramp-custom-connections '(/ssh:sfigueroa@dev:~/ /ssh:sfigueroa@dev:~/elcano/ ))
-  (setq counsel-tramp-default-method "ssh")
-  (setq make-backup-files nil)
-  (setq create-lockfiles nil) 
-  )
+  (use-package counsel-tramp
+    :bind* ("C-c f" . counsel-tramp)
+    :defer t
+    :init
+    (setq counsel-tramp-custom-connections '(/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/ /rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/ ))
+    (setq counsel-tramp-default-method "rpc")
+    (setq make-backup-files nil)
+    (setq create-lockfiles nil) 
+    )
 #+end_src
 
 *** recentf
-#+BEGIN_SRC emacs-lisp :lexical t
+#+BEGIN_SRC emacs-lisp :lexical t :tangle yes
 (use-feature recentf
   ;; :after tramp
   :init
@@ -981,7 +962,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   )
 #+end_src
 *** activities
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
 
 (use-package activities
   :delight
@@ -1031,8 +1012,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :delight
   :config
   (setcdr buffer-expose-mode-map nil)
-
-  ;; :defer t
+  :defer t
   :bind* (
           ("H-b e" . buffer-expose)
           ("H-b b" . buffer-expose-no-stars)
@@ -1138,7 +1118,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+end_src
 
 *** company
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle yes
 
 (use-package company
   :delight
@@ -1208,7 +1188,7 @@ the list is kept."
 
 *** consult
 
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle yes
 (use-package counsel
   :defer t
   :bind* (
@@ -1573,11 +1553,16 @@ the list is kept."
 
 #+end_src
 
-*** dired
+*** nerd icons
 
 #+begin_src emacs-lisp :lexical t
-
 (use-package nerd-icons)
+#+end_src
+
+*** dired
+
+#+begin_src emacs-lisp :lexical t :tangle no
+
 (use-package nerd-icons-dired
   :defer t
   :delight
@@ -1699,7 +1684,7 @@ the list is kept."
 
 *** dumb jump
 
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
 (use-package dumb-jump
   :delight
   :custom
@@ -1768,6 +1753,7 @@ the list is kept."
 ;; google-this
 (use-package google-this
   :delight
+  :defer t
   :config
   (google-this-mode 1))  
 #+end_src
@@ -1847,11 +1833,11 @@ the list is kept."
           ("BUG"  . "#FF0000")
           ))
   (global-hl-todo-mode)
-  :bind* (
-          ("H-t t" . hl-todo-insert)
-          ("H-t n" . hl-todo-next)
-          ("H-t p" . hl-todo-previous)
-          )
+  ;; :bind* (
+  ;;         ("H-t t" . hl-todo-insert)
+  ;;         ("H-t n" . hl-todo-next)
+  ;;         ("H-t p" . hl-todo-previous)
+  ;;         )
   )
 
 #+end_src
@@ -1883,7 +1869,7 @@ the list is kept."
 #+end_src
 
 *** Ivy
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle yes
 
 (use-package ivy
   :config
@@ -1961,7 +1947,7 @@ the list is kept."
 
 *** magit-todos
 
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
 (use-package magit-todos
   :delight
   :defer t
@@ -1973,7 +1959,7 @@ the list is kept."
 #+end_src
 
 *** marginalia
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
 ;; Enable rich annotations using the Marginalia package
 (use-package marginalia
   ;; Bind `marginalia-cycle' locally in the minibuffer.  To make the binding
@@ -2023,7 +2009,8 @@ the list is kept."
 *** Multiple cursors
 #+begin_src emacs-lisp :lexical t
 (use-package multiple-cursors
-  :bind (         
+  :defer t
+  :bind* (         
          ("H-<return> e" . mc/edit-lines)
          ("H-<return> m" . mc/mark-more-like-this-extended)
          ("H-<return> a" . mc/mark-all-like-this)
@@ -2048,7 +2035,7 @@ the list is kept."
 #+end_src
 
 *** neotree
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
 (use-package neotree
   :delight
   :defer t
@@ -2266,7 +2253,8 @@ the list is kept."
   )
 #+end_src
 
-*** outline indend
+*** outline indent
+
 #+begin_src emacs-lisp :lexical t
 ;; (use-package outline-indent
 ;;   :ensure t
@@ -2289,6 +2277,7 @@ the list is kept."
              :type git
              :host github
              :repo "jamescherti/kirigami.el")
+  :defer t
   :bind* (
           ("H-<tab> o" . kirigami-open-fold)     ; Open fold at point
           ("H-<tab> c" . kirigami-close-fold)    ; Close fold at point
@@ -2309,7 +2298,6 @@ the list is kept."
 *** page-break lines
 #+begin_src emacs-lisp :lexical t
 (use-package page-break-lines
-  :defer t
   :delight
   :config
   (global-page-break-lines-mode)
@@ -2341,7 +2329,7 @@ the list is kept."
 #+end_src
 
 *** popper
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
 
 (use-package popper
   :init
@@ -2393,7 +2381,7 @@ the list is kept."
 #+end_src
 
 *** posframe
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle yes
 (use-package company-posframe
   :delight
   :defer t
@@ -2689,6 +2677,7 @@ I like this
   )
 
 (use-package eglot-booster
+  :defer t
   :after eglot
   :ensure (eglot-booster
            :type git
@@ -2731,6 +2720,7 @@ I like this
 #+begin_src emacs-lisp :lexical t
 
 (use-feature python
+  :defer t
   :mode ("\\.py\\'" . python-mode)
   :interpreter ("python" . python-mode)
   :bind (
@@ -2837,7 +2827,7 @@ I like this
 #+begin_src emacs-lisp :lexical t
 
 (use-package smartparens
-  :delight
+  :delight  
   :config
   (require 'smartparens-config)
   (smartparens-global-mode t)
@@ -3131,7 +3121,7 @@ I like this
 #+end_src
 
 *** transpose-frame
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
 (use-package transpose-frame
   :delight
   :defer t
@@ -3147,7 +3137,7 @@ I like this
 #+end_src 
 
 *** tramp-hlo
-#+begin_src emacs-lisp :lexical t :tangle yes
+#+begin_src emacs-lisp :lexical t :tangle no
 (use-package tramp-hlo
   :ensure (tramp-hlo
            :type git
@@ -3159,36 +3149,17 @@ I like this
   )
 #+end_src
 
-
 *** tree-sitter
 #+begin_src emacs-lisp :lexical t
-;; (use-package tree-sitter
-;;   :delight
-;;   :hook
-;;   ((lua-mode
-;;     python-mode
-;;     emacs-lisp-mode
-;;     csv-mode
-;;     json-mode
-;;     sh-mode
-;;     typescript-mode
-;;     yaml-mode
-;;     ) . siren-tree-sitter-mode-enable)
-
-;;   :config
-;;   (defun siren-tree-sitter-mode-enable ()
-;;     (tree-sitter-mode t)
-;;     (tree-sitter-hl-mode)
-;;     )
-;;   :defer t)
 
 (use-package tree-sitter
   :delight
+  :defer t
+  :hook (
+         (prog-mode . tree-sitter-hl-mode)
+         )
   :config
-  (global-tree-sitter-mode)
-  (add-hook 'python-mode-hook #'tree-sitter-hl-mode)
-  (add-hook 'yaml-mode-hook #'tree-sitter-hl-mode)
-  (add-hook 'prod-mode-hook #'tree-sitter-hl-mode)
+  ;; (global-tree-sitter-mode)  
   )
 
 
@@ -3199,16 +3170,12 @@ I like this
 
 ;; Not liking the bottom ones highlights. Instead use above, install languages and use the tree-sitter-hl-mode with the x-mode
 ;; do not use the x-ts-mode
-;; (use-package treesit-auto
-;;   :custom
-;;   (treesit-auto-install 'prompt)
-;;   :config
-;;   (treesit-auto-add-to-auto-mode-alist 'all)
-;;   (global-treesit-auto-mode))
+
 #+end_src
 
 *** ultra scroll
 #+begin_src emacs-lisp :lexical t
+
 (use-package ultra-scroll
   :ensure (ultra-scroll :host github :repo "jdtsmith/ultra-scroll")
   :init
@@ -3216,57 +3183,11 @@ I like this
         scroll-margin 0)
   :config
   (ultra-scroll-mode 1))
+
 #+end_src
 
 *** undo
 #+begin_src emacs-lisp :lexical t
-;; (use-package undo-fu-session
-;;   :defer t
-;;   :delight
-;;   :custom
-;;   (undo-fu-session-directory "~/.emacs.d/.saves")
-;;   (undo-fu-session-file-limit nil)
-;;   :hook
-;;   ((prog-mode text-mode) . undo-fu-session-mode)  
-;;   )
-
-;; (use-package vundo
-;;   :defer t
-;;   :delight
-;;   :custom
-;;   (undo-strong-limit (* 1024 1024 1024)) ; 128 MiB. The change group at which this size is exceeded is discarded itself (along with all older change groups). There is one exception: the very latest change group is only discarded if it exceeds ‘undo-outer-limit’.
-;;   (amalgamating-undo-limit 5)
-;;   (undo-limit         (* 1024 1024 1024)) ;  96 MiB. The change group at which this size is exceeded is the last one kept.
-;;   (gnus-undo-limit 100000)
-;;   (undo-outer-limit (* 1024 1024 1024)) ;   1 GiB. If at garbage collection time the undo info for the current command exceeds this limit, Emacs discards the info and displays a warning. This is a last ditch limit to prevent memory overflow.
-
-
-;;   (vundo-compact-display t)
-
-;;   :bind* ("C-x u" . vundo)
-;;   ;; :custom-face
-;;   ;; (vundo-highlight ((t (:inherit nil :background "#ff5959" :foreground "white"))))
-;;   :custom
-;;   (vundo-glyph-alist vundo-unicode-symbols)
-;;   )
-
-;; (use-feature undo-hl
-;;   :ensure (undo-hl
-;;            :type git
-;;            :host github
-;;            :repo "casouri/undo-hl"
-;;            )
-;;   :defer t
-;;   :delight
-;;   :hook undo-tree-mode
-;;   :custom
-;;   (undo-hl-flash-duration 0.2)
-;;   :config
-;;   (append undo-hl-undo-commands '(undo-tree-undo undo-tree-redo))
-;;   :custom-face
-;;   (undo-hl-insert ((t (:inherit nil :background "#59c267" :foreground "#1f4023")))) 
-;;   (undo-hl-delete ((t (:inherit nil :background "#ff5959" :foreground "#5e1e1e"))))
-;;   )
 
 (use-package undo-tree
   :delight
@@ -3305,14 +3226,15 @@ I like this
   ;; cmake ..
   ;; make
   :init
-  (setq vterm-tramp-shells '(("ssh" "/usr/bin/zsh")))
+  (setq vterm-tramp-shells '(("rpc" "/usr/bin/zsh")))
   (setq vterm-shell "/bin/zsh")
   :config
   (setq vterm-timer-delay 0.01)
   )
 
 (use-package multi-vterm
-  :bind (
+  :defer t  
+  :bind* (
          ("C-x t" . multi-vterm-project)
          ("C-x M-t" . multi-vterm)
          )
@@ -3321,7 +3243,7 @@ I like this
 #+end_src
 
 *** yas
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle yes
 
 (use-package yasnippet
   :delight yas-minor-mode
@@ -3362,7 +3284,6 @@ I like this
     )
 #+end_src
 
-
 *** zoom
 #+begin_src emacs-lisp :lexical t
 (use-package zoom
@@ -3373,9 +3294,10 @@ I like this
   )
 #+end_src
 
-*** zoom
+*** project
 #+begin_src emacs-lisp :lexical t
 (use-package project
+  :defer t
   )
 #+end_src
 
