@@ -21,7 +21,10 @@
 
 (setq mouse-wheel-scroll-amount '(1 ((shift) . 1))) ;; one line at a time
 (setq mouse-wheel-progressive-speed nil) ;; don't accelerate scrolling
-(setq mouse-wheel-follow-mouse 't) ;; scroll window under mouse
+(setq mouse-wheel-follow-mouse t) ;; scroll window under mouse
+(global-unset-key (kbd "C-<wheel-up>")) ;; disable scrolling to zoom
+(global-unset-key (kbd "C-<wheel-down>"))
+
 
 
 (global-display-line-numbers-mode t)
@@ -35,7 +38,7 @@
 
 (defun connect-focusvq-home ()
   (interactive)
-  (dired "/ssh:sfigueroa@dev:~"))
+  (dired "/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/"))
 
 (setq sql-connection-alist
       '(

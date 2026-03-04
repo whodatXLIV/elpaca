@@ -724,8 +724,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                '(font . "Hack-12")) 
   (tool-bar-mode -1)
   (menu-bar-mode -1)
-  (color-theme-sanityinc-tomorrow-bright)
-
+  (color-theme-sanityinc-tomorrow-night)
   )
 #+end_src
 *** Mac os use meta
