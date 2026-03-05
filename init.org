@@ -3111,9 +3111,9 @@ I like this
   (tab-line ((t (:height 150))))
   (tab-line-highlight ((t (:background "white"))))
   (tab-line-tab ((t (:foreground "#c397d8"))))
-  (tab-line-tab-current ((t (:weight bold :box (:line-width -2 :color "#c397d8") :background "gray20" :foreground "#c397d8"))))
+  (tab-line-tab-current ((t (:weight bold :box (:line-width -2 :color "#c397d8") :background "#414141" :foreground "#c397d8" :inverse-video nil))))
   (tab-line-tab-inactive ((t (:background "#c397d8" :inverse-video t))))
-  (tab-line-tab-modified ((t (:background "gray20" :foreground "#c397d8" :inverse-video nil))))
+  (tab-line-tab-modified ((t (:background "#c397d8" :box (:line-width -2 :color "gray1") :foreground "gray1" :inverse-video nil))))
   :config
   (tab-line-mode)
   )
@@ -3231,14 +3231,25 @@ I like this
   (setq vterm-shell "/bin/zsh")
   :config
   (setq vterm-timer-delay 0.01)
+  (defun my-vterm-hl-line-handler ()
+    "Enable hl-line-mode in vterm-copy-mode, disable it otherwise."
+    (if vterm-copy-mode
+        (hl-line-mode 1)
+      (hl-line-mode -1)))
+
+  ;; Disable hl-line by default when entering vterm
+  (add-hook 'vterm-mode-hook (lambda () (hl-line-mode -1)))
+  ;; Toggle hl-line based on whether copy-mode is active
+  (add-hook 'vterm-copy-mode-hook #'my-vterm-hl-line-handler)
+  
   )
 
 (use-package multi-vterm
   :defer t  
   :bind* (
-         ("C-x t" . multi-vterm-project)
-         ("C-x M-t" . multi-vterm)
-         )
+          ("C-x t" . multi-vterm-project)
+          ("C-x M-t" . multi-vterm)
+          )
   )
 
 #+end_src
