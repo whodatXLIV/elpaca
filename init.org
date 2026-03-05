@@ -695,7 +695,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 ** my settings and my defs
 *** my gc
 
-#+begin_src emacs-lisp :lexical t :tangle no
+#+begin_src emacs-lisp :lexical t :tangle yes
 
 (defun my-minibuffer-setup-hook ()
   "Set high gc when minibuffer is open."
@@ -720,7 +720,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq custom-safe-themes t)   ; Treat all themes as safe
   :config
   (global-hl-line-mode 1)
-  (set-face-attribute 'hl-line nil :inherit nil :background "gray6")
+  ;; (set-face-attribute 'hl-line nil :inherit nil :background "gray90")
   
   (add-to-list 'default-frame-alist
                '(font . "Hack-12")) 
@@ -1562,7 +1562,7 @@ the list is kept."
 
 *** dired
 
-#+begin_src emacs-lisp :lexical t :tangle no
+#+begin_src emacs-lisp :lexical t :tangle yes
 
 (use-package nerd-icons-dired
   :defer t
@@ -1657,7 +1657,7 @@ the list is kept."
   :delight
   :bind* (("C-x C-d" . dired))
   :custom-face
-  (dired-directory ((t (:foreground "#97c8f7" :extend t)))) 
+  (dired-directory ((t (:foreground "#3375a8" :extend t)))) 
   (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
   :config
   ;; (require 'dired-subtree)
@@ -1894,9 +1894,9 @@ the list is kept."
   ;;       'ivy--regex-ignore-order)
   :delight
   :defer t
-  :custom-face
-  (ivy-current-match ((t (:inherit nil :background "gray20"))))
-  (ivy-virtual ((t (:inherit font-lock-builtin-face))))
+  ;; :custom-face
+  ;; (ivy-current-match ((t (:inherit nil :background "gray20"))))
+  ;; (ivy-virtual ((t (:inherit font-lock-builtin-face))))
   )
 
 (use-package nerd-icons-ivy-rich
@@ -2193,9 +2193,9 @@ the list is kept."
   :hook (org-mode)
   :defer t
   :custom-face
-  (org-block   ((t (:background "gray10" :extend t))))
-  (org-block-begin-line   ((t (:inherit org-block :background "#1b2419" :foreground "#876716" :extend t))))
-  (org-block-end-line     ((t (:inherit org-block-begin-line :background "gray10" :foreground "#876716" :extend t))))
+  ;; (org-block   ((t (:background "gray10" :extend t))))
+  (org-block-begin-line   ((t (:inherit org-block :foreground "#876716" :extend t)))) ;; :background "#1b2419"
+  (org-block-end-line     ((t (:inherit org-block-begin-line :foreground "#876716" :extend t)))) ;; :background "#1b2419"
   (org-drawer             ((t (:inherit shadow))))
   (org-level-1            ((t (:weight bold :height 1.2 :overline nil :underline t :extend t)))) ;; Blue :foreground "#3375a8"
   (org-level-2            ((t (:weight bold :height 1.2 :overline nil :extend t)))) ;; Aqua

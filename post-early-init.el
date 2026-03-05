@@ -76,7 +76,9 @@
 (elpaca elpaca-use-package
   (require 'elpaca-use-package)
   (elpaca-use-package-mode)
-  (setq elpaca-use-package-by-default t))
+  (setq elpaca-use-package-by-default t)
+  (setq use-package-always-ensure t)
+  )
 
 (elpaca-wait)
 
