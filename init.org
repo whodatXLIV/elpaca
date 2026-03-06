@@ -756,114 +756,131 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 *** tramp
 #+begin_src emacs-lisp :lexical t :tangle yes
-  (use-package msgpack
-    :ensure t)
+(use-package msgpack
+  :ensure t)
 
-  (use-package tramp-rpc
-    :ensure (tramp-rpc
-             :host github
-             :repo "ArthurHeymans/emacs-tramp-rpc"
-             :files ("lisp/*.el")
-             :main "lisp/tramp-rpc.el"
-             )
-    :after (msgpack tramp)
-    )
+(use-package tramp-rpc
+  :ensure (tramp-rpc
+           :host github
+           :repo "ArthurHeymans/emacs-tramp-rpc"
+           :files ("lisp/*.el")
+           :main "lisp/tramp-rpc.el"
+           )
+  :after (msgpack tramp)
+  )
 
-  (use-package tramp 
-    :config
-    ;; (when (string-equal emacs-version "29.2")
-    ;;   (with-current-buffer
-    ;;       (url-retrieve-synchronously
-    ;;        "https://git.savannah.gnu.org/cgit/emacs.git/plain/lisp/emacs-lisp/loaddefs-gen.el?h=emacs-29")
-    ;;     (goto-char (point-min))
-    ;;     (while (looking-at "^.+$") (forward-line))
-    ;;     (eval-region (point) (point-max))))
-    (setq shell-file-name "/bin/bash") 
-    (setq tramp-default-method "rpc")
-    (with-eval-after-load 'tramp (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
-    (with-eval-after-load 'tramp '(setenv "SHELL" "/bin/bash"))
+(use-package tramp 
+  :config
+  ;; (when (string-equal emacs-version "29.2")
+  ;;   (with-current-buffer
+  ;;       (url-retrieve-synchronously
+  ;;        "https://git.savannah.gnu.org/cgit/emacs.git/plain/lisp/emacs-lisp/loaddefs-gen.el?h=emacs-29")
+  ;;     (goto-char (point-min))
+  ;;     (while (looking-at "^.+$") (forward-line))
+  ;;     (eval-region (point) (point-max))))
+  (setq shell-file-name "/bin/bash") 
+  (setq tramp-default-method "rpc")
+  (with-eval-after-load 'tramp (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
+  (with-eval-after-load 'tramp '(setenv "SHELL" "/bin/bash"))
+
+  (setq vc-handled-backends nil) ; Disable all VC checks globally (fastest)
+  ;; OR, just for remote files:
+  (setq tramp-vc-handled-backends nil)
+  (setq remote-file-name-inhibit-cache nil)
+  (setq tramp-completion-reread-directory-timeout 60) ; Cache directory listings longer
+  (setq auto-revert-remote-files nil) ; Stop Emacs from polling for file changes
+    
+  ;; Set a shorter timeout for TRAMP connections
+  ;; (setq tramp-connection-timeout 120)
+
+  ;; Prevent TRAMP from hanging the modeline during disconnects
+  ;; (setq remote-file-name-inhibit-cache nil)
+  ;; (setq vc-ignore-dir-regexp
+  ;;       (format "\\(%s\\)\\|\\(%s\\)"
+  ;;               vc-ignore-dir-regexp
+  ;;               tramp-file-name-regexp))
 
     ;;;;;;;
-    ;; (setq remote-file-name-inhibit-locks t
-    ;;       tramp-use-scp-direct-remote-copying t
-    ;;       remote-file-name-inhibit-auto-save-visited t)
-    ;; (setq tramp-copy-size-limit (* 1024 1024)
-    ;;       tramp-verbose 2)
+  ;; (setq remote-file-name-inhibit-locks t
+  ;;       tramp-use-scp-direct-remote-copying t
+  ;;       remote-file-name-inhibit-auto-save-visited t)
+  ;; (setq tramp-copy-size-limit (* 1024 1024)
+  ;;       tramp-verbose 2)
 
-    ;; ;; this is where things break for eglot
-    ;; (connection-local-set-profile-variables
-    ;;  'remote-direct-async-process
-    ;;  '((tramp-direct-async-process . t)))
+  ;; ;; this is where things break for eglot
+  ;; (connection-local-set-profile-variables
+  ;;  'remote-direct-async-process
+  ;;  '((tramp-direct-async-process . t)))
 
-    ;; (connection-local-set-profiles
-    ;;  '(:application tramp :protocol "scp")
-    ;;  'remote-direct-async-process)
-    ;; ;;;;;; to here it breaks
+  ;; (connection-local-set-profiles
+  ;;  '(:application tramp :protocol "scp")
+  ;;  'remote-direct-async-process)
+  ;; ;;;;;; to here it breaks
 
-    ;; (setq magit-tramp-pipe-stty-settings 'pty)
+  ;; (setq magit-tramp-pipe-stty-settings 'pty)
 
-    ;; (with-eval-after-load 'tramp
-    ;;   (with-eval-after-load 'compile
-    ;;     (remove-hook 'compilation-mode-hook #'tramp-compile-disable-ssh-controlmaster-options)))
+  ;; (with-eval-after-load 'tramp
+  ;;   (with-eval-after-load 'compile
+  ;;     (remove-hook 'compilation-mode-hook #'tramp-compile-disable-ssh-controlmaster-options)))
 
-    ;; (defun memoize-remote (key cache orig-fn &rest args)
-    ;;   "Memoize a value if the key is a remote path."
-    ;;   (if (and key
-    ;;            (file-remote-p key))
-    ;;       (if-let ((current (assoc key (symbol-value cache))))
-    ;;           (cdr current)
-    ;;         (let ((current (apply orig-fn args)))
-    ;;           (set cache (cons (cons key current) (symbol-value cache)))
-    ;;           current))
-    ;;     (apply orig-fn args)))
+  ;; (defun memoize-remote (key cache orig-fn &rest args)
+  ;;   "Memoize a value if the key is a remote path."
+  ;;   (if (and key
+  ;;            (file-remote-p key))
+  ;;       (if-let ((current (assoc key (symbol-value cache))))
+  ;;           (cdr current)
+  ;;         (let ((current (apply orig-fn args)))
+  ;;           (set cache (cons (cons key current) (symbol-value cache)))
+  ;;           current))
+  ;;     (apply orig-fn args)))
 
 
-    ;; ;; Memoize current project
-    ;; (defvar project-current-cache nil)
-    ;; (defun memoize-project-current (orig &optional prompt directory)
-    ;;   (memoize-remote (or directory
-    ;;                       project-current-directory-override
-    ;;                       default-directory)
-    ;;                   'project-current-cache orig prompt directory))
+  ;; ;; Memoize current project
+  ;; (defvar project-current-cache nil)
+  ;; (defun memoize-project-current (orig &optional prompt directory)
+  ;;   (memoize-remote (or directory
+  ;;                       project-current-directory-override
+  ;;                       default-directory)
+  ;;                   'project-current-cache orig prompt directory))
 
-    ;; (advice-add 'project-current :around #'memoize-project-current)
+  ;; (advice-add 'project-current :around #'memoize-project-current)
 
-    ;; ;; Memoize magit top level
-    ;; (defvar magit-toplevel-cache nil)
-    ;; (defun memoize-magit-toplevel (orig &optional directory)
-    ;;   (memoize-remote (or directory default-directory)
-    ;;                   'magit-toplevel-cache orig directory))
-    ;; (advice-add 'magit-toplevel :around #'memoize-magit-toplevel)
+  ;; ;; Memoize magit top level
+  ;; (defvar magit-toplevel-cache nil)
+  ;; (defun memoize-magit-toplevel (orig &optional directory)
+  ;;   (memoize-remote (or directory default-directory)
+  ;;                   'magit-toplevel-cache orig directory))
+  ;; (advice-add 'magit-toplevel :around #'memoize-magit-toplevel)
 
-    ;; ;; memoize vc-git-root
-    ;; (defvar vc-git-root-cache nil)
-    ;; (defun memoize-vc-git-root (orig file)
-    ;;   (let ((value (memoize-remote (file-name-directory file) 'vc-git-root-cache orig file)))
-    ;;     ;; sometimes vc-git-root returns nil even when there is a root there
-    ;;     (when (null (cdr (car vc-git-root-cache)))
-    ;;       (setq vc-git-root-cache (cdr vc-git-root-cache)))
-    ;;     value))
-    ;; (advice-add 'vc-git-root :around #'memoize-vc-git-root)
+  ;; ;; memoize vc-git-root
+  ;; (defvar vc-git-root-cache nil)
+  ;; (defun memoize-vc-git-root (orig file)
+  ;;   (let ((value (memoize-remote (file-name-directory file) 'vc-git-root-cache orig file)))
+  ;;     ;; sometimes vc-git-root returns nil even when there is a root there
+  ;;     (when (null (cdr (car vc-git-root-cache)))
+  ;;       (setq vc-git-root-cache (cdr vc-git-root-cache)))
+  ;;     value))
+  ;; (advice-add 'vc-git-root :around #'memoize-vc-git-root)
 
-    ;; ;; memoize all git candidates in the current project
-    ;; (defvar $counsel-git-cands-cache nil)
-    ;; (defun $memoize-counsel-git-cands (orig dir)
-    ;;   ($memoize-remote (magit-toplevel dir) '$counsel-git-cands-cache orig dir))
-    ;; (advice-add 'counsel-git-cands :around #'$memoize-counsel-git-cands)
+  ;; ;; memoize all git candidates in the current project
+  ;; (defvar $counsel-git-cands-cache nil)
+  ;; (defun $memoize-counsel-git-cands (orig dir)
+  ;;   ($memoize-remote (magit-toplevel dir) '$counsel-git-cands-cache orig dir))
+  ;; (advice-add 'counsel-git-cands :around #'$memoize-counsel-git-cands)
 
-    
-    :defer t
-    )
+  
+  :defer t
+  )
 
-  (use-package counsel-tramp
-    :bind* ("C-c f" . counsel-tramp)
-    :defer t
-    :init
-    (setq counsel-tramp-custom-connections '(/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/ /rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/ ))
-    (setq counsel-tramp-default-method "rpc")
-    (setq make-backup-files nil)
-    (setq create-lockfiles nil) 
-    )
+(use-package counsel-tramp
+  :bind* ("C-c f" . counsel-tramp)
+  :defer t
+  :init
+  (setq counsel-tramp-custom-connections '(/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/ /rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/ ))
+  (setq counsel-tramp-default-method "rpc")
+  (setq make-backup-files nil)
+  (setq create-lockfiles nil) 
+  )
 #+end_src
 
 *** recentf
@@ -3226,30 +3243,62 @@ I like this
   ;; cd build
   ;; cmake ..
   ;; make
-  :init
-  (setq vterm-tramp-shells '(("rpc" "/usr/bin/zsh")))
-  (setq vterm-shell "/bin/zsh")
+  ;; :init
+  ;; (setq vterm-tramp-shells '(("rpc" "tmux new-session -A -s main")))
+  ;; (setq vterm-shell "tmux new-session -A -s main")
   :config
   (setq vterm-timer-delay 0.01)
-  (defun my-vterm-hl-line-handler ()
-    "Enable hl-line-mode in vterm-copy-mode, disable it otherwise."
-    (if vterm-copy-mode
-        (hl-line-mode 1)
-      (hl-line-mode -1)))
-
-  ;; Disable hl-line by default when entering vterm
-  (add-hook 'vterm-mode-hook (lambda () (hl-line-mode -1)))
-  ;; Toggle hl-line based on whether copy-mode is active
-  (add-hook 'vterm-copy-mode-hook #'my-vterm-hl-line-handler)
-  
   )
 
 (use-package multi-vterm
   :defer t  
   :bind* (
-          ("C-x t" . multi-vterm-project)
+          ("C-x t" . seth/vterm-project-toggle)
           ("C-x M-t" . multi-vterm)
           )
+  
+  :config
+  (defun seth/vterm-project-rpc-tmux ()
+    "Open vterm using 'rpc' method in the correct remote directory."
+    (interactive)
+    (let* ((host (file-remote-p default-directory 'host))
+           ;; 1. Safely find the project root or use default-directory
+           (root (if-let ((project (project-current)))
+                     (project-root project)
+                   default-directory))
+           ;; 2. Get the LOCAL path on the remote server (strips /rpc:user@host:)
+           (remote-path (file-local-name root))
+           ;; 3. Get folder name and sanitize for session name
+           (project-name (file-name-nondirectory (directory-file-name remote-path)))
+           (session-name (replace-regexp-in-string "\\." "_" project-name))
+           ;; 4. Build command with -c to set the starting directory
+           (tmux-cmd (format "tmux new-session -A -s %s -c %s" 
+                             session-name 
+                             (shell-quote-argument remote-path))))
+      (hl-line-mode nil)
+      (if (and host (string= (file-remote-p default-directory 'method) "rpc"))
+          (let ((vterm-tramp-shells (cons `("rpc" ,tmux-cmd) vterm-tramp-shells)))
+            (multi-vterm-project))
+        (let ((vterm-shell tmux-cmd))
+          (multi-vterm-project)))))
+
+  (defun seth/vterm-project-toggle ()
+    "Toggle vterm project: bury if in vterm, otherwise launch with project-named tmux."
+    (interactive)
+    (if (derived-mode-p 'vterm-mode)
+        (quit-window)
+      (seth/vterm-project-rpc-tmux)))
+  
+  (defun my-vterm-hl-line-handler ()
+    "Enable hl-line-mode in vterm-copy-mode, disable it otherwise."
+    (if vterm-copy-mode
+        (hl-line-mode 1)
+      (hl-line-mode nil)))
+
+  ;; Disable hl-line by default when entering vterm
+  (add-hook 'vterm-mode-hook (lambda () (hl-line-mode 0)))
+  ;; Toggle hl-line based on whether copy-mode is active
+  (add-hook 'vterm-copy-mode-hook #'my-vterm-hl-line-handler)
   )
 
 #+end_src
