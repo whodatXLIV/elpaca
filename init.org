@@ -3132,9 +3132,9 @@ I like this
   (tab-line-tab-inactive ((t (:background "#c397d8" :inverse-video t))))
   (tab-line-tab-modified ((t (:background "#c397d8" :box (:line-width -2 :color "gray1") :foreground "gray1" :inverse-video nil))))
   :config
-  (tab-line-mode)
+  (global-tab-line-mode t)
+  (setq tab-line-exclude-modes '(vterm-mode))
   )
-
 
 #+end_src
 
@@ -3246,8 +3246,37 @@ I like this
   ;; :init
   ;; (setq vterm-tramp-shells '(("rpc" "tmux new-session -A -s main")))
   ;; (setq vterm-shell "tmux new-session -A -s main")
+  
   :config
-  (setq vterm-timer-delay 0.01)
+  (setq vterm-timer-delay nil)
+  (add-hook 'vterm-mode-hook (lambda () 
+                               (flycheck-mode -1)
+                               (company-mode -1)))
+  (add-hook 'vterm-mode-hook
+            (lambda ()
+              ;; Prevent Emacs from trying to 'sync' point or window on every switch
+              (setq-local window-configuration-change-hook nil)
+              (setq-local post-command-hook 
+                          (remove 'vterm--post-command-hook post-command-hook))))
+  
+  (add-hook 'vterm-mode-hook (lambda () (setq-local tab-line-format nil)))
+
+  (defun my/disable-tab-line-in-vterm ()
+    "Forcefully disable tab-line-mode in the current buffer."
+    (setq-local tab-line-format nil)
+    (when (bound-and-true-p tab-line-mode)
+      (tab-line-mode -1)))
+
+  (add-hook 'vterm-mode-hook
+            (lambda ()
+              ;; 1. Run once on startup
+              (my/disable-tab-line-in-vterm)
+              ;; 2. Run every time the window is selected/configured
+              (add-hook 'window-configuration-change-hook #'my/disable-tab-line-in-vterm nil t)
+              ;; 3. Run after every command (the ultimate guarantee)
+              (add-hook 'post-command-hook #'my/disable-tab-line-in-vterm nil t)))
+
+  
   )
 
 (use-package multi-vterm
