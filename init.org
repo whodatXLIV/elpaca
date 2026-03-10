@@ -719,6 +719,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :init
   (setq custom-safe-themes t)   ; Treat all themes as safe
   :config
+  (setq global-hl-line-modes '(not vterm-mode))
   (global-hl-line-mode 1)
   ;; (set-face-attribute 'hl-line nil :inherit nil :background "gray90")
   
@@ -783,9 +784,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (with-eval-after-load 'tramp (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
   (with-eval-after-load 'tramp '(setenv "SHELL" "/bin/bash"))
 
-  (setq vc-handled-backends nil) ; Disable all VC checks globally (fastest)
+  (setq vc-handled-backends '(Git)) ; Disable all VC checks globally (fastest)
   ;; OR, just for remote files:
-  (setq tramp-vc-handled-backends nil)
+  (setq tramp-vc-handled-backends '(Git))
   (setq remote-file-name-inhibit-cache nil)
   (setq tramp-completion-reread-directory-timeout 60) ; Cache directory listings longer
   (setq auto-revert-remote-files nil) ; Stop Emacs from polling for file changes
@@ -2609,7 +2610,7 @@ I like this
   :defer t
   :init
   (setq-default eglot-workspace-configuration
-                '(:pylsp (:plugins (
+                '((:pylsp (:plugins (
                                     :black (:enabled t :cache_config t :skip_magic_trailing_comma :json-false)
                                     :pyflakes (:enabled t)
                                     :pycodestyle (:enabled :json-false)
@@ -2626,7 +2627,7 @@ I like this
                                                                ;; :cache_for ["pandas", "polars", "torch","numpy", "tensorflow", "matplotlib"]
                                                                )
                                     ))
-                         ))
+                         )))
   (setq eldoc-echo-area-use-multiline-p nil)
   :bind (
          ("C-c p" . start-eglot-python)
@@ -3087,8 +3088,7 @@ I like this
     '()
     "List of buffer names that will be tracked even if the buffer is not a file")
 
-
-
+  (seth-tab-config-tab2-select-filter-button)
 
   ;;   ;;; FORMAT FOR DOOM
   ;; ;;; Doom modeline integration
@@ -3248,7 +3248,7 @@ I like this
   ;; (setq vterm-shell "tmux new-session -A -s main")
   
   :config
-  (setq vterm-timer-delay nil)
+  (setq vterm-timer-delay 0.01)
   (add-hook 'vterm-mode-hook (lambda () 
                                (flycheck-mode -1)
                                (company-mode -1)))
@@ -3283,7 +3283,6 @@ I like this
   :defer t  
   :bind* (
           ("C-x t" . seth/vterm-project-toggle)
-          ("C-x M-t" . multi-vterm)
           )
   
   :config
@@ -3304,7 +3303,7 @@ I like this
            (tmux-cmd (format "tmux new-session -A -s %s -c %s" 
                              session-name 
                              (shell-quote-argument remote-path))))
-      (hl-line-mode nil)
+      (hl-line-mode 0)
       (if (and host (string= (file-remote-p default-directory 'method) "rpc"))
           (let ((vterm-tramp-shells (cons `("rpc" ,tmux-cmd) vterm-tramp-shells)))
             (multi-vterm-project))
@@ -3322,13 +3321,26 @@ I like this
     "Enable hl-line-mode in vterm-copy-mode, disable it otherwise."
     (if vterm-copy-mode
         (hl-line-mode 1)
-      (hl-line-mode nil)))
+      (hl-line-mode 0)))
 
   ;; Disable hl-line by default when entering vterm
-  (add-hook 'vterm-mode-hook (lambda () (hl-line-mode 0)))
+  (add-hook 'vterm-mode-hook #'my-vterm-hl-line-handler)
   ;; Toggle hl-line based on whether copy-mode is active
   (add-hook 'vterm-copy-mode-hook #'my-vterm-hl-line-handler)
   )
+
+(use-package vterm-anti-flicker-filter
+  :ensure (vterm-anti-flicker-filter
+           :type git
+           :host github
+           :repo "martinbaillie/vterm-anti-flicker-filter"
+           )
+  :defer t
+  :after vterm
+  :config
+  (vterm-anti-flicker-filter-enable)
+  )
+
 
 #+end_src
 
@@ -3388,6 +3400,24 @@ I like this
 #+begin_src emacs-lisp :lexical t
 (use-package project
   :defer t
+  )
+#+end_src
+*** Agent-Shell
+#+begin_src emacs-lisp :lexical t
+(use-package agent-shell
+  :config
+  (setq agent-shell-google-authentication
+        (agent-shell-google-make-authentication :login t)
+        )
+
+  ;; (setq agent-shell-google-authentication
+  ;;       (agent-shell-google-make-authentication :api-key "AIzaSyA75_4yAZvPx9yeMBPVEkg5ThaflIdM1DU"))
+  
+  :ensure t
+  ;; :ensure-system-package
+  ;; ;; Add agent installation configs here
+  ;; ((claude . "brew install claude-code")
+  ;;  (claude-agent-acp . "npm install -g @zed-industries/claude-agent-acp"))
   )
 #+end_src
 
