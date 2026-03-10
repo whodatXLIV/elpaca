@@ -3409,9 +3409,6 @@ I like this
   (setq agent-shell-google-authentication
         (agent-shell-google-make-authentication :login t)
         )
-
-  ;; (setq agent-shell-google-authentication
-  ;;       (agent-shell-google-make-authentication :api-key "AIzaSyA75_4yAZvPx9yeMBPVEkg5ThaflIdM1DU"))
   
   :ensure t
   ;; :ensure-system-package
