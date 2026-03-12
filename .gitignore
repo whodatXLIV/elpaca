@@ -20,3 +20,5 @@ transient
 /.cache/
 elpa
 projects
+/history
+/elpaca/
