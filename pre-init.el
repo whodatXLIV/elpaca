@@ -1,12 +1,6 @@
 ;;; pre-init.el --- Emacs pre package.el & GUI configuration -*- no-byte-compile: t; lexical-binding: t; -*-
     ;;; Code:
 
-(dolist (path '("/opt/homebrew/bin" "/usr/local/bin"))
-  (when (and (file-directory-p path)
-             (not (member path exec-path)))
-    (add-to-list 'exec-path path)
-    (setenv "PATH" (concat path ":" (getenv "PATH")))))
-
 (defun split-window-sensibly-prefer-horizontal (&optional window)
   "Based on split-window-sensibly, but designed to prefer a horizontal split,
 i.e. windows tiled side-by-side."

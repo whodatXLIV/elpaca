@@ -3409,15 +3409,78 @@ I like this
 (use-package agent-shell
   :config
   (setq agent-shell-google-authentication
-        (agent-shell-google-make-authentication :login t)
-        )
+        (agent-shell-google-make-authentication :login t))
   
-  :ensure t
-  ;; :ensure-system-package
-  ;; ;; Add agent installation configs here
-  ;; ((claude . "brew install claude-code")
-  ;;  (claude-agent-acp . "npm install -g @zed-industries/claude-agent-acp"))
+  (setq agent-shell-google-gemini-environment 
+        '("PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"))
+
+  (setq agent-shell-session-strategy 'latest)  
+  (setq agent-shell-prefer-viewport-interaction nil) 
+  :defer t
   )
+
+(use-package agent-shell-sidebar
+  :ensure (agent-shell-sidebar
+           :type git
+           :host github
+           :repo "cmacrae/agent-shell-sidebar"
+           )
+  :defer t
+  :config
+  (setq agent-shell-sidebar-default-config
+      (agent-shell-google-make-gemini-config))
+  (setq agent-shell-sidebar-locked nil)
+  (setq agent-shell-sidebar-width "1%")
+  (setq agent-shell-sidebar-minimum-width "5%")
+  (setq agent-shell-sidebar-maximum-width "100%")
+
+  (defun agent-shell-prompt-compose-toggle ()
+    "Toggle the agent shell compose buffer visibility."
+    (interactive)
+    (let* ((shell-buffer (or (agent-shell--current-shell)
+                             (seq-first (agent-shell-project-buffers))
+                             (agent-shell--shell-buffer)))
+           (viewport-buffer (when shell-buffer
+                              (agent-shell-viewport--buffer :shell-buffer shell-buffer :existing-only t)))
+           (window (and viewport-buffer (get-buffer-window viewport-buffer t))))
+      (cond
+       ((and window (eq (selected-window) window))
+        (quit-window nil window))
+       (window
+        (select-frame-set-input-focus (window-frame window))
+        (select-window window))
+       (t
+        (let ((agent-shell-display-action
+               `(display-buffer-in-direction
+                 . ((direction . ,agent-shell-sidebar-position)
+                    (window-width . ,(agent-shell-sidebar--calculate-width))
+                    (dedicated . t)))))
+          (agent-shell-prompt-compose))))))
+
+  (cl-defun agent-shell-sidebar--display-buffer (&key buffer project-root)
+    "Display BUFFER as a normal window for PROJECT-ROOT."
+    (let ((window (display-buffer
+                   buffer
+                   `(display-buffer-in-direction
+                     . ((direction . ,agent-shell-sidebar-position)
+                        (window-width . ,(agent-shell-sidebar--calculate-width))
+                        (dedicated . t))))))
+      (agent-shell-sidebar--setup-window :buffer buffer :project-root project-root)
+      window))
+
+  :bind* (
+          ("H-a t" . agent-shell-sidebar-toggle)
+          ("H-a c" . agent-shell-prompt-compose-toggle)
+          )
+  )
+
+
+#+end_src
+*** json
+#+begin_src emacs-lisp :lexical t
+  (use-package json-mode
+    :defer t
+    )
 #+end_src
 
 ** Ending
