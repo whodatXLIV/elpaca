@@ -2609,27 +2609,22 @@ I like this
   :defer t
   :init
   (setq-default eglot-workspace-configuration
-                '((:pylsp (:plugins (
-                                    :black (:enabled t :cache_config t :skip_magic_trailing_comma :json-false)
-                                    :pyflakes (:enabled t)
-                                    :pycodestyle (:enabled :json-false
-                                                           :maxLineLength 88
-                                                           :ignore ["E203", "W503"]
-                                                           )
-                                    :autopep8 (:enabled :json-false)
-                                    :pylint (:enabled :json-false)
-                                    :autopep8 (:enabled :json-false)
-                                    :yapf (:enabled :json-false)
-                                    :mccabe (:enabled :json-false)
-                                    :jedi_completion (:enabled t
-                                                               :include_params t
-                                                               :include_class_objects t
-                                                               :include_function_objects t
-                                                               :eager t
-                                                               ;; :cache_for ["pandas", "polars", "torch","numpy", "tensorflow", "matplotlib"]
-                                                               )
-                                    ))
-                         )))
+              '((:pylsp . (:plugins (:black (:enabled t)
+                                     :pyflakes (:enabled t)
+                                     :pycodestyle (:enabled t
+                                                   :maxLineLength 88
+                                                   :ignore ["E203" "W503"]
+                                                   )
+                                     :autopep8 (:enabled :json-false)
+                                     :pylint (:enabled :json-false)
+                                     :yapf (:enabled :json-false)
+                                     :mccabe (:enabled :json-false)
+                                     :jedi_completion (:enabled t
+                                                       :include_params t
+                                                       :include_class_objects t
+                                                       :include_function_objects t
+                                                       :eager t))))))
+
   (setq eldoc-echo-area-use-multiline-p nil)
   :bind (
          ("C-c p" . start-eglot-python)
@@ -2653,6 +2648,10 @@ I like this
   (setq eglot-connect-timeout 120)
   (setq eglot-sync-connect nil)
   (setq eglot-send-changes-idle-time 3)
+
+  (add-hook 'eglot-managed-mode-hook
+          (lambda ()
+            (add-hook 'before-save-hook 'eglot-format-buffer nil t)))
 
   (defun pixi-get-environment ()
     "Interactively select a pixi environment and return its bin path."
