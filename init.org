@@ -2612,7 +2612,10 @@ I like this
                 '((:pylsp (:plugins (
                                     :black (:enabled t :cache_config t :skip_magic_trailing_comma :json-false)
                                     :pyflakes (:enabled t)
-                                    :pycodestyle (:enabled :json-false)
+                                    :pycodestyle (:enabled :json-false
+                                                           :maxLineLength 88
+                                                           :ignore ["E203", "W503"]
+                                                           )
                                     :autopep8 (:enabled :json-false)
                                     :pylint (:enabled :json-false)
                                     :autopep8 (:enabled :json-false)
@@ -3414,8 +3417,9 @@ I like this
   (setq agent-shell-google-gemini-environment 
         '("PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"))
 
-  (setq agent-shell-session-strategy 'latest)  
-  (setq agent-shell-prefer-viewport-interaction nil) 
+  (setq agent-shell-session-strategy 'prompt)
+  (setq agent-shell-prefer-viewport-interaction nil)
+  (setq agent-shell-show-session-id t)
   :defer t
   )
 
