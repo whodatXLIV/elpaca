@@ -1147,67 +1147,69 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 *** company
 #+begin_src emacs-lisp :lexical t :tangle yes
 
-(use-package company
-  :delight
-  :defer t
-  :ensure company-spell
-  :bind* ("C-<tab>" . company-other-backend)
-  :hook ((prog-mode org-mode python-mode LaTeX-mode) . company-mode)
-  :custom-face
-  (company-preview                      ((t (:background "gray10" :foreground "#c397d8" :extend t))))
-  (company-preview-common               ((t (:inherit company-preview :foreground "#c397d8" :extend t))))
-  (company-preview-search               ((t (:inherit company-preview :foreground "#7aa6da" :extend t))))
-  (company-tooltip                      ((t (:background "gray10" :foreground "#eaeaea" :extend t))))
-  (company-tooltip-selection            ((t (:background "gray10" :foreground "#969896" :extend t))))
-  (company-tooltip-common               ((t (:inherit company-tooltip :foreground "#c397d8" :extend t))))
-  (company-tooltip-common-selection     ((t (:inherit company-tooltip-selection :foreground "#c397d8" :extend t))))
-  (company-tooltip-search               ((t (:inherit company-tooltip :foreground "#7aa6da" :extend t))))
-  (company-tooltip-annotation           ((t (:inherit company-tooltip :foreground "#70c0b1" :extend t))))
-  (company-tooltip-annotation-selection ((t (:inherit company-tooltip-selection :foreground "#70c0b1" :extend t))))
-  (company-echo-common                  ((t (:inherit company-echo :foreground "#c397d8" :extend t))))
+(use-package corfu
+  :ensure t
   :custom
-  (company-tooltip-align-annotations t)
-  (company-idle-delay nil)
-  (company-tooltip-idle-delay 0)
-  (company-minimum-prefix-length 0)
-  (company-require-match 'never)
-  (company-show-numbers t)
-  (company-tooltip-limit 20)
-  (company-tooltip-maximum-width 80)
-  (company-dabbrev-downcase nil)
-  (company-dabbrev-ignore-case t)
-  (company-dabbrev-code-ignore-case t)
-  (company-dabbrev-code-everywhere t)
-  (company-etags-ignore-case t)
-
-  (company-transformers '(seth-delete-consecutive-dups))
-
-  (company-selection-wrap-around t)
-  (completion-ignore-case t)
-  (company-show-quick-access t)
+  (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
+  (corfu-auto t)                 ;; Enable auto completion
+  (corfu-separator ?\s)          ;; Orderless field separator
+  (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
+  (corfu-quit-no-match nil)      ;; Never quit, even if there is no match
+  (corfu-preview-current nil)    ;; Disable current candidate preview
+  (corfu-preselect 'prompt)      ;; Preselect the prompt
+  (corfu-on-exact-match nil)     ;; Configure handling of exact matches
+  (corfu-scroll-margin 5)        ;; Use scroll margin
   :init
-  (defun seth-delete-consecutive-dups (list)
-    "Destructively remove `equal' consecutive duplicates from LIST.
-Of several consecutive `equal' occurrences, the one earliest in
-the list is kept."
-    (let ((tail list) last)
-      (while (cdr tail)
+  (global-corfu-mode))
 
-        (let ((eq1 (substring-no-properties (car tail)))
-              (eq2 (substring-no-properties (cadr tail))))
-          (if (equal (car (split-string eq1 "(")) (car (split-string eq2 "(")))
-              (progn
-                (when ( < (length eq1) (length eq2)) (setcar tail (car (cdr tail))))
-                ;; (setcar tail (car (cdr tail)))
-                (setcdr tail (cddr tail))
-                )
-	        (setq last tail
-	              tail (cdr tail))))))
-    list)
-  
-  :config
-  (add-to-list 'company-backends 'company-yasnippet 'company-ispell)
-  )
+(use-package corfu-popupinfo
+  :ensure nil
+  :after corfu
+  :hook (corfu-mode . corfu-popupinfo-mode)
+  :custom
+  (corfu-popupinfo-delay '(0.5 . 0.2))
+  (corfu-popupinfo-hide nil)
+  :bind (:map corfu-map
+              ("H-p" . corfu-popupinfo-scroll-down)
+              ("H-n" . corfu-popupinfo-scroll-up)
+              ("H-<tab>" . corfu-popupinfo-toggle)))
+
+(use-package cape
+  :ensure t
+  ;; Bind dedicated completion commands
+  ;; Alternative prefix keys: C-c p, M-p, M-+, ...
+  :bind (("C-c p p" . completion-at-point) ;; capf
+         ("C-c p t" . complete-tag)        ;; etags
+         ("C-c p d" . cape-dabbrev)        ;; or dabbrev-completion
+         ("C-c p h" . cape-history)
+         ("C-c p f" . cape-file)
+         ("C-c p k" . cape-keyword)
+         ("C-c p s" . cape-elisp-symbol)
+         ("C-c p e" . cape-elisp-block)
+         ("C-c p a" . cape-abbrev)
+         ("C-c p l" . cape-line)
+         ("C-c p w" . cape-dict)
+         ("C-c p \\" . cape-tex)
+         ("C-c p _" . cape-tex)
+         ("C-c p ^" . cape-tex)
+         ("C-c p &" . cape-sgml)
+         ("C-c p r" . cape-rfc1345))
+  :init
+  ;; Add `completion-at-point-functions', used by `completion-at-point'.
+  ;; NOTE: The order matters!
+  (add-to-list 'completion-at-point-functions #'cape-dabbrev)
+  (add-to-list 'completion-at-point-functions #'cape-file)
+  (add-to-list 'completion-at-point-functions #'cape-elisp-block)
+  ;;(add-to-list 'completion-at-point-functions #'cape-history)
+  ;;(add-to-list 'completion-at-point-functions #'cape-keyword)
+  ;;(add-to-list 'completion-at-point-functions #'cape-tex)
+  ;;(add-to-list 'completion-at-point-functions #'cape-sgml)
+  ;;(add-to-list 'completion-at-point-functions #'cape-rfc1345)
+  ;;(add-to-list 'completion-at-point-functions #'cape-abbrev)
+  ;;(add-to-list 'completion-at-point-functions #'cape-dict)
+  ;;(add-to-list 'completion-at-point-functions #'cape-elisp-symbol)
+  ;;(add-to-list 'completion-at-point-functions #'cape-line)
+)
 
 #+end_src
 
@@ -2421,33 +2423,6 @@ the list is kept."
 #+end_src
 
 *** posframe
-#+begin_src emacs-lisp :lexical t :tangle yes
-(use-package company-posframe
-  :delight
-  :defer t
-  :hook (prog-mode text-mode)
-  :custom
-  (company-posframe-quickhelp-show-header t)
-  (company-posframe-quickhelp-delay nil)
-  :config
-  (company-posframe-mode 1)
-  :bind (:map company-active-map
-              ("H-<tab>" . seth-toggle-company-posframe) ;; 
-              ("H-p" . company-posframe-quickhelp-scroll-down)
-              ("H-n" . company-posframe-quickhelp-scroll-up)
-              ("<tab>" . company-complete-selection)
-              )
-  :init
-  (defun seth-toggle-company-posframe ()
-    (interactive)
-    (company-posframe-quickhelp-toggle)
-    (setq company-posframe-quickhelp-delay (if (eq 0 company-posframe-quickhelp-delay) nil 0))
-    (when (not company-posframe-quickhelp-delay) (company-posframe-quickhelp-toggle))
-    )
-  )
-
-
-#+end_src
 
 *** python
 
