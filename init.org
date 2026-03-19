@@ -1149,7 +1149,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (use-package corfu
   :ensure t
-  :bind (("C-<tab>" . completion-at-point))
+  :bind* (("C-<tab>" . completion-at-point))
   :custom
   (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
   (corfu-auto t)                 ;; Enable auto completion
@@ -1213,16 +1213,22 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 
   ;; (setq-local completion-at-point-functions
-  ;; (list (cape-capf-choose #'cape-dabbrev #'cape-file #'cape-keyword)))
+  ;;             (list (cape-capf-choose #'cape-dabbrev #'cape-file #'cape-keyword)))
 
-  ;; :init
-  ;; Add `completion-at-point-functions', used by `completion-at-point'.
-  ;; NOTE: The order matters!
-  ;; (add-to-list 'completion-at-point-functions #'cape-dabbrev)
-  ;; (add-to-list 'completion-at-point-functions #'cape-keyword)
-  ;; (add-to-list 'completion-at-point-functions #'cape-file)
-  ;; (add-to-list 'completion-at-point-functions #'cape-elisp-block)
-  ;; (add-to-list 'completion-at-point-functions #'cape-history)
+  :init
+  ;; Create a "Super" completion backend that merges dabbrev, file, and keywords
+  (defalias 'cape-global-super
+    (cape-capf-super #'cape-dabbrev #'cape-file #'cape-keyword))
+
+  ;; Add the super backend to the global completion list.
+  ;; Emacs will try the major-mode specific completions first (like elisp),
+  ;; and if they fail, it will fall back to showing this combined list.
+  (add-hook 'completion-at-point-functions #'cape-global-super)
+
+  ;;(add-hook 'completion-at-point-functions #'cape-dabbrev)
+  ;;(add-hook 'completion-at-point-functions #'cape-keyword)
+  ;;(add-hook 'completion-at-point-functions #'cape-file)
+  ;;(add-hook 'completion-at-point-functions #'cape-history)
   ;;(add-to-list 'completion-at-point-functions #'cape-tex)
   ;;(add-to-list 'completion-at-point-functions #'cape-sgml)
   ;;(add-to-list 'completion-at-point-functions #'cape-rfc1345)
@@ -2675,9 +2681,17 @@ I like this
   (setq eglot-sync-connect nil)
   (setq eglot-send-changes-idle-time 3)
 
+  (defun my/eglot-capf ()
+    (setq-local completion-at-point-functions
+                (list (cape-capf-super
+                       #'eglot-completion-at-point
+                       #'yasnippet-capf
+                       #'cape-dabbrev))))
+
   (add-hook 'eglot-managed-mode-hook
           (lambda ()
-            (add-hook 'before-save-hook 'eglot-format-buffer nil t)))
+            (add-hook 'before-save-hook 'eglot-format-buffer nil t)
+            (my/eglot-capf)))
 
   (defun pixi-get-environment ()
     "Interactively select a pixi environment and return its bin path."
@@ -2747,6 +2761,12 @@ I like this
   (flycheck-help-echo-function nil)
   (flycheck-display-errors-function nil)
   )
+
+(use-package consult-eglot
+  :ensure t
+  :after (consult eglot)
+  :bind (:map eglot-mode-map
+              ("M-g s" . consult-eglot-symbols)))
 
 #+end_src
 
@@ -3340,6 +3360,20 @@ I like this
   :ensure t
   :after yasnippet
   :defer t
+  )
+
+(use-package yasnippet-capf
+  :ensure t
+  :after (yasnippet cape)
+  :config
+  (add-to-list 'completion-at-point-functions #'yasnippet-capf))
+
+(use-package jinx
+  :ensure t
+  :delight 
+  :hook (emacs-startup . global-jinx-mode)
+  ;; :bind (("M-$" . jinx-correct)
+  ;;        ("C-M-$" . jinx-languages))
   )
 
 (use-package py-snippets
