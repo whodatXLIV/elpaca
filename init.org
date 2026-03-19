@@ -696,18 +696,13 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 #+begin_src emacs-lisp :lexical t :tangle yes
 
-(defun my-minibuffer-setup-hook ()
-  "Set high gc when minibuffer is open."
-  (setq gc-cons-threshold most-positive-fixnum)
-  (setq gc-cons-percentage 1))
-
-(defun my-minibuffer-exit-hook ()
-  "Set low GC when minibuffer exits."
-  (setq gc-cons-threshold minimal-emacs-gc-cons-threshold)
-  (setq gc-cons-percentage 0.1))
-
-(add-hook 'minibuffer-setup-hook 'my-minibuffer-setup-hook)
-(add-hook 'minibuffer-exit-hook 'my-minibuffer-exit-hook)
+(use-package gcmh
+  :delight
+  :init
+  (setq gcmh-idle-delay 5
+        gcmh-high-cons-threshold (* 16 1024 1024))
+  :config
+  (gcmh-mode 1))
 #+end_src
 
 *** theme and font
@@ -731,27 +726,31 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+end_src
 *** Mac os use meta
 #+begin_src emacs-lisp :lexical t
-;; :defer t
-;; :hook after-init-hook
-(use-package exec-path-from-shell
-  :if (memq window-system '(mac ns))
-  :ensure t
-  :hook (after-init)
-  :init
+(when (memq window-system '(mac ns))
   (setq mac-option-modifier 'hyper ;; for emacs-mac
         mac-command-modifier 'meta
         mac-right-option-modifier 'super)
   (setq ns-command-modifier 'meta ;; for emacs-plus
         ns-option-modifier 'hyper
-        ns-right-option-modifier 'super
-        )
-  ;; (setq exec-path-from-shell-debug t)
-  :config
-  (setq exec-path-from-shell-arguments (list "-l")) ;; (list "-l" "-i")
-  (setq exec-path-from-shell-variables '("PATH"))
-  (exec-path-from-shell-initialize)
-  :defer nil
-  )
+        ns-right-option-modifier 'super)
+  
+  (if (file-exists-p "/opt/homebrew/bin/brew")
+      (let ((my-paths '("/opt/homebrew/bin" 
+                        "/opt/homebrew/sbin" 
+                        "/usr/local/bin" 
+                        "/usr/bin" 
+                        "/bin" 
+                        "/usr/sbin" 
+                        "/sbin")))
+        (setenv "PATH" (string-join my-paths ":"))
+        (setq exec-path (append my-paths (list exec-directory))))
+    ;; Fallback to exec-path-from-shell
+    (use-package exec-path-from-shell
+      :ensure t
+      :config
+      (setq exec-path-from-shell-arguments '("-l"))
+      (setq exec-path-from-shell-variables '("PATH"))
+      (exec-path-from-shell-initialize))))
 #+end_src
 
 *** tramp
@@ -892,8 +891,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq recentf-max-menu-items 25)
   (setq recentf-max-saved-items 25)
   
+  :hook (emacs-startup . recentf-mode)
   :config
-  (recentf-mode 1)
   (savehist-mode 1)
   (run-at-time nil (* 5 60) 'recentf-save-list)
   (add-to-list 'recentf-exclude "\\.png$")
