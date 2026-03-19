@@ -2609,7 +2609,8 @@ I like this
   :defer t
   :init
   (setq-default eglot-workspace-configuration
-              '((:pylsp . (:plugins (:black (:enabled t)
+              '((:pylsp . (:plugins (:black (:enabled t
+                                                      :cache_config t)
                                      :pyflakes (:enabled t)
                                      :pycodestyle (:enabled t
                                                    :maxLineLength 88
@@ -2623,7 +2624,9 @@ I like this
                                                        :include_params t
                                                        :include_class_objects t
                                                        :include_function_objects t
-                                                       :eager t))))))
+                                                       :eager :json-false
+                                                       :cache_for ["pandas" "numpy" "matplotlib" "polars" "jax"]
+                                                       ))))))
 
   (setq eldoc-echo-area-use-multiline-p nil)
   :bind (
@@ -3479,12 +3482,23 @@ I like this
 
 
 #+end_src
+
 *** json
 #+begin_src emacs-lisp :lexical t
   (use-package json-mode
     :defer t
     )
 #+end_src
+
+*** SpeedRect
+#+begin_src emacs-lisp :lexical t
+(use-package speedrect
+  :defer t
+  :config
+  (speedrect-mode)
+  )
+#+end_src
+
 
 ** Ending
 #+begin_src emacs-lisp :lexical t

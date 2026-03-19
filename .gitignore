@@ -23,3 +23,5 @@ projects
 /history
 /elpaca/
 /.agent-shell/
+/agent/
+/tramp-rpc/
