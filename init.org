@@ -871,15 +871,12 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :defer t
   )
 
-(use-package counsel-tramp
-  :bind* ("C-c f" . counsel-tramp)
-  :defer t
-  :init
-  (setq counsel-tramp-custom-connections '(/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/ /rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/ ))
-  (setq counsel-tramp-default-method "rpc")
-  (setq make-backup-files nil)
-  (setq create-lockfiles nil) 
-  )
+(use-package consult-dir
+  :ensure t
+  :bind (("C-x C-d" . consult-dir)
+         :map vertico-map
+         ("C-x C-d" . consult-dir)
+         ("C-x C-j" . consult-dir-jump-file)))
 #+end_src
 
 *** recentf
@@ -1204,19 +1201,6 @@ the list is kept."
 *** consult
 
 #+begin_src emacs-lisp :lexical t :tangle yes
-(use-package counsel
-  :defer t
-  :bind* (
-          ("C-x C-f" . counsel-find-file)
-          ("C-x M-f" . counsel-file-jump)
-          ("C-x C-d" . counsel-dired)
-          )
-  :delight
-  ;; :custom
-  ;; (counsel-yank-pop-separator "\n----\n")
-  :config
-  (counsel-mode)
-  )
 
 (use-package vertico
   :ensure t
@@ -2422,27 +2406,6 @@ the list is kept."
   )
 
 
-;; (use-package ivy-posframe
-;;   :delight
-;;   :defer t
-;;   :hook ((ivy-mode swiper-mode counsel-mode) . ivy-posframe-mode)
-;;   :custom-face
-;;   (ivy-posframe ((t (:background "gray10" :extend t)))) 
-;;   :init
-;;   (setq ivy-posframe-display-functions-alist
-;;         '(
-;;           (swiper          . ivy-display-function-fallback)
-;;           ;; (complete-symbol . ivy-posframe-display-at-point)
-;;           (counsel-M-x     . ivy-posframe-display-at-point)
-;;           (t               . ivy-posframe-display-at-point)))
-
-;;   ;; Different command can use different display function.
-;;   (setq ivy-posframe-height-alist '((swiper . 10)
-;;                                     (t      . 20)))
-;;   (setq ivy-posframe-parameters
-;;         '((left-fringe . 10)
-;;           (right-fringe . 10)))
-;;   )
 #+end_src
 
 *** python
