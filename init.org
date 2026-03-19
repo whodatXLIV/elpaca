@@ -19,7 +19,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 ;;; Misc
 (setq custom-file null-device)
-;; (setq minimal-emacs-gc-cons-threshold (* 64 1024 1024))
+(setq minimal-emacs-gc-cons-threshold (* 64 1024 1024 1024))
 
 (setq inhibit-default-init nil)
 (setq server-client-instructions nil)
@@ -700,7 +700,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :delight
   :init
   (setq gcmh-idle-delay 5
-        gcmh-high-cons-threshold (* 16 1024 1024))
+        gcmh-high-cons-threshold (* 64 1024 1024 1024))
   :config
   (gcmh-mode 1))
 #+end_src
@@ -877,6 +877,15 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
          :map vertico-map
          ("C-x C-d" . consult-dir)
          ("C-x C-j" . consult-dir-jump-file)))
+
+(use-package consult-tramp
+  :ensure (consult-tramp
+           :type git
+           :host github
+           :repo "Ladicle/consult-tramp")
+  :bind ("C-c f" . consult-tramp)
+  :config
+  (setq consult-tramp-custom-connections '(/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/ /rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/ )))
 #+end_src
 
 *** recentf
@@ -1897,6 +1906,14 @@ the list is kept."
   ;; (ivy-virtual ((t (:inherit font-lock-builtin-face))))
   )
 
+(use-package counsel
+  :ensure t
+  :defer t)
+
+(use-package ivy-rich
+  :ensure t
+  :defer t)
+
 (use-package nerd-icons-ivy-rich
   :ensure t
   :init
@@ -2589,7 +2606,6 @@ I like this
                                                        ))))))
 
   (setq eldoc-echo-area-use-multiline-p nil)
-  (global-flycheck-eglot-mode 1)
   :bind (
          ("C-c p" . start-eglot-python)
          )
@@ -2676,7 +2692,10 @@ I like this
   )
 
 (use-package flycheck-eglot
-  :defer t
+  :ensure t
+  :after (flycheck eglot)
+  :config
+  (global-flycheck-eglot-mode 1)
   :custom
   (flycheck-help-echo-function nil)
   (flycheck-display-errors-function nil)
@@ -2912,15 +2931,7 @@ I like this
            :local-repo "tab-config"
            :files (:defaults "tab-config.el" (:exclude "*init.el" "*.md" "*png" "custom.el"))
            )
-  
-  ;; :ensure (tab-config
-  ;;          :type git
-  ;;          :host github
-  ;;          :repo "benleis1/emacs-init"
-  ;;          :local-repo "tab-config"
-  ;;          :files (:defaults "tab-config.el" (:exclude "*init.el" "*.md" "*png" "custom.el"))
-  ;;          )
-  
+    
   :after (tab-line) ;; doom-modeline
   :defer t
   :bind* (
@@ -2928,12 +2939,8 @@ I like this
           ("M-S-<left>" . switch-highlighted-tab-or-buffer)
           ("M-S-<right>" . seth-switch-highlighted-tab-or-buffer)
           ("M-S-<down>" . tab-line-mode)
-          ;; ("C-S-<left>" . (lambda () (interactive) (tab2-shift-tab-left t)))
-          ;; ("C-S-<right>" . (lambda () (interactive) (tab2-shift-tab-right t)))
-          ;; add in new views and stuff
           )
   :config
-  (global-tab-line-mode t)
   (setq tab2-line-tab-buffer-plist (list))
 
   (defun seth-tab-config-tab2-select-filter-button ()
@@ -3052,42 +3059,11 @@ I like this
     '()
     "List of buffer names that will be tracked even if the buffer is not a file")
 
-  (seth-tab-config-tab2-select-filter-button)
-
-  ;;   ;;; FORMAT FOR DOOM
-  ;; ;;; Doom modeline integration
-
-  ;;   (defvar-keymap tab2-mode-line-view-map
-  ;;     "<mode-line> <mouse-3>" #'tab2-next-view
-  ;;     "<mode-line> <mouse-1>" #'tab2-prev-view)
-
-
-  ;;   (doom-modeline-def-segment tab2-view-segment
-  ;;     "show the current tab2 view"
-  ;;     (propertize (concat
-  ;; 	             "₪ "
-  ;; 	             (tab2-view-name (tab2-get-current-view)))
-  ;;                 'face `(:foreground "#2fd0f7" :weight bold)
-  ;; 	            'help-echo "Current tab view - click to switch to the next one"
-  ;; 	            'local-map tab2-mode-line-view-map
-  ;; 	            ))
-  
-  ;;   (doom-modeline-def-modeline 'tab2-aware-modeline
-  ;;     '(bar matches buffer-encoding buffer-info-simple remote-host media-info buffer-position selection-info)
-  ;;     '(misc-info battery minor-modes input-method major-mode repl lsp process vcs tab2-view-segment check time))
-
-  ;;   ;; Set once on start
-  ;;   (doom-modeline-set-modeline 'tab2-aware-modeline 'default)
-  ;;   ;; Hook in after that.
-  ;;   (add-hook 'doom-modeline-mode-hook
-  ;;             (lambda ()
-  ;;               (doom-modeline-set-modeline 'tab2-aware-modeline 'default)))
-
-  ;;; Start in Messages and with a selected buffer
-  ;; (add-hook 'emacs-startup-hook (lambda () (tab-line-select-tab-buffer "*Messages*" (selected-window)) (tab2-get-tabs)))
   )
 
 (use-feature tab-line
+  :defer t
+  :hook (after-init)
   :custom-face
   (tab-line ((t (:height 150))))
   (tab-line-highlight ((t (:background "white"))))
@@ -3316,22 +3292,25 @@ I like this
 
 (use-package yasnippet
   :delight yas-minor-mode
-  :defer nil
+  :defer t
+  :hook ((prog-mode . yas-minor-mode)
+         (text-mode . yas-minor-mode))
   :config
-  (yas-global-mode)
+  ;; (yas-global-mode)
   ;; (yas-reload-all)
   ;; (add-hook 'prog-mode-hook #'yas-minor-mode)
   )
 
 (use-package yasnippet-snippets
   :ensure t
-  ;; :after yasnippet
-  :defer nil
+  :after yasnippet
+  :defer t
   )
 
 (use-package py-snippets
   :ensure t
-  :defer nil
+  :after yasnippet
+  :defer t
   :config
   (py-snippets-initialize))
 
