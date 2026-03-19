@@ -1144,11 +1144,12 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 #+end_src
 
-*** company
+*** corfu
 #+begin_src emacs-lisp :lexical t :tangle yes
 
 (use-package corfu
   :ensure t
+  :bind (("C-<tab>" . completion-at-point))
   :custom
   (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
   (corfu-auto t)                 ;; Enable auto completion
@@ -1178,38 +1179,59 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :ensure t
   ;; Bind dedicated completion commands
   ;; Alternative prefix keys: C-c p, M-p, M-+, ...
-  :bind (("C-c p p" . completion-at-point) ;; capf
-         ("C-c p t" . complete-tag)        ;; etags
-         ("C-c p d" . cape-dabbrev)        ;; or dabbrev-completion
-         ("C-c p h" . cape-history)
-         ("C-c p f" . cape-file)
-         ("C-c p k" . cape-keyword)
-         ("C-c p s" . cape-elisp-symbol)
-         ("C-c p e" . cape-elisp-block)
-         ("C-c p a" . cape-abbrev)
-         ("C-c p l" . cape-line)
-         ("C-c p w" . cape-dict)
-         ("C-c p \\" . cape-tex)
-         ("C-c p _" . cape-tex)
-         ("C-c p ^" . cape-tex)
-         ("C-c p &" . cape-sgml)
-         ("C-c p r" . cape-rfc1345))
-  :init
+  :bind* ("C-c c" . hydra-cape/body)
+
+  ;; cape-abbrev: Complete abbreviation (add-global-abbrev, add-mode-abbrev).
+  ;; cape-dabbrev: Complete word from current buffers. See also dabbrev-capf.
+  ;; cape-dict: Complete word from dictionary file.
+  ;; cape-elisp-block: Complete Elisp in Org or Markdown code block.
+  ;; cape-elisp-symbol: Complete Elisp symbol.
+  ;; cape-emoji: Complete Emoji.
+  ;; cape-file: Complete file name.
+  ;; cape-history: Complete from Eshell, Comint or minibuffer history.
+  ;; cape-keyword: Complete programming language keyword.
+  ;; cape-line: Complete entire line from current buffer.
+  ;; cape-rfc1345: Complete Unicode char using RFC 1345 mnemonics.
+  ;; cape-sgml: Complete Unicode char from SGML entity, e.g., &alpha.
+  ;; cape-tex: Complete Unicode char from TeX command, e.g. \hbar.
+  :config
+  (defhydra hydra-cape (:color blue :hint nil)
+    "
+  _d_ dabbrev    _f_ file      _k_ keyword    _s_ symbol
+  _l_ line       _i_ ispell    _h_ history    _w_ dict
+  _q_ quit
+  "
+    ("d" cape-dabbrev)
+    ("f" cape-file)
+    ("k" cape-keyword)
+    ("s" cape-symbol)
+    ("l" cape-line)
+    ("i" cape-ispell)
+    ("h" cape-history)
+    ("w" cape-dict)
+    ("q" nil "quit"))
+
+
+  ;; (setq-local completion-at-point-functions
+  ;; (list (cape-capf-choose #'cape-dabbrev #'cape-file #'cape-keyword)))
+
+  ;; :init
   ;; Add `completion-at-point-functions', used by `completion-at-point'.
   ;; NOTE: The order matters!
-  (add-to-list 'completion-at-point-functions #'cape-dabbrev)
-  (add-to-list 'completion-at-point-functions #'cape-file)
-  (add-to-list 'completion-at-point-functions #'cape-elisp-block)
-  ;;(add-to-list 'completion-at-point-functions #'cape-history)
-  ;;(add-to-list 'completion-at-point-functions #'cape-keyword)
+  ;; (add-to-list 'completion-at-point-functions #'cape-dabbrev)
+  ;; (add-to-list 'completion-at-point-functions #'cape-keyword)
+  ;; (add-to-list 'completion-at-point-functions #'cape-file)
+  ;; (add-to-list 'completion-at-point-functions #'cape-elisp-block)
+  ;; (add-to-list 'completion-at-point-functions #'cape-history)
   ;;(add-to-list 'completion-at-point-functions #'cape-tex)
   ;;(add-to-list 'completion-at-point-functions #'cape-sgml)
   ;;(add-to-list 'completion-at-point-functions #'cape-rfc1345)
   ;;(add-to-list 'completion-at-point-functions #'cape-abbrev)
-  ;;(add-to-list 'completion-at-point-functions #'cape-dict)
+  ;; (add-to-list 'completion-at-point-functions #'cape-dict)
   ;;(add-to-list 'completion-at-point-functions #'cape-elisp-symbol)
-  ;;(add-to-list 'completion-at-point-functions #'cape-line)
-)
+  ;; (add-to-list 'completion-at-point-functions #'cape-line)
+  )
+
 
 #+end_src
 
@@ -1220,8 +1242,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package vertico
   :ensure t
   :bind (:map vertico-map
-          ("M-S" . my-vertico-cycle-sort)          
-         )
+          ("M-S" . my-vertico-cycle-sort))
+  :init
+  (vertico-mode 1)
   :config
   (setq vertico-cycle t)
   (setq vertico-resize nil)
@@ -1229,28 +1252,47 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq read-extended-command-predicate #'command-completion-default-include-p)
   (setq minibuffer-prompt-properties
         '(read-only t cursor-intangible t face minibuffer-prompt))
-  (vertico-mode 1)
-  
+
   (defvar my-vertico-sort-methods '(nil vertico-sort-alpha vertico-sort-length-alpha))
   (defvar-local my-vertico-sort-index 0)
 
   (defun my-vertico-cycle-sort ()
     "Cycle through different Vertico sorting methods."
     (interactive)
-    (setq my-vertico-sort-index 
+    (setq my-vertico-sort-index
           (mod (1+ my-vertico-sort-index) (length my-vertico-sort-methods)))
-    (setq-local vertico-sort-override-function 
+    (setq-local vertico-sort-override-function
                 (nth my-vertico-sort-index my-vertico-sort-methods))
     (message "Vertico sort: %s" (or vertico-sort-override-function "Default"))
     (setq vertico--input t))
-
   )
+(use-package vertico-directory
+  :after vertico
+  :ensure nil
+  ;; More convenient directory navigation commands
+  :bind (:map vertico-map
+              ("RET" . vertico-directory-enter)
+              ("DEL" . vertico-directory-delete-char)
+              ("M-DEL" . vertico-directory-delete-word))
+  ;; Tidy shadowed file names (e.g. ~/foo/bar//baz -> /baz)
+  :hook (rfn-eshadow-update-overlay . vertico-directory-tidy))
+
 (use-package orderless
   :ensure t
   :custom
   (completion-styles '(orderless basic))
   (completion-category-overrides '((file (styles . (partial-completion substring)))))
-  (completion-pcm-leading-wildcard t))
+  (completion-pcm-leading-wildcard t)
+  (orderless-style-dispatchers '(my-orderless-dispatch))
+  :init
+  (defun my-orderless-dispatch (pattern index _total)
+    (cond
+     ;; Ensure that $ works with Consult commands, which add disambiguation suffixes
+     ((string-suffix-p "$" pattern)
+      `(orderless-regexp . ,(concat (substring pattern 0 -1) "[\x100000-\x10FFFD]*$")))
+     ;; Ignore character (!)
+     ((string-prefix-p "!" pattern)
+      `(orderless-without-literal . ,(substring pattern 1))))))
 
 (use-package consult
   :ensure t
@@ -1267,10 +1309,16 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
   :config
   (setq consult-preview-key 'any)
+  (setq consult-narrow-key "<")
   )
 
 (use-package embark-consult
   :ensure t)
+
+(use-package wgrep
+  :ensure t
+  :custom
+  (wgrep-auto-save-buffer t))
 
 #+end_src
 
