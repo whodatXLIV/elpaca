@@ -885,7 +885,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
            :repo "Ladicle/consult-tramp")
   :bind ("C-c f" . consult-tramp)
   :config
-  (setq consult-tramp-custom-connections '(/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/ /rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/ )))
+  (setq consult-tramp-extra-targets '("/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/" "/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/" ))
+  (setq consult-tramp-method "rcp")
+  (setq consult-tramp-known-hosts "~/.ssh/known_hosts")
+  
+  )
 #+end_src
 
 *** recentf
@@ -1213,6 +1217,9 @@ the list is kept."
 
 (use-package vertico
   :ensure t
+  :bind (:map vertico-map
+          ("M-S" . my-vertico-cycle-sort)          
+         )
   :config
   (setq vertico-cycle t)
   (setq vertico-resize nil)
@@ -1221,8 +1228,21 @@ the list is kept."
   (setq minibuffer-prompt-properties
         '(read-only t cursor-intangible t face minibuffer-prompt))
   (vertico-mode 1)
-  )
+  
+  (defvar my-vertico-sort-methods '(nil vertico-sort-alpha vertico-sort-length-alpha))
+  (defvar-local my-vertico-sort-index 0)
 
+  (defun my-vertico-cycle-sort ()
+    "Cycle through different Vertico sorting methods."
+    (interactive)
+    (setq my-vertico-sort-index 
+          (mod (1+ my-vertico-sort-index) (length my-vertico-sort-methods)))
+    (setq-local vertico-sort-override-function 
+                (nth my-vertico-sort-index my-vertico-sort-methods))
+    (message "Vertico sort: %s" (or vertico-sort-override-function "Default"))
+    (setq vertico--input t))
+
+  )
 (use-package orderless
   :ensure t
   :custom
@@ -1240,7 +1260,8 @@ the list is kept."
          ("M-g i" . consult-imenu)
          ("C-x C-a" . consult-grep)
          ("C-x f" . consult-recent-file)
-         )
+         ("C-s" . consult-line)
+         ("H-s" . consult-ripgrep)         )
 
   :config
   (setq consult-preview-key 'any)
@@ -1975,13 +1996,14 @@ the list is kept."
 #+end_src
 
 *** marginalia
-#+begin_src emacs-lisp :lexical t :tangle no
+#+begin_src emacs-lisp :lexical t :tangle yes
 ;; Enable rich annotations using the Marginalia package
 (use-package marginalia
   ;; Bind `marginalia-cycle' locally in the minibuffer.  To make the binding
   ;; available in the *Completions* buffer, add it to the
   ;; `completion-list-mode-map'.
-  :bind* ("H-a" . marginalia-cycle)
+  :bind (:map minibuffer-local-map
+         ("M-A" . marginalia-cycle))
   :defer t
   ;; The :init section is always executed.
   :init
@@ -1989,6 +2011,8 @@ the list is kept."
   ;; the mode gets enabled right away. Note that this forces loading the
   ;; package.
   (marginalia-mode)
+  (setq marginalia-remote-file-regexps nil)
+
   :after vertico
   )
 
@@ -2094,23 +2118,23 @@ the list is kept."
          ("s-z" . org-babel-switch-to-session)
          ) 
   :init
-  (defun seth-org/clear-all-results ()
-    "Clear all results in the buffer."
-    (interactive)
-    (save-excursion
-      (goto-char (point-min))
-      (while (org-babel-next-src-block)
-        (forward-line -1)
-        (beginning-of-line)
-        (when (looking-at "#\\+LASTRUN:")
-          (delete-region (pos-bol) (1- (pos-bol 2)))
-          (delete-line)
-          )
-        (forward-line 1)
-        (org-babel-remove-result))))
+  ;; (defun seth-org/clear-all-results ()
+  ;;   "Clear all results in the buffer."
+  ;;   (interactive)
+  ;;   (save-excursion
+  ;;     (goto-char (point-min))
+  ;;     (while (org-babel-next-src-block)
+  ;;       (forward-line -1)
+  ;;       (beginning-of-line)
+  ;;       (when (looking-at "#\\+LASTRUN:")
+  ;;         (delete-region (pos-bol) (1- (pos-bol 2)))
+  ;;         (delete-line)
+  ;;         )
+  ;;       (forward-line 1)
+  ;;       (org-babel-remove-result))))
 
-  (add-hook 'org-mode-hook (lambda ()
-                             (setq-local seth-jupyter-execution-count 1)))
+  ;; (add-hook 'org-mode-hook (lambda ()
+  ;;                            (setq-local seth-jupyter-execution-count 1)))
   ;; (setq seth-jupyter-execution-count 1)
   
   (setq org-src-fontify-natively t
@@ -2121,53 +2145,53 @@ the list is kept."
 
   
   :config
-  (org-babel-do-load-languages
-   'org-babel-load-languages
-   '((emacs-lisp . t)
-     (julia . t)
-     (python . t)
-     (sql . t)
-     ;; (sql-mode . t)
-     ;; (sql-session . t)
-     (jupyter . t)))
+  ;; (org-babel-do-load-languages
+  ;;  'org-babel-load-languages
+  ;;  '((emacs-lisp . t)
+  ;;    (julia . t)
+  ;;    (python . t)
+  ;;    (sql . t)
+  ;;    ;; (sql-mode . t)
+  ;;    ;; (sql-session . t)
+  ;;    (jupyter . t)))
   
-  (defun do-org-confirm-babel-evaluations (lang body)
-    (not
-     (or
-      (string= lang "elisp")
-      (string= lang "sql")
-      (string= lang "sql-mode")
-      ;; (string= lang "sql-session")
-      )))
-  (setq org-confirm-babel-evaluate 'do-org-confirm-babel-evaluations)
-  ;; (require 'scimax-jupyter)
-  ;; (defun seth-org-babel-add-time-stamp-after-execute-before-src-block ()
-  ;;   ;; (sleep-for 2)    
-  ;;   (end-of-line)
-  ;;   (save-excursion
-  ;;     (search-backward "#+BEGIN_SRC" 0 t)
-  ;;     (forward-line -1)
-  ;;     (beginning-of-line)
+  ;; (defun do-org-confirm-babel-evaluations (lang body)
+  ;;   (not
+  ;;    (or
+  ;;     (string= lang "elisp")
+  ;;     (string= lang "sql")
+  ;;     (string= lang "sql-mode")
+  ;;     ;; (string= lang "sql-session")
+  ;;     )))
+  ;; (setq org-confirm-babel-evaluate 'do-org-confirm-babel-evaluations)
+  ;; ;; (require 'scimax-jupyter)
+  ;; ;; (defun seth-org-babel-add-time-stamp-after-execute-before-src-block ()
+  ;; ;;   ;; (sleep-for 2)    
+  ;; ;;   (end-of-line)
+  ;; ;;   (save-excursion
+  ;; ;;     (search-backward "#+BEGIN_SRC" 0 t)
+  ;; ;;     (forward-line -1)
+  ;; ;;     (beginning-of-line)
 
-  ;;     (if (looking-at "#\\+LASTRUN:")
-  ;;         (delete-region (pos-bol) (1- (pos-bol 2)))
-  ;;       (open-line 1)
-  ;;       (next-line 1)
-  ;;       )
+  ;; ;;     (if (looking-at "#\\+LASTRUN:")
+  ;; ;;         (delete-region (pos-bol) (1- (pos-bol 2)))
+  ;; ;;       (open-line 1)
+  ;; ;;       (next-line 1)
+  ;; ;;       )
   
-  ;;     (insert (concat
-  ;;              "#+LASTRUN: "
-  ;;              (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
-  ;;              " ["
-  ;;              (int-to-string seth-jupyter-execution-count)
-  ;;              "]"
-  ;;              ))
-  ;;     (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))
-  ;;     )
-  ;;   )
+  ;; ;;     (insert (concat
+  ;; ;;              "#+LASTRUN: "
+  ;; ;;              (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
+  ;; ;;              " ["
+  ;; ;;              (int-to-string seth-jupyter-execution-count)
+  ;; ;;              "]"
+  ;; ;;              ))
+  ;; ;;     (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))
+  ;; ;;     )
+  ;; ;;   )
 
-  ;; (add-hook 'org-babel-after-execute-hook
-  ;;           'seth-org-babel-add-time-stamp-after-execute-before-src-block)
+  ;; ;; (add-hook 'org-babel-after-execute-hook
+  ;; ;;           'seth-org-babel-add-time-stamp-after-execute-before-src-block)
 
   )
 
@@ -2449,7 +2473,7 @@ I like this
 (setq jupyter-repl-echo-eval-p nil) is there a mini of this where just the output is sent to the repl cells?
 
 **** code-cells
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
 
 (use-package code-cells
   :defer t
@@ -2704,7 +2728,7 @@ I like this
 #+end_src
 
 **** Jupyter
-#+begin_src emacs-lisp :lexical t
+#+begin_src emacs-lisp :lexical t :tangle no
 (use-package jupyter
   :defer t
   :custom
@@ -2858,7 +2882,12 @@ I like this
 *** smex
 #+begin_src emacs-lisp :lexical t
 ;; keep recent commands available in M-x
-(use-package smex)
+(use-package smex
+  :init
+  (smex-initialize)
+  ;; :bind
+  ;; ("M-x" . smex)
+  )
 
 #+end_src
 
@@ -2902,137 +2931,70 @@ I like this
 #+end_src 
 
 *** Swiper
-#+begin_src emacs-lisp :lexical t
-(use-package swiper
-  :config
-  ;; (defadvice swiper (before dotemacs activate)
-  ;;   (setq gc-cons-threshold most-positive-fixnum))
-  ;; (defadvice swiper-all (before dotemacs activate)
-  ;;   (setq gc-cons-threshold most-positive-fixnum))
-  :defer t
-  :delight
-  :bind* (
-          ("C-s" . swiper)
-          ("H-s" . swiper-all)
-          )
-  )
 
-#+end_src
 
 *** tab-line
 
 #+begin_src emacs-lisp :lexical t 
 
-(use-package tab-config
-  :ensure (tab-config
-           :type git
-           :host github
-           :repo "whodatXLIV/tab-config"
-           :local-repo "tab-config"
-           :files (:defaults "tab-config.el" (:exclude "*init.el" "*.md" "*png" "custom.el"))
-           )
-    
-  :after (tab-line) ;; doom-modeline
-  :defer t
-  :bind* (
-          ("M-S-<up>" . seth-tab-config-tab2-select-filter-button)
-          ("M-S-<left>" . switch-highlighted-tab-or-buffer)
-          ("M-S-<right>" . seth-switch-highlighted-tab-or-buffer)
-          ("M-S-<down>" . tab-line-mode)
-          )
-  :config
-  (setq tab2-line-tab-buffer-plist (list))
-
-  (defun seth-tab-config-tab2-select-filter-button ()
-    (interactive)
-    (tab2-select-filter-button t)
-    )
-  (defun seth-switch-highlighted-tab-or-buffer ()
-    (interactive)
-    (switch-highlighted-tab-or-buffer 1)
-    )
-  ;; remove a buffer from a view
-  (defun tab-remove-view ()
-    (interactive)
-    (let* (
-	       (buffer (current-buffer)))
-      (if (tab2-buffer-in-multiple-viewsp buffer)
-	      ;; The buffer is in other views so only:
-	      ;; remove this buffer from the buffer list for this view and switch
-	      (let* ((view (tab2-get-current-view))
-	             (new-buffers (remove buffer (tab2-view-buffers view))))
-	        (setf (tab2-view-buffers view) new-buffers)
-	        (if new-buffers
-                (switch-to-buffer (nth 0 new-buffers))
-	          (switch-to-buffer "*scratch*"))
-            )
-        )))
-  
-  (defun tab-rotate-list-left (li)
-    (nconc (last li) (butlast li))      
-    )
-
-  (defun tab-rotate-list-right (li)
-    (append (cdr li) (list (car li)))      
-    )
-  (defun tab-current-index (current-name name-select)
-    (car (remq nil (seq-map-indexed (lambda (elt idx) (when (equal (car elt) current-name) idx)) name-select)))
-    )
-
-  (defun switch-highlighted-tab-or-buffer (&optional direction)
-    (interactive)
-    (let* ((tablist (tab2-get-tabs))
-           (isGroup (window-parameter nil 'tab-line-groups))
-           (name-select (when isGroup
-                          (mapcar (lambda (elt) (list (cdr (assq 'name elt)) (cdr (assq 'select elt)))) tablist)
-                          ))
-           (current-name (when isGroup
-                           (cdr (assq 'name (car (seq-filter (lambda (elt) (cdr (assq 'selected elt))) tablist))))
-                           ))
-           (current-index (when isGroup
-                            (tab-current-index current-name name-select)
-                            ))
-           )
-      (cond ((not isGroup)
-             (if direction
-                 (tab-line-switch-to-next-tab) ;; regular tab line switch for buffers
-               (tab-line-switch-to-prev-tab)))
-            (isGroup
-             (if direction
-                 (setq rotated-list (tab-rotate-list-right name-select))
-               (setq rotated-list (tab-rotate-list-left name-select)) 
-               )
-             (funcall (cadr (nth current-index rotated-list)))
-             ;; change to selected tab (rotated)
-             ;; once the group tab is selected then need to go to the current buffer in that tab
-             ;; or if no current buffer in tab2-line-tab-buffer-plist then go to first buffer
-             ;; if a buffer no longer exists then remove that buffer from plist
-             (let* (
-                    (buflist (tab2-get-tabs)) ;; the buffers I can go to
-                    (buffer-select (mapcar (lambda (elt) (list (cdr (assq 'buffer elt)))) buflist)) ;; the buffer names I can select
-                    (tab-name (car (nth current-index rotated-list))) ;; the tab I want to see if in plist
-                    (last-buffer (plist-get tab2-line-tab-buffer-plist tab-name #'equal)) ;; the last buffer if in plist
-                    (buffer-current-name (when (member (list last-buffer) buffer-select) last-buffer)) ;; if the last buffer still exists
-                    (buffer-current-index (if buffer-current-name
-                                              (tab-current-index buffer-current-name buffer-select)
-                                            0))
-                    ;;if above is nil then go to 0th tab
-                    )
-               (force-mode-line-update) ;; update to get new tab settings
-               (tab-line-select-tab-buffer (car (nth buffer-current-index buffer-select)) (selected-window)) ;; go to buffer
-               )
-             (when (not (window-parameter nil 'tab-line-views)) ;; don't go up level if in views
-               (tab2-select-filter-button nil) ;; go up level
-               (tab2-get-tabs) ;; update to get new tab settings
-               (force-mode-line-update) ;; update to get new tab settings
-               )
+  (use-package tab-config
+    :ensure (tab-config
+             :type git
+             :host github
+             :repo "whodatXLIV/tab-config"
+             :local-repo "tab-config"
+             :files (:defaults "tab-config.el" (:exclude "*init.el" "*.md" "*png" "custom.el"))
              )
+    :defer t
+    :after (tab-line)
+    :bind* (
+            ("M-S-<up>" . seth-tab-config-tab2-select-filter-button)
+            ("M-S-<left>" . switch-highlighted-tab-or-buffer)
+            ("M-S-<right>" . seth-switch-highlighted-tab-or-buffer)
+            ("M-S-<down>" . tab-line-mode)
             )
+       
+    :config
+    (setq tab2-line-tab-buffer-plist (list))
+
+    (defun seth-tab-config-tab2-select-filter-button ()
+      (interactive)
+      (tab2-select-filter-button t)
       )
-    )
-  (defun seth-add-to-tab-line-tab-buffer-plist (arg)
-    ;; update plist
-    (when arg
+    (defun seth-switch-highlighted-tab-or-buffer ()
+      (interactive)
+      (switch-highlighted-tab-or-buffer 1)
+      )
+    ;; remove a buffer from a view
+    (defun tab-remove-view ()
+      (interactive)
+      (let* (
+  	       (buffer (current-buffer)))
+        (if (tab2-buffer-in-multiple-viewsp buffer)
+  	      ;; The buffer is in other views so only:
+  	      ;; remove this buffer from the buffer list for this view and switch
+  	      (let* ((view (tab2-get-current-view))
+  	             (new-buffers (remove buffer (tab2-view-buffers view))))
+  	        (setf (tab2-view-buffers view) new-buffers)
+  	        (if new-buffers
+                  (switch-to-buffer (nth 0 new-buffers))
+  	          (switch-to-buffer "*scratch*"))
+              )
+          )))
+    
+    (defun tab-rotate-list-left (li)
+      (nconc (last li) (butlast li))      
+      )
+
+    (defun tab-rotate-list-right (li)
+      (append (cdr li) (list (car li)))      
+      )
+    (defun tab-current-index (current-name name-select)
+      (car (remq nil (seq-map-indexed (lambda (elt idx) (when (equal (car elt) current-name) idx)) name-select)))
+      )
+
+    (defun switch-highlighted-tab-or-buffer (&optional direction)
+      (interactive)
       (let* ((tablist (tab2-get-tabs))
              (isGroup (window-parameter nil 'tab-line-groups))
              (name-select (when isGroup
@@ -3041,40 +3003,92 @@ I like this
              (current-name (when isGroup
                              (cdr (assq 'name (car (seq-filter (lambda (elt) (cdr (assq 'selected elt))) tablist))))
                              ))
+             (current-index (when isGroup
+                              (tab-current-index current-name name-select)
+                              ))
              )
-        (when isGroup
-          (setq tab2-line-tab-buffer-plist (plist-put tab2-line-tab-buffer-plist current-name (current-buffer) #'equal))
-          )
-        ))
+        (cond ((not isGroup)
+               (if direction
+                   (tab-line-switch-to-next-tab) ;; regular tab line switch for buffers
+                 (tab-line-switch-to-prev-tab)))
+              (isGroup
+               (if direction
+                   (setq rotated-list (tab-rotate-list-right name-select))
+                 (setq rotated-list (tab-rotate-list-left name-select)) 
+                 )
+               (funcall (cadr (nth current-index rotated-list)))
+               ;; change to selected tab (rotated)
+               ;; once the group tab is selected then need to go to the current buffer in that tab
+               ;; or if no current buffer in tab2-line-tab-buffer-plist then go to first buffer
+               ;; if a buffer no longer exists then remove that buffer from plist
+               (let* (
+                      (buflist (tab2-get-tabs)) ;; the buffers I can go to
+                      (buffer-select (mapcar (lambda (elt) (list (cdr (assq 'buffer elt)))) buflist)) ;; the buffer names I can select
+                      (tab-name (car (nth current-index rotated-list))) ;; the tab I want to see if in plist
+                      (last-buffer (plist-get tab2-line-tab-buffer-plist tab-name #'equal)) ;; the last buffer if in plist
+                      (buffer-current-name (when (member (list last-buffer) buffer-select) last-buffer)) ;; if the last buffer still exists
+                      (buffer-current-index (if buffer-current-name
+                                                (tab-current-index buffer-current-name buffer-select)
+                                              0))
+                      ;;if above is nil then go to 0th tab
+                      )
+                 (force-mode-line-update) ;; update to get new tab settings
+                 (tab-line-select-tab-buffer (car (nth buffer-current-index buffer-select)) (selected-window)) ;; go to buffer
+                 )
+               (when (not (window-parameter nil 'tab-line-views)) ;; don't go up level if in views
+                 (tab2-select-filter-button nil) ;; go up level
+                 (tab2-get-tabs) ;; update to get new tab settings
+                 (force-mode-line-update) ;; update to get new tab settings
+                 )
+               )
+              )
+        )
+      )
+    (defun seth-add-to-tab-line-tab-buffer-plist (arg)
+      ;; update plist
+      (when arg
+        (let* ((tablist (tab2-get-tabs))
+               (isGroup (window-parameter nil 'tab-line-groups))
+               (name-select (when isGroup
+                              (mapcar (lambda (elt) (list (cdr (assq 'name elt)) (cdr (assq 'select elt)))) tablist)
+                              ))
+               (current-name (when isGroup
+                               (cdr (assq 'name (car (seq-filter (lambda (elt) (cdr (assq 'selected elt))) tablist))))
+                               ))
+               )
+          (when isGroup
+            (setq tab2-line-tab-buffer-plist (plist-put tab2-line-tab-buffer-plist current-name (current-buffer) #'equal))
+            )
+          ))
+      )
+
+    (advice-add 'tab2-select-filter-button :after #'seth-add-to-tab-line-tab-buffer-plist)
+    ;; (advice-remove 'tab2-select-filter-button #'seth-add-to-tab-line-tab-buffer-plist)
+
+    (defvar tab2-white-list-modes
+      '(text-mode lisp-interaction-mode vterm-mode fundamental-mode magit-status-mode) ;; special-mode jupyter-repl-mode
+      "List of modes that will be tracked even if the buffer is not a file")
+
+    (defvar tab2-white-list-buffer-names
+      '()
+      "List of buffer names that will be tracked even if the buffer is not a file")
+    
     )
 
-  (advice-add 'tab2-select-filter-button :after #'seth-add-to-tab-line-tab-buffer-plist)
-  ;; (advice-remove 'tab2-select-filter-button #'seth-add-to-tab-line-tab-buffer-plist)
-
-  (defvar tab2-white-list-modes
-    '(text-mode lisp-interaction-mode vterm-mode fundamental-mode magit-status-mode) ;; special-mode jupyter-repl-mode
-    "List of modes that will be tracked even if the buffer is not a file")
-
-  (defvar tab2-white-list-buffer-names
-    '()
-    "List of buffer names that will be tracked even if the buffer is not a file")
-
-  )
-
-(use-feature tab-line
-  :defer t
-  :hook (after-init)
-  :custom-face
-  (tab-line ((t (:height 150))))
-  (tab-line-highlight ((t (:background "white"))))
-  (tab-line-tab ((t (:foreground "#c397d8"))))
-  (tab-line-tab-current ((t (:weight bold :box (:line-width -2 :color "#c397d8") :background "#414141" :foreground "#c397d8" :inverse-video nil))))
-  (tab-line-tab-inactive ((t (:background "#c397d8" :inverse-video t))))
-  (tab-line-tab-modified ((t (:background "#c397d8" :box (:line-width -2 :color "gray1") :foreground "gray1" :inverse-video nil))))
-  :config
-  (global-tab-line-mode t)
-  (setq tab-line-exclude-modes '(vterm-mode))
-  )
+  (use-feature tab-line
+    :defer t
+    :hook (after-init)
+    :custom-face
+    (tab-line ((t (:height 150))))
+    (tab-line-highlight ((t (:background "white"))))
+    (tab-line-tab ((t (:foreground "#c397d8"))))
+    (tab-line-tab-current ((t (:weight bold :box (:line-width -2 :color "#c397d8") :background "#414141" :foreground "#c397d8" :inverse-video nil))))
+    (tab-line-tab-inactive ((t (:background "#c397d8" :inverse-video t))))
+    (tab-line-tab-modified ((t (:background "#c397d8" :box (:line-width -2 :color "gray1") :foreground "gray1" :inverse-video nil))))
+    :config
+    (global-tab-line-mode t)
+    (setq tab-line-exclude-modes '(vterm-mode))
+    )
 
 #+end_src
 
@@ -3114,13 +3128,11 @@ I like this
   :delight
   :defer t
   :hook (
-         (prog-mode . tree-sitter-hl-mode)
-         )
-  :config
-  ;; (add-to-list 'tree-sitter-major-mode-language-alist '(lisp-data-mode . elisp))
-  ;; (add-to-list 'lsp-language-id-configuration '(lisp-data-mode . elisp))
-
-  ;; (global-tree-sitter-mode)  
+         (python-mode . tree-sitter-hl-mode)
+         (lisp-mode . tree-sitter-hl-mode)
+         (json-mode . tree-sitter-hl-mode)
+         (sql-mode . tree-sitter-hl-mode)
+         )  
   )
 
 
@@ -3437,7 +3449,6 @@ I like this
   (speedrect-mode)
   )
 #+end_src
-
 
 ** Ending
 #+begin_src emacs-lisp :lexical t

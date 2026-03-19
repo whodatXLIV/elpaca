@@ -373,7 +373,7 @@ return the actual color value.  Otherwise return the value unchanged."
 
 ;;;; dired+
      (diredp-compressed-file-suffix                :foreground base0D)
-     (diredp-dir-heading                           :foreground unspecified :background nil :inherit heading)
+     (diredp-dir-heading                           :foreground nil :background nil :inherit heading)
      (diredp-dir-priv                              :foreground base0C :background nil)
      (diredp-exec-priv                             :foreground base0D :background nil)
      (diredp-executable-tag                        :foreground base08 :background nil)
@@ -1055,7 +1055,7 @@ return the actual color value.  Otherwise return the value unchanged."
        theme-name
        `(ansi-term-color-vector
          ;; black, base08, base0B, base0A, base0D, magenta, cyan, white
-         [unspecified ,base00 ,base08 ,base0B ,base0A ,base0D ,base0E ,base0D ,base05])))))
+         [nil ,base00 ,base08 ,base0B ,base0A ,base0D ,base0E ,base0D ,base05])))))
 
 ;;;###autoload
 (and load-file-name
