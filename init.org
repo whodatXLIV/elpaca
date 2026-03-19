@@ -1184,18 +1184,16 @@ the list is kept."
     (let ((tail list) last)
       (while (cdr tail)
 
-
-        (setq eq1 (substring-no-properties (car tail)))
-        (setq eq2 (substring-no-properties (cadr tail)))
-        (if (equal (car (split-string eq1 "(")) (car (split-string eq2 "(")))
-            (progn
-              (when ( < (length eq1) (length eq2)) (setcar tail (car (cdr tail))))
-              ;; (setcar tail (car (cdr tail)))
-              (setcdr tail (cddr tail))
-              )
-	      (setq last tail
-	            tail (cdr tail))))
-      )
+        (let ((eq1 (substring-no-properties (car tail)))
+              (eq2 (substring-no-properties (cadr tail))))
+          (if (equal (car (split-string eq1 "(")) (car (split-string eq2 "(")))
+              (progn
+                (when ( < (length eq1) (length eq2)) (setcar tail (car (cdr tail))))
+                ;; (setcar tail (car (cdr tail)))
+                (setcdr tail (cddr tail))
+                )
+	        (setq last tail
+	              tail (cdr tail))))))
     list)
   
   :config
@@ -2629,6 +2627,7 @@ I like this
                                                        ))))))
 
   (setq eldoc-echo-area-use-multiline-p nil)
+  (global-flycheck-eglot-mode 1)
   :bind (
          ("C-c p" . start-eglot-python)
          )
@@ -2646,7 +2645,6 @@ I like this
 
   :config
 
-  (global-flycheck-eglot-mode 1)
   (setq eglot-stay-out-of '(company))
   (setq eglot-connect-timeout 120)
   (setq eglot-sync-connect nil)
