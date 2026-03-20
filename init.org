@@ -6,6 +6,7 @@
 * An Explanation
 This is a literate configuration for =Emacs=.
 Tangling this file creates an Elisp file, =~/.emacs.d/lisp/init.el=.
+
 * Bootstrapping
 ** pre-early-init
 :PROPERTIES:
@@ -148,7 +149,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     (set-default-toplevel-value
      'file-name-handler-alist
      ;; Determine the state of bundled libraries using calc-loaddefs.el.
-     ;; If compressed, retain the gzip handler in `file-name-handler-alist`.
+     ;; If compressed, retain the gzip handler in `file-name-handler-alist'.
      ;; If compiled or neither, omit the gzip handler during startup for
      ;; improved startup and package load time.
      (if (eval-when-compile
@@ -239,7 +240,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     ;; Shave seconds off startup time by starting the scratch buffer in
     ;; `fundamental-mode'
     (setq initial-major-mode 'fundamental-mode
-          initial-scratch-message "*Scratch Buffer*\n\n")
+          initial-scratch-message "*Scratch Buffer*
+
+")
 
     (unless minimal-emacs-debug
       ;; Unset command line options irrelevant to the current OS. These options
@@ -446,7 +449,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                                         (or (plist-get order :ref) "--"))))
                   (emacs (concat invocation-directory invocation-name))
                   ((zerop (call-process emacs nil buffer nil "-Q" "-L" "." "--batch"
-                                        "--eval" "(byte-recompile-directory \".\" 0 'force)")))
+                                        "--eval" "(byte-recompile-directory "." 0 'force)")))
                   ((require 'elpaca))
                   ((elpaca-generate-autoloads "elpaca" repo)))
             (progn (message "%s" (buffer-string)) (kill-buffer buffer))
@@ -533,7 +536,8 @@ i.e. windows tiled side-by-side."
   (let ((window (or window (selected-window))))
     (if (> (window-total-width window) (* 2 (window-total-height window)))
         (with-selected-window window (split-window-sensibly-prefer-horizontal window))
-      (with-selected-window window (split-window-sensibly window)))))
+      (with-selected-window window (split-window-sensibly window))))
+  )
 
 (setq
  split-height-threshold 10
@@ -652,19 +656,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+end_src
 
 * Init File
-** preloads
-*** header
+** Core Emacs & UI
+*** Basic Emacs Customizations
 #+begin_src emacs-lisp :lexical t
-
-;;; init.el --- Init -*- no-byte-compile: t; lexical-binding: t; -*-
-(minimal-emacs-load-user-init "pre-init.el")
-
-#+end_src
-
-*** dependencies
-**** turn off unless needed
-#+begin_src emacs-lisp :lexical t :tangle no
-
 (setq custom-delayed-init-variables '())
 (unload-feature 'eldoc t)
 (use-package eldoc
@@ -679,21 +673,18 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :demand t
   )
 (elpaca-wait)
-#+end_src
-**** always on
-
-#+begin_src emacs-lisp :lexical t
-(use-package transient
-  :defer t
-  )
 
 (use-package delight
   :defer t)
+
+;; Allow for shorter responses: "y" for yes and "n" for no.
+(if (boundp 'use-short-answers)
+    (setq use-short-answers t)
+  (advice-add #'yes-or-no-p :override #'y-or-n-p))
+(defalias #'view-hello-file #'ignore)  ; Never show the hello file
 #+end_src
 
-** my settings and my defs
-*** my gc
-
+*** GC & Performance
 #+begin_src emacs-lisp :lexical t :tangle yes
 
 (use-package gcmh
@@ -703,9 +694,273 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         gcmh-high-cons-threshold (* 64 1024 1024 1024))
   :config
   (gcmh-mode 1))
+
+;; Prefer loading newer compiled files
+(setq load-prefer-newer t)
+
+;; Increase how much is read from processes in a single chunk (default is 4kb).
+(setq read-process-output-max (* 512 1024))  ; 512kb
+
+;; Reduce rendering/line scan work by not rendering cursors or regions in
+;; non-focused windows.
+(setq-default cursor-in-non-selected-windows nil)
+(setq highlight-nonselected-windows nil)
+
+;; Disable warnings from the legacy advice API. They aren't useful.
+(setq ad-redefinition-action 'accept)
+
+(setq warning-suppress-types '((lexical-binding)))
+
+;; Don't ping things that look like domain names.
+(setq ffap-machine-p-known 'reject)
+
+;; By default, Emacs "updates" its ui more often than it needs to
+(setq idle-update-delay 1.0)
+
+;; Font compacting can be very resource-intensive, especially when rendering
+;; icon fonts on Windows. This will increase memory usage.
+(setq inhibit-compacting-font-caches t)
+
+(unless (daemonp)
+  (let ((old-value (default-toplevel-value 'file-name-handler-alist)))
+    (set-default-toplevel-value
+     'file-name-handler-alist
+     ;; Determine the state of bundled libraries using calc-loaddefs.el.
+     ;; If compressed, retain the gzip handler in `file-name-handler-alist'.
+     ;; If compiled or neither, omit the gzip handler during startup for
+     ;; improved startup and package load time.
+     (if (eval-when-compile
+           (locate-file-internal "calc-loaddefs.el" load-path))
+         nil
+       (list (rassq 'jka-compr-handler old-value))))
+    ;; Ensure the new value persists through any current let-binding.
+    (set-default-toplevel-value 'file-name-handler-alist
+                                file-name-handler-alist)
+    ;; Remember the old value to reset it as needed.
+    (add-hook 'emacs-startup-hook
+              (lambda ()
+                (set-default-toplevel-value
+                 'file-name-handler-alist
+                 ;; Merge instead of overwrite to preserve any changes made
+                 ;; since startup.
+                 (delete-dups (append file-name-handler-alist old-value))))
+              101))
+
+  (unless noninteractive
+    (unless minimal-emacs-debug
+      ;; Suppress redisplay and redraw during startup to avoid delays and
+      ;; prevent flashing an unstyled Emacs frame.
+      (setq-default inhibit-redisplay t
+                    inhibit-message t)
+
+      ;; Reset the above variables to prevent Emacs from appearing frozen or
+      ;; visually corrupted after startup or if a startup error occurs.
+      (defun minimal-emacs--reset-inhibited-vars-h ()
+        (setq-default inhibit-redisplay nil
+                      inhibit-message nil)
+        (remove-hook 'post-command-hook #'minimal-emacs--reset-inhibited-vars-h))
+      (add-hook 'post-command-hook #'minimal-emacs--reset-inhibited-vars-h -100)
+
+      (dolist (buf (buffer-list))
+        (with-current-buffer buf
+          (setq mode-line-format nil)))
+
+      (put 'mode-line-format 'initial-value
+           (default-toplevel-value 'mode-line-format))
+      (setq-default mode-line-format nil)
+
+      (defun minimal-emacs--startup-load-user-init-file (fn &rest args)
+        "Advice for startup--load-user-init-file to reset mode-line-format."
+        (unwind-protect
+            (progn
+              ;; Start up as normal
+              (apply fn args))
+          ;; If we don't undo inhibit-{message, redisplay} and there's an
+          ;; error, we'll see nothing but a blank Emacs frame.
+          (setq-default inhibit-message nil)
+          (unless (default-toplevel-value 'mode-line-format)
+            (setq-default mode-line-format
+                          (get 'mode-line-format 'initial-value)))))
+
+      (advice-add 'startup--load-user-init-file :around
+                  #'minimal-emacs--startup-load-user-init-file))
+
+    ;; Without this, Emacs will try to resize itself to a specific column size
+    (setq frame-inhibit-implied-resize t)
+
+    ;; A second, case-insensitive pass over `auto-mode-alist' is time wasted.
+    ;; No second pass of case-insensitive search over auto-mode-alist.
+    (setq auto-mode-case-fold nil)
+
+    ;; Reduce *Message* noise at startup. An empty scratch buffer (or the
+    ;; dashboard) is more than enough, and faster to display.
+    (setq inhibit-startup-screen t
+          inhibit-startup-echo-area-message user-login-name)
+    (setq initial-buffer-choice nil
+          inhibit-startup-buffer-menu t
+          inhibit-x-resources t)
+
+    ;; Disable bidirectional text scanning for a modest performance boost.
+    (setq-default bidi-display-reordering 'left-to-right
+                  bidi-paragraph-direction 'left-to-right)
+
+    ;; Give up some bidirectional functionality for slightly faster re-display.
+    (setq bidi-inhibit-bpa t)
+
+    ;; Remove "For information about GNU Emacs..." message at startup
+    (advice-add #'display-startup-echo-area-message :override #'ignore)
+
+    ;; Suppress the vanilla startup screen completely. We've disabled it with
+    ;; `inhibit-startup-screen', but it would still initialize anyway.
+    (advice-add #'display-startup-screen :override #'ignore)
+
+    ;; Shave seconds off startup time by starting the scratch buffer in
+    ;; `fundamental-mode'
+    (setq initial-major-mode 'fundamental-mode
+          initial-scratch-message "*Scratch Buffer*
+
+")
+
+    (unless minimal-emacs-debug
+      ;; Unset command line options irrelevant to the current OS. These options
+      ;; are still processed by `command-line-1` but have no effect.
+      (unless (eq system-type 'darwin)
+        (setq command-line-ns-option-alist nil))
+      (unless (memq initial-window-system '(x pgtk))
+        (setq command-line-x-option-alist nil)))))
 #+end_src
 
-*** theme and font
+*** Native Compilation
+#+begin_src emacs-lisp :lexical t
+(if (and (featurep 'native-compile)
+         (fboundp 'native-comp-available-p)
+         (native-comp-available-p))
+    ;; Activate `native-compile'
+    (setq native-comp-jit-compilation t
+          native-comp-deferred-compilation t  ; Obsolete since Emacs 29.1
+          package-native-compile t)
+  ;; Deactivate the `native-compile' feature if it is not available
+  (setq features (delq 'native-compile features)))
+
+;; Suppress compiler warnings and don't inundate users with their popups.
+(setq native-comp-async-report-warnings-errors
+      (or minimal-emacs-debug 'silent))
+(setq native-comp-warning-on-missing-source minimal-emacs-debug)
+
+(setq debug-on-error minimal-emacs-debug
+      jka-compr-verbose minimal-emacs-debug)
+
+(setq byte-compile-warnings minimal-emacs-debug)
+(setq byte-compile-verbose minimal-emacs-debug)
+
+;; (defun homebrew-gcc-paths ()
+;;   "Return GCC library paths from Homebrew installations.
+;; Detects paths for gcc and libgccjit packages to be used in LIBRARY_PATH."
+;;   (let* ((paths '())
+;;          (brew-bin (or (executable-find "brew")
+;;                        (let ((arm-path "/opt/homebrew/bin/brew")
+;;                              (intel-path "/usr/local/bin/brew"))
+;;                          (cond
+;;                           ((file-exists-p arm-path) arm-path)
+;;                           ((file-exists-p intel-path) intel-path))))))
+
+;;     (when brew-bin
+;;       ;; Get gcc paths.
+;;       (let* ((gcc-prefix (string-trim
+;;                           (shell-command-to-string
+;;                            (concat brew-bin " --prefix gcc"))))
+;;              (gcc-lib-current (expand-file-name "lib/gcc/current" gcc-prefix)))
+;;         (push gcc-lib-current paths)
+
+;;         ;; Find apple-darwin directory.
+;;         (let* ((default-directory gcc-lib-current)
+;;                (arch-dirs (file-expand-wildcards "gcc/*-apple-darwin*/*[0-9]")))
+;;           (when arch-dirs
+;;             (push (expand-file-name
+;;                    (car (sort arch-dirs #'string>)))
+;;                   paths))))
+
+;;       ;; Get libgccjit paths
+;;       (let* ((jit-prefix (string-trim
+;;                           (shell-command-to-string
+;;                            (concat brew-bin " --prefix libgccjit"))))
+;;              (jit-lib-current (expand-file-name "lib/gcc/current" jit-prefix)))
+;;         (push jit-lib-current paths)))
+
+;;     (nreverse paths)))
+
+;; (defun setup-macos-native-comp-library-paths ()
+;;   "Set up LIBRARY_PATH for native compilation on macOS.
+;; Includes Homebrew GCC paths and CommandLineTools SDK libraries."
+;;   (let* ((existing-paths (split-string (or (getenv "LIBRARY_PATH") "") ":" t))
+;;          (gcc-paths (homebrew-gcc-paths))
+;;          (clt-paths '("/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib"))
+;;          (unique-paths (delete-dups
+;;                         (append existing-paths gcc-paths clt-paths))))
+
+;;     (setenv "LIBRARY_PATH" (mapconcat #'identity unique-paths ":"))))
+
+;; ;; Set up library paths for native compilation on macOS.
+;; (when (eq system-type 'darwin)
+;;   (setup-macos-native-comp-library-paths))
+
+#+end_src
+
+*** UI Elements
+#+begin_src emacs-lisp :lexical t
+(use-package transient
+  :defer t
+  )
+
+(setq frame-title-format minimal-emacs-frame-title-format
+      icon-title-format minimal-emacs-frame-title-format)
+
+;; Disable startup screens and messages
+(setq inhibit-splash-screen t)
+
+;; I intentionally avoid calling `menu-bar-mode', `tool-bar-mode', and
+;; `scroll-bar-mode' because manipulating frame parameters can trigger or queue
+;; a superfluous and potentially expensive frame redraw at startup, depending
+;; on the window system. The variables must also be set to `nil' so users don't
+;; have to call the functions twice to re-enable them.
+(unless (memq 'menu-bar minimal-emacs-ui-features)
+  (push '(menu-bar-lines . 0) default-frame-alist)
+  (unless (memq window-system '(mac ns))
+    (setq menu-bar-mode nil)))
+
+(unless (daemonp)
+  (unless noninteractive
+    (when (fboundp 'tool-bar-setup)
+      ;; Temporarily override the tool-bar-setup function to prevent it from
+      ;; running during the initial stages of startup
+      (advice-add #'tool-bar-setup :override #'ignore)
+      (define-advice startup--load-user-init-file
+          (:after (&rest _) minimal-emacs-setup-toolbar)
+        (advice-remove #'tool-bar-setup #'ignore)
+        (when tool-bar-mode
+          (tool-bar-setup))))))
+(unless (memq 'tool-bar minimal-emacs-ui-features)
+  (push '(tool-bar-lines . 0) default-frame-alist)
+  (setq tool-bar-mode nil))
+
+(push '(vertical-scroll-bars) default-frame-alist)
+(push '(horizontal-scroll-bars) default-frame-alist)
+(setq scroll-bar-mode nil)
+(when (fboundp 'horizontal-scroll-bar-mode)
+  (horizontal-scroll-bar-mode -1))
+
+(unless (memq 'tooltips minimal-emacs-ui-features)
+  (when (bound-and-true-p tooltip-mode)
+    (tooltip-mode -1)))
+
+;; Disable GUIs because they are inconsistent across systems, desktop
+;; environments, and themes, and they don't match the look of Emacs.
+(unless (memq 'dialogs minimal-emacs-ui-features)
+  (setq use-file-dialog nil)
+  (setq use-dialog-box nil))
+#+end_src
+
+*** Theme & Font
 #+begin_src emacs-lisp :lexical t :tangle yes
 
 (use-package color-theme-sanityinc-tomorrow
@@ -724,7 +979,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (color-theme-sanityinc-tomorrow-night)
   )
 #+end_src
-*** Mac os use meta
+
+*** macOS Specific
 #+begin_src emacs-lisp :lexical t
 (when (memq window-system '(mac ns))
   (setq mac-option-modifier 'hyper ;; for emacs-mac
@@ -753,7 +1009,251 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
       (exec-path-from-shell-initialize))))
 #+end_src
 
-*** tramp
+*** Indentation
+#+begin_src emacs-lisp :lexical t
+(setq-default indent-tabs-mode nil)
+(setq-default tab-width 4)
+
+(setq font-lock-maximum-decoration 4)
+#+end_src
+
+** Completion Framework
+*** Corfu
+#+begin_src emacs-lisp :lexical t :tangle yes
+
+(use-package corfu
+  :ensure t
+  :bind* (("C-<tab>" . completion-at-point))
+  :custom
+  (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
+  (corfu-auto nil)                 ;; Enable auto completion
+  ;; (corfu-auto-delay 0.3)         ;; Delay for auto-completion (important for TRAMP)
+  ;; (corfu-auto-prefix 3)          ;; Require 3 characters before auto-completion
+  (corfu-separator ?\s)          ;; Orderless field separator
+  (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
+  (corfu-quit-no-match t)      ;; Never quit, even if there is no match
+  (corfu-preview-current nil)    ;; Disable current candidate preview
+  (corfu-preselect 'prompt)      ;; Preselect the prompt
+  (corfu-on-exact-match nil)     ;; Configure handling of exact matches
+  (corfu-scroll-margin 5)        ;; Use scroll margin
+
+  :custom-face
+  (corfu-default ((t (:background "gray10" :foreground "#eaeaea" :extend t))))
+  (corfu-current ((t (:background "gray10" :foreground "#969896" :extend t))))
+  (corfu-bar ((t (:background "gray20"))))
+  (corfu-border ((t (:background "gray10"))))
+  (corfu-annotations ((t (:background "gray10" :foreground "#70c0b1" :extend t))))
+
+  :init
+  (global-corfu-mode)
+  )
+
+(use-package corfu-popupinfo
+  :ensure nil
+  :after corfu
+  :hook (corfu-mode . corfu-popupinfo-mode)
+  :custom
+  (corfu-popupinfo-delay '(0.5 . 0.2))
+  (corfu-popupinfo-hide nil)
+  :bind (:map corfu-map
+              ("H-p" . corfu-popupinfo-scroll-down)
+              ("H-n" . corfu-popupinfo-scroll-up)
+              ("H-<tab>" . corfu-popupinfo-toggle)))
+#+end_src
+
+*** Vertico
+#+begin_src emacs-lisp :lexical t :tangle yes
+
+(use-package vertico
+  :ensure t
+  :bind (:map vertico-map
+          ("M-S" . my-vertico-cycle-sort))
+  :init
+  (vertico-mode 1)
+  :config
+  (setq vertico-cycle t)
+  (setq vertico-resize nil)
+  (setq enable-recursive-minibuffers t)
+  (setq read-extended-command-predicate #'command-completion-default-include-p)
+  (setq minibuffer-prompt-properties
+        '(read-only t cursor-intangible t face minibuffer-prompt))
+
+  (defvar my-vertico-sort-methods '(nil vertico-sort-alpha vertico-sort-length-alpha))
+  (defvar-local my-vertico-sort-index 0)
+
+  (defun my-vertico-cycle-sort ()
+    "Cycle through different Vertico sorting methods."
+    (interactive)
+    (setq my-vertico-sort-index
+          (mod (1+ my-vertico-sort-index) (length my-vertico-sort-methods)))
+    (setq-local vertico-sort-override-function
+                (nth my-vertico-sort-index my-vertico-sort-methods))
+    (message "Vertico sort: %s" (or vertico-sort-override-function "Default"))
+    (setq vertico--input t))
+  )
+(use-package vertico-directory
+  :after vertico
+  :ensure nil
+  ;; More convenient directory navigation commands
+  :bind (:map vertico-map
+              ("RET" . vertico-directory-enter)
+              ("DEL" . vertico-directory-delete-char)
+              ("M-DEL" . vertico-directory-delete-word))
+  ;; Tidy shadowed file names (e.g. ~/foo/bar//baz -> /baz)
+  :hook (rfn-eshadow-update-overlay . vertico-directory-tidy))
+#+end_src
+
+*** Orderless
+#+begin_src emacs-lisp :lexical t :tangle yes
+(use-package orderless
+  :ensure t
+  :custom
+  (completion-styles '(orderless basic))
+  (completion-category-overrides '((file (styles . (partial-completion substring)))))
+  (completion-pcm-leading-wildcard t)
+  (orderless-style-dispatchers '(my-orderless-dispatch))
+  :init
+  (defun my-orderless-dispatch (pattern index _total)
+    (cond
+     ;; Ensure that $ works with Consult commands, which add disambiguation suffixes
+     ((string-suffix-p "$" pattern)
+      `(orderless-regexp . ,(concat (substring pattern 0 -1) "[\x100000-\x10FFFD]*$")))
+     ;; Ignore character (!)
+     ((string-prefix-p "!" pattern)
+      `(orderless-without-literal . ,(substring pattern 1))))))
+#+end_src
+
+*** Consult
+#+begin_src emacs-lisp :lexical t :tangle yes
+(use-package consult
+  :ensure t
+  :bind (
+         ("C-x b" . consult-buffer)
+         ("M-y" . consult-yank-pop)
+         ("M-g M-g" . consult-goto-line)
+         ("C-c C-SPC" . consult-mark)
+         ("M-g i" . consult-imenu)
+         ("C-x C-a" . consult-grep)
+         ("C-x f" . consult-recent-file)
+         ("C-s" . consult-line)
+         ("H-s" . consult-ripgrep)         )
+
+  :config
+  ;; Use a debounce delay for preview to avoid severe lag over TRAMP
+  (setq consult-preview-key (list :debounce 0.5 'any))
+  (setq consult-narrow-key "<")
+  )
+
+(use-package embark-consult
+  :ensure t)
+
+(use-package wgrep
+  :ensure t
+  :custom
+  (wgrep-auto-save-buffer t))
+#+end_src
+
+*** Marginalia
+#+begin_src emacs-lisp :lexical t :tangle yes
+;; Enable rich annotations using the Marginalia package
+(use-package marginalia
+  ;; Bind `marginalia-cycle' locally in the minibuffer.  To make the binding
+  ;; available in the *Completions* buffer, add it to the
+  ;; `completion-list-mode-map'.
+  :bind (:map minibuffer-local-map
+         ("M-A" . marginalia-cycle))
+  :defer t
+  ;; The :init section is always executed.
+  :init
+  ;; Marginalia must be activated in the :init section of use-package such that
+  ;; the mode gets enabled right away. Note that this forces loading the
+  ;; package.
+  (marginalia-mode)
+  ;; (setq marginalia-remote-file-regexps nil)
+  :after vertico
+  )
+
+(use-package nerd-icons-completion
+  :after marginalia
+  :config
+  (nerd-icons-completion-mode)
+  (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup))
+#+end_src
+
+*** Completion Backends
+#+begin_src emacs-lisp :lexical t
+(use-package cape
+  :ensure t
+  ;; Bind dedicated completion commands
+  ;; Alternative prefix keys: C-c p, M-p, M-+, ...
+  :bind* ("C-c c" . hydra-cape/body)
+
+  ;; cape-abbrev: Complete abbreviation (add-global-abbrev, add-mode-abbrev).
+  ;; cape-dabbrev: Complete word from current buffers. See also dabbrev-capf.
+  ;; cape-dict: Complete word from dictionary file.
+  ;; cape-elisp-block: Complete Elisp in Org or Markdown code block.
+  ;; cape-elisp-symbol: Complete Elisp symbol.
+  ;; cape-emoji: Complete Emoji.
+  ;; cape-file: Complete file name.
+  ;; cape-history: Complete from Eshell, Comint or minibuffer history.
+  ;; cape-keyword: Complete programming language keyword.
+  ;; cape-line: Complete entire line from current buffer.
+  ;; cape-rfc1345: Complete Unicode char using RFC 1345 mnemonics.
+  ;; cape-sgml: Complete Unicode char from SGML entity, e.g., &alpha.
+  ;; cape-tex: Complete Unicode char from TeX command, e.g. \hbar.
+  :config
+  (defhydra hydra-cape (:color blue :hint nil)
+    "
+  _d_ dabbrev    _f_ file      _k_ keyword    _s_ symbol
+  _l_ line       _i_ ispell    _h_ history    _w_ dict
+  _q_ quit
+  "
+    ("d" cape-dabbrev)
+    ("f" cape-file)
+    ("k" cape-keyword)
+    ("s" cape-symbol)
+    ("l" cape-line)
+    ("i" cape-ispell)
+    ("h" cape-history)
+    ("w" cape-dict)
+    ("q" nil "quit"))
+
+
+  ;; (setq-local completion-at-point-functions
+  ;;             (list (cape-capf-choose #'cape-dabbrev #'cape-file #'cape-keyword)))
+
+  :init
+  ;; Create a "Super" completion backend that merges dabbrev, file, and keywords
+  (defalias 'cape-global-super
+    (cape-capf-super #'cape-dabbrev #'cape-file #'cape-keyword))
+
+  ;; Add the super backend to the global completion list.
+  ;; Emacs will try the major-mode specific completions first (like elisp),
+  ;; and if they fail, it will fall back to showing this combined list.
+  (add-hook 'completion-at-point-functions #'cape-global-super)
+
+  ;;(add-hook 'completion-at-point-functions #'cape-dabbrev)
+  ;;(add-hook 'completion-at-point-functions #'cape-keyword)
+  ;;(add-hook 'completion-at-point-functions #'cape-file)
+  ;;(add-hook 'completion-at-point-functions #'cape-history)
+  ;;(add-to-list 'completion-at-point-functions #'cape-tex)
+  ;;(add-to-list 'completion-at-point-functions #'cape-sgml)
+  ;;(add-to-list 'completion-at-point-functions #'cape-rfc1345)
+  ;;(add-to-list 'completion-at-point-functions #'cape-abbrev)
+  ;; (add-to-list 'completion-at-point-functions #'cape-dict)
+  ;;(add-to-list 'completion-at-point-functions #'cape-elisp-symbol)
+  ;; (add-to-list 'completion-at-point-functions #'cape-line)
+  )
+
+(use-package yasnippet-capf
+  :ensure t
+  :after (yasnippet cape)
+  :config
+  (add-to-list 'completion-at-point-functions #'yasnippet-capf))
+#+end_src
+
+** TRAMP & Remote
+*** TRAMP Core
 #+begin_src emacs-lisp :lexical t :tangle yes
 (use-package msgpack
   :ensure t)
@@ -795,7 +1295,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;; Prevent TRAMP from hanging the modeline during disconnects
   (setq remote-file-name-inhibit-cache nil)
   ;; (setq vc-ignore-dir-regexp
-  ;;       (format "\\(%s\\)\\|\\(%s\\)"
+  ;;       (format "\(%s\)\|\(%s\)"
   ;;               vc-ignore-dir-regexp
   ;;               tramp-file-name-regexp))
 
@@ -866,7 +1366,10 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
   :defer t
   )
+#+end_src
 
+*** TRAMP Utilities
+#+begin_src emacs-lisp :lexical t :tangle yes
 (use-package consult-dir
   :ensure t
   :bind (("C-x C-d" . consult-dir)
@@ -886,172 +1389,179 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq consult-tramp-known-hosts "~/.ssh/known_hosts")
   
   )
-#+end_src
 
-*** recentf
-#+BEGIN_SRC emacs-lisp :lexical t :tangle yes
-(use-feature recentf
-  ;; :after tramp
-  :init
-  (setq recentf-auto-cleanup nil) ;; disable before we start recentf!
-  (setq recentf-max-menu-items 25)
-  (setq recentf-max-saved-items 25)
-  
-  :hook (emacs-startup . recentf-mode)
-  :config
-  (savehist-mode 1)
-  (run-at-time nil (* 5 60) 'recentf-save-list)
-  (add-to-list 'recentf-exclude "\\.png$")
-  (add-to-list 'recentf-exclude "/var/folders")
-  ;; (recentf-cleanup)
-  ;; (setq recentf-auto-cleanup t)
-  ;; :defer t
-  )
-
-#+END_SRC
-
-** Install Packages
-*** 20/20/20
-#+begin_src emacs-lisp :lexical t :tangle no
-
-(use-package twen-twen-tw
-  :delight
-  :ensure (twen-twen-tw
+(use-package tramp-hlo
+  :ensure (tramp-hlo
            :type git
            :host github
-           :repo "benbellick/twen-twen-tw.el"
-           :local-repo "twen-twen-tw")
+           :repo "jsadusk/tramp-hlo"
+           )
   :config
-  (twen-twen-tw-mode 1)
+  (tramp-hlo-setup)
   )
 #+end_src
-*** ace
-**** jump mode
+
+*** SSH Tunnels
 #+begin_src emacs-lisp :lexical t
-(use-package ace-jump-mode
+(use-package ssh-tunnels
   :delight
-  :bind* ("H-j" . ace-jump-mode)
   :defer t
-  )
-#+end_src
-
-**** multiple cursors
-#+begin_src emacs-lisp :lexical t
-(use-package ace-mc
-  :delight
-  :bind* ("H-;" . ace-mc-add-multiple-cursors)
-  :defer t
-  )
-#+end_src
-**** window
-
-#+begin_src emacs-lisp :lexical t
-
-(use-package ace-window
-  :delight
-  :bind* (
-          ("H-SPC" . ace-window)
-          ("H-M-<left>" . shrink-window-horizontally)
-          ("H-M-<right>" . enlarge-window-horizontally)
-          ("H-M-<up>" . enlarge-window)
-          ("H-M-<down>" . shrink-window)
-          ("H-z" . seth-toggle-zoom-balance)
-          )
-  :defer t
-  :custom
-  (aw-dispatch-always t)
-  :init
-  (require 'zoom)
-  (setq seth-is-zoom 1)
-  (defun seth-toggle-zoom-balance ()
-    (interactive)
-    (setq seth-is-zoom (* -1 seth-is-zoom))
-    (zoom-mode seth-is-zoom)
-    )
-  (zoom-mode seth-is-zoom)
-  (defvar aw-dispatch-alist
-    '((?d aw-delete-window "Delete Window")
-      (?s aw-swap-window "Swap Windows")
-      (?m aw-move-window "Move Window")
-      (?b aw-switch-buffer-in-window "Select Buffer")
-      (?n aw-flip-window)
-      (?B aw-switch-buffer-other-window "Switch Buffer Other Window")
-      (?c aw-split-window-fair "Split Fair Window")
-      (?h aw-split-window-vert "Split Vert Window")
-      (?v aw-split-window-horz "Split Horz Window")
-      (?o delete-other-windows "Delete Other Windows")
-      (?? aw-show-dispatch-help))
-    "List of actions for `aw-dispatch-default'.")
-  )
-#+end_src
-*** activities
-#+begin_src emacs-lisp :lexical t :tangle no
-
-(use-package activities
-  :delight
-  :bind* (
-          ("s-a n" . activities-new)
-          ("s-a d" . activities-define)
-          ("s-a a" . activities-resume)
-          ("s-a r" . activities-revert)
-          ("s-a s" . activities-suspend)
-          ("s-a k" . activities-kill)
-          ("s-a RET" . activities-switch)
-          ("s-a b" . activities-switch-buffer)
-          ("s-a l" . activities-list)
-          )
-  
-  :defer t
-  :config
-  (activities-mode t)
-  )
-#+end_src
-*** auto-tangle-mode
-
-#+begin_src emacs-lisp :lexical t
-
-(use-package auto-tangle-mode
-  :delight
-  :ensure (auto-tangle-mode
+  :ensure (ssh-tunnels
+           :type git
            :host github
-           :repo "progfolio/auto-tangle-mode.el"
-           :local-repo "auto-tangle-mode")
-  :defer t 
-  ;; :hook org-mode
-  ;; :config
-  ;; (auto-tangle-mode)
-  ;; (add-hook 'auto-tangle-after-tangle-hook (lambda ()
-  ;;                                            (let ((elpaca-log-functions nil))
-  ;;                                              (load-file "~/.emacs.d/init.el")
-  ;;                                              (elpaca-process-queues))))
-  )
+           :repo "death/ssh-tunnels"
+           :local-repo "ssh-tunnels"
+           )
+  :custom
+  (ssh-tunnels-configurations
+   '((:name "dev socket"
+            :local-port 12345
+            :remote-port 12345
+            :login "sfigueroa@dev.focusvq.com"
+            :type "-L")
+     ))
 
-#+end_src
-
-*** buffer-expose
-#+begin_src emacs-lisp :lexical t
-
-(use-package buffer-expose
-  :delight
+  :bind (:map ssh-tunnels-mode-map
+              ("n" . seth-ssh-tunnel-add)
+              )
   :config
-  (setcdr buffer-expose-mode-map nil)
+  (defun seth-ssh-tunnel-add (name port)
+    (interactive "sName: 
+nPort: ")
+    (let ((conf `(:name ,name
+                        :local-port ,port
+                        :remote-port ,port
+                        :login "sfigueroa@dev.focusvq.com"
+                        :type "-L"
+                        )))
+      (add-to-list 'ssh-tunnels-configurations conf)
+      (ssh-tunnels-refresh)
+      )
+    )
+  )
+#+end_src 
+
+** File Management
+*** Dired
+#+begin_src emacs-lisp :lexical t :tangle yes
+
+(use-package nerd-icons-dired
   :defer t
-  :bind* (
-          ("H-b e" . buffer-expose)
-          ("H-b b" . buffer-expose-no-stars)
-          ("H-b c" . buffer-expose-current-mode)
-          ("H-b s" . buffer-expose-major-mode)
-          ("H-b d" . buffer-expose-dired-buffers)
-          ("H-b *" . buffer-expose-stars)
-          )
-  :config
-  (buffer-expose-mode 1)  
+  :delight
+  :hook (dired-mode . nerd-icons-dired-mode)
+  ;; :custom
+  ;; (all-the-icons-dired-monochrome nil)
   )
 
+;; (use-package dired-subtree
+;;   :delight
+;;   :bind (
+;;          :map dired-mode-map
+;;          ("H-r" . dired-subtree-remove)
+;;          ("<tab>" . dired-subtree-toggle)
+;;          ("H-p" . dired-subtree-up)
+;;          ("H-n" . dired-subtree-down)
+;;          ("H-<up>" . dired-subtree-beginning)
+;;          ("H-<down>" . dired-subtree-end)
+;;          ("H-m" . dired-subtree-mark-subtree)
+;;          ("H-u" . dired-subtree-unmark-subtree)           
+;;          )
+;;   :defer t
+;;   )
+
+(use-package dired-filter
+  :custom
+  (dired-filter-prefix "/ f")
+  (dired-filter-mark-prefix "/ m")
+  (dired-listing-switches "-alogh")
+  :defer t
+  :hook (dired-mode)
+  )
+
+(use-package dired-sort
+  :after dired
+  :ensure (dired-sort :type git :host github :repo "MichaelKazarian/dired-sort")
+  :defer t
+  :bind (:map dired-mode-map
+              ("/ s n" . dired-sort-by-name)
+              ("/ s r n" . dired-sort-by-name-reverse)
+              ("/ s d" . dired-sort-by-date)
+              ("/ s r d" . dired-sort-by-date-reverse)
+              ("/ s x" . dired-sort-by-extension)	
+              ("/ s r x" . dired-sort-by-extension-reverse)
+              ("/ f h" . dired-sort-toggle-hidden)	
+              ("/ s m" . dired-sort-show-menu)	
+              ("/ s c" . dired-sort-show-completion)              
+              )
+  :config
+  (dired-sort-mode 1)
+  (require 'ls-lisp)
+  (setq ls-lisp-use-insert-directory-program nil)
+  (setq ls-lisp-dirs-first t)
+  )
+
+(use-package dired-preview
+  :after dired
+  :defer t
+  :init
+  (defun dired-preview-toggle ()
+    "just a dummy function to toggle preview"
+    (interactive)
+    )
+  :bind (
+         (:map dired-preview-mode-map
+               ("<tab>" . dired-preview-toggle))
+         
+         
+         )
+  :config
+  ;; Default values for demo purposes
+  ;; (setq dired-preview-delay 0.1)
+  (setq dired-preview-on-start nil)
+  (setq dired-preview-trigger-commands (list 'dired-preview-toggle))
+  (setq dired-preview-max-size (expt 2 20))
+  (setq dired-preview-ignored-extensions-regexp
+        (concat "\."
+                "\(gz\|"
+                "zst\|"
+                "tar\|"
+                "xz\|"
+                "rar\|"
+                "zip\|"
+                "iso\|"
+                "epub"
+                "\)")) 
+  )
+
+(use-feature dired
+  :defer t
+  :delight
+  :bind* (("C-x C-d" . dired))
+  :custom-face
+  (dired-directory ((t (:foreground "#3375a8" :extend t)))) 
+  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
+  :config
+  ;; (require 'dired-subtree)
+  (when (string= system-type "darwin")       
+    (setq dired-use-ls-dired nil))    
+  )
 #+end_src
 
-*** bufler
+*** Neotree
+#+begin_src emacs-lisp :lexical t :tangle no
+(use-package neotree
+  :delight
+  :defer t
+  :custom-face
+  (neo-dir-link-face ((t (:foreground "#97c8f7" :extend t)))) 
+  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
+  :bind* ("C-x d" . neotree)
+  :custom
+  (neo-theme 'arrow)
+  )
+#+end_src 
 
+*** Buffer & Window Management
 #+begin_src emacs-lisp :lexical t
 (use-package bufler
   :defer t
@@ -1138,231 +1648,1044 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         )
   )
 
+(use-package buffer-expose
+  :delight
+  :config
+  (setcdr buffer-expose-mode-map nil)
+  :defer t
+  :bind* (
+          ("H-b e" . buffer-expose)
+          ("H-b b" . buffer-expose-no-stars)
+          ("H-b c" . buffer-expose-current-mode)
+          ("H-b s" . buffer-expose-major-mode)
+          ("H-b d" . buffer-expose-dired-buffers)
+          ("H-b *" . buffer-expose-stars)
+          )
+  :config
+  (buffer-expose-mode 1)  
+  )
 #+end_src
 
-*** corfu
-#+begin_src emacs-lisp :lexical t :tangle yes
-
-(use-package corfu
-  :ensure t
-  :bind* (("C-<tab>" . completion-at-point))
-  :custom
-  (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
-  (corfu-auto nil)                 ;; Enable auto completion
-  ;; (corfu-auto-delay 0.3)         ;; Delay for auto-completion (important for TRAMP)
-  ;; (corfu-auto-prefix 3)          ;; Require 3 characters before auto-completion
-  (corfu-separator ?\s)          ;; Orderless field separator
-  (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
-  (corfu-quit-no-match t)      ;; Never quit, even if there is no match
-  (corfu-preview-current nil)    ;; Disable current candidate preview
-  (corfu-preselect 'prompt)      ;; Preselect the prompt
-  (corfu-on-exact-match nil)     ;; Configure handling of exact matches
-  (corfu-scroll-margin 5)        ;; Use scroll margin
-
-  :custom-face
-  ;; (corfu-default (
-  ;;                 (((class color) (background light)) (:background "#f0f0f0" :foreground "#333333" :extend t))
-  ;;                 (((class color) (background dark))  (:background "gray10" :foreground "#eaeaea" :extend t))
-  ;;                 ))
-  
-  ;; (corfu-current (
-  ;;                 (((class color) (background light)) (:background "#d3d3d3" :foreground "#111111" :extend t))
-  ;;                 (((class color) (background dark))  (:background "gray10" :foreground "#c397d8" :extend t))
-  ;;                 ))
-  
-  ;; (corfu-bar (
-  ;;             (((class color) (background light)) (:background "#cccccc"))
-  ;;             (((class color) (background dark))  (:background "gray20"))
-  ;;             ))
-  
-  (corfu-border (
-                 (((class color) (background light)) (:background "gold"))
-                 (((class color) (background dark))  (:background "gold"))
-                 ))
-  
-  ;; (corfu-annotations (
-  ;;                     (((class color) (background light)) (:background "#f0f0f0" :foreground "#005f5f" :extend t))
-  ;;                     (((class color) (background dark))  (:background "gray10" :foreground "#70c0b1" :extend t))
-  ;;                     ))
-
+*** Recent Files
+#+BEGIN_SRC emacs-lisp :lexical t :tangle yes
+(use-feature recentf
+  ;; :after tramp
   :init
-  (global-corfu-mode)
-  )
-
-(use-package corfu-popupinfo
-  :ensure nil
-  :after corfu
-  :hook (corfu-mode . corfu-popupinfo-mode)
-  :custom
-  (corfu-popupinfo-delay '(0.5 . 0.2))
-  (corfu-popupinfo-hide nil)
-  :bind (:map corfu-map
-              ("H-p" . corfu-popupinfo-scroll-down)
-              ("H-n" . corfu-popupinfo-scroll-up)
-              ("H-<tab>" . corfu-popupinfo-toggle)))
-
-(use-package cape
-  :ensure t
-  ;; Bind dedicated completion commands
-  ;; Alternative prefix keys: C-c p, M-p, M-+, ...
-  :bind* ("C-c c" . hydra-cape/body)
-
-  ;; cape-abbrev: Complete abbreviation (add-global-abbrev, add-mode-abbrev).
-  ;; cape-dabbrev: Complete word from current buffers. See also dabbrev-capf.
-  ;; cape-dict: Complete word from dictionary file.
-  ;; cape-elisp-block: Complete Elisp in Org or Markdown code block.
-  ;; cape-elisp-symbol: Complete Elisp symbol.
-  ;; cape-emoji: Complete Emoji.
-  ;; cape-file: Complete file name.
-  ;; cape-history: Complete from Eshell, Comint or minibuffer history.
-  ;; cape-keyword: Complete programming language keyword.
-  ;; cape-line: Complete entire line from current buffer.
-  ;; cape-rfc1345: Complete Unicode char using RFC 1345 mnemonics.
-  ;; cape-sgml: Complete Unicode char from SGML entity, e.g., &alpha.
-  ;; cape-tex: Complete Unicode char from TeX command, e.g. \hbar.
+  (setq recentf-auto-cleanup nil) ;; disable before we start recentf!
+  (setq recentf-max-menu-items 25)
+  (setq recentf-max-saved-items 25)
+  
+  :hook (emacs-startup . recentf-mode)
   :config
-  (defhydra hydra-cape (:color blue :hint nil)
-    "
-  _d_ dabbrev    _f_ file      _k_ keyword    _s_ symbol
-  _l_ line       _i_ ispell    _h_ history    _w_ dict
-  _q_ quit
-  "
-    ("d" cape-dabbrev)
-    ("f" cape-file)
-    ("k" cape-keyword)
-    ("s" cape-symbol)
-    ("l" cape-line)
-    ("i" cape-ispell)
-    ("h" cape-history)
-    ("w" cape-dict)
-    ("q" nil "quit"))
-
-
-  ;; (setq-local completion-at-point-functions
-  ;;             (list (cape-capf-choose #'cape-dabbrev #'cape-file #'cape-keyword)))
-
-  :init
-  ;; Create a "Super" completion backend that merges dabbrev, file, and keywords
-  (defalias 'cape-global-super
-    (cape-capf-super #'cape-dabbrev #'cape-file #'cape-keyword))
-
-  ;; Add the super backend to the global completion list.
-  ;; Emacs will try the major-mode specific completions first (like elisp),
-  ;; and if they fail, it will fall back to showing this combined list.
-  (add-hook 'completion-at-point-functions #'cape-global-super)
-
-  ;;(add-hook 'completion-at-point-functions #'cape-dabbrev)
-  ;;(add-hook 'completion-at-point-functions #'cape-keyword)
-  ;;(add-hook 'completion-at-point-functions #'cape-file)
-  ;;(add-hook 'completion-at-point-functions #'cape-history)
-  ;;(add-to-list 'completion-at-point-functions #'cape-tex)
-  ;;(add-to-list 'completion-at-point-functions #'cape-sgml)
-  ;;(add-to-list 'completion-at-point-functions #'cape-rfc1345)
-  ;;(add-to-list 'completion-at-point-functions #'cape-abbrev)
-  ;; (add-to-list 'completion-at-point-functions #'cape-dict)
-  ;;(add-to-list 'completion-at-point-functions #'cape-elisp-symbol)
-  ;; (add-to-list 'completion-at-point-functions #'cape-line)
+  (savehist-mode 1)
+  (run-at-time nil (* 5 60) 'recentf-save-list)
+  (add-to-list 'recentf-exclude "\.png$")
+  (add-to-list 'recentf-exclude "/var/folders")
+  ;; (recentf-cleanup)
+  ;; (setq recentf-auto-cleanup t)
+  ;; :defer t
   )
+#+END_SRC
 
-
+*** Project Management
+#+begin_src emacs-lisp :lexical t
+(use-package project
+  :defer t
+  )
 #+end_src
 
-*** consult
+** Programming Languages
+*** Python
+#+begin_src emacs-lisp :lexical t
 
-#+begin_src emacs-lisp :lexical t :tangle yes
-
-(use-package vertico
-  :ensure t
-  :bind (:map vertico-map
-          ("M-S" . my-vertico-cycle-sort))
-  :init
-  (vertico-mode 1)
-  :config
-  (setq vertico-cycle t)
-  (setq vertico-resize nil)
-  (setq enable-recursive-minibuffers t)
-  (setq read-extended-command-predicate #'command-completion-default-include-p)
-  (setq minibuffer-prompt-properties
-        '(read-only t cursor-intangible t face minibuffer-prompt))
-
-  (defvar my-vertico-sort-methods '(nil vertico-sort-alpha vertico-sort-length-alpha))
-  (defvar-local my-vertico-sort-index 0)
-
-  (defun my-vertico-cycle-sort ()
-    "Cycle through different Vertico sorting methods."
-    (interactive)
-    (setq my-vertico-sort-index
-          (mod (1+ my-vertico-sort-index) (length my-vertico-sort-methods)))
-    (setq-local vertico-sort-override-function
-                (nth my-vertico-sort-index my-vertico-sort-methods))
-    (message "Vertico sort: %s" (or vertico-sort-override-function "Default"))
-    (setq vertico--input t))
-  )
-(use-package vertico-directory
-  :after vertico
-  :ensure nil
-  ;; More convenient directory navigation commands
-  :bind (:map vertico-map
-              ("RET" . vertico-directory-enter)
-              ("DEL" . vertico-directory-delete-char)
-              ("M-DEL" . vertico-directory-delete-word))
-  ;; Tidy shadowed file names (e.g. ~/foo/bar//baz -> /baz)
-  :hook (rfn-eshadow-update-overlay . vertico-directory-tidy))
-
-(use-package orderless
-  :ensure t
-  :custom
-  (completion-styles '(orderless basic))
-  (completion-category-overrides '((file (styles . (partial-completion substring)))))
-  (completion-pcm-leading-wildcard t)
-  (orderless-style-dispatchers '(my-orderless-dispatch))
-  :init
-  (defun my-orderless-dispatch (pattern index _total)
-    (cond
-     ;; Ensure that $ works with Consult commands, which add disambiguation suffixes
-     ((string-suffix-p "$" pattern)
-      `(orderless-regexp . ,(concat (substring pattern 0 -1) "[\x100000-\x10FFFD]*$")))
-     ;; Ignore character (!)
-     ((string-prefix-p "!" pattern)
-      `(orderless-without-literal . ,(substring pattern 1))))))
-
-(use-package consult
-  :ensure t
+(use-feature python
+  :defer t
+  :mode ("\.py'" . python-mode)
+  :interpreter ("python" . python-mode)
   :bind (
-         ("C-x b" . consult-buffer)
-         ("M-y" . consult-yank-pop)
-         ("M-g M-g" . consult-goto-line)
-         ("C-c C-SPC" . consult-mark)
-         ("M-g i" . consult-imenu)
-         ("C-x C-a" . consult-grep)
-         ("C-x f" . consult-recent-file)
-         ("C-s" . consult-line)
-         ("H-s" . consult-ripgrep)         )
-
+         :map python-mode-map
+         ("H-<left>" . python-indent-shift-left)
+         ("H-<right>" . python-indent-shift-right)
+         )
   :config
-  ;; Use a debounce delay for preview to avoid severe lag over TRAMP
-  (setq consult-preview-key (list :debounce 0.5 'any))
-  (setq consult-narrow-key "<")
+  
+  (setq python-indent-offset 4)
+  (setq python-indent-guess-indent-offset nil)
+
+  (defun python-indent-dedent-line-backspace (arg)
+   
+    (interactive "*p")
+    (when (or
+           (and (use-region-p) (= arg 1))
+           (not (python-indent-dedent-line)))
+      (backward-delete-char-untabify arg)))
+
+  (put 'python-indent-dedent-line-backspace 'delete-selection 'supersede)
+
   )
 
-(use-package embark-consult
-  :ensure t)
+;; (use-package yapfify
+;;   :defer t
+;;   :hook (python-mode . yapf-mode))
+;; (add-hook 'python-mode-hook 'yapf-mode)
 
-(use-package wgrep
-  :ensure t
+(use-package code-cells
+  :defer t
+  :config
+  (setcdr code-cells-mode-map nil)
+  (defun seth-code-cells/add-time-stamp-after-execute (&optional var)
+    (interactive)
+    (unless var (setq var nil))
+    (unless (boundp 'seth-code-cells/jupyter-execution-count) (setq-local seth-code-cells/jupyter-execution-count 1))
+    (let (
+          (bounds (code-cells--bounds 1))
+          )
+      (save-excursion
+        (goto-char (car bounds))
+        (delete-region (point) (line-end-position))
+        (insert (concat
+                 "# %% "
+                 (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
+                 " ["
+                 (int-to-string seth-code-cells/jupyter-execution-count)
+                 "]"
+                 ))
+        (apply 'code-cells-eval (code-cells--bounds 1))
+        (setq-local seth-code-cells/jupyter-execution-count (1+ seth-code-cells/jupyter-execution-count))
+        )
+      (if var
+          (code-cells-forward-cell 1)
+        )
+      )      
+    )
+
+  (defun seth-code-cells/clear-timestamps ()
+    (interactive)
+    (let (
+          (bounds (code-cells--bounds 1))
+          )
+      (save-excursion
+        (goto-char (car bounds))
+        (delete-region (point) (line-end-position))
+        (insert "# %%")
+        )
+      )
+    )
+
+  (defun seth-code-cells/split-cell ()
+    (interactive)
+    (save-excursion
+      (move-beginning-of-line 1)
+      (open-line 2)
+      (next-line 1)
+      (insert "# %%")
+      (open-line 1)
+      )
+    (open-line 1)
+    )
+
+  (defun seth-code-cells/restart-jupyter-execution-count (&rest arg)
+    (setq-local seth-code-cells/jupyter-execution-count 1)
+    )
+
+  (defun seth-code-cells/add-cell (&rest arg)
+    (interactive)
+    (let (
+          (bounds (code-cells--bounds 1))   
+          )
+      (cond
+       (arg 
+        (goto-char (car bounds))
+        (open-line 2)
+        (insert "# %%")
+        (open-line 1)
+        (next-line 1)
+        (print "in arg")
+        )
+       (t
+        (goto-char (car (cdr bounds)))
+        (open-line 1)
+        (next-line 1)
+        (insert "# %%")
+        (open-line 3)
+        (next-line 1)
+        (print "not in arg"))
+       )
+      ))
+
+  (defun seth-code-cells/clear-all-results ()
+    "Clear all results in the buffer."
+    (interactive)
+    (save-excursion
+      (goto-char (point-min))
+      (when (looking-at "# %%")
+        (delete-region (point) (line-end-position))
+        (insert "# %%")
+        )
+      (while (code-cells-forward-cell 1)
+        (delete-region (point) (line-end-position))
+        (insert "# %%")
+        ))
+    )
+
+  ;; add below to keep track of what has been run
+  (add-hook 'python-mode-hook (lambda ()
+                                (setq-local seth-code-cells/jupyter-execution-count 1)))
+  (advice-add 'jupyter-repl-restart-kernel :before #'seth-code-cells/restart-jupyter-execution-count)
+  (advice-add 'jupyter-run-repl :before #'seth-code-cells/restart-jupyter-execution-count)
+
+  ;; (defun start-python (env))
+
+  :hook (python-mode . code-cells-mode-maybe)
+  :bind (
+         :map code-cells-mode-map
+         ("C-c C-c" . seth-code-cells/add-time-stamp-after-execute)
+         ("C-<return>" . (lambda() (interactive) (seth-code-cells/add-time-stamp-after-execute 1)))
+         ("C-c c a" . (lambda() (interactive) (seth-code-cells/add-cell 1))) ;; add above
+         ("C-c c b" . (lambda() (interactive) (seth-code-cells/add-cell ))) ;; add below
+         ("M-p" . code-cells-backward-cell)
+         ("M-n" . code-cells-forward-cell)
+         ("C-c c ;" . code-cells-comment-or-uncomment)
+         ("C-c c h" . code-cells-mark-cell)
+         ("C-c c o" . seth-code-cells/clear-timestamps)
+         ("C-c c O" . seth-code-cells/clear-all-results)
+         ("C-c c n" . seth-code-cells/split-cell)
+         )
+  )
+
+(use-package jupyter
+  :defer t
   :custom
-  (wgrep-auto-save-buffer t))
+  (jupyter-eval-use-overlays t)
+  :config
+  (defvaralias 'org-babel-jupyter-resource-directory 'jupyter-org-resource-directory)
+  (setq org-babel-jupyter-resource-directory "./plots/")
+  )
+
+(use-package zmq
+  :defer t)
+#+end_src
+
+*** LSP & Linting
+#+begin_src emacs-lisp :lexical t
+(use-package flymake)
+
+(use-feature eglot 
+  :defer t
+  :init
+  (setq-default eglot-workspace-configuration
+              '((:pylsp . (:plugins (:black (:enabled t
+                                                      :cache_config t)
+                                     :pyflakes (:enabled t)
+                                     :pycodestyle (:enabled t
+                                                   :maxLineLength 88
+                                                   :ignore ["E203" "W503"]
+                                                   )
+                                     :autopep8 (:enabled :json-false)
+                                     :pylint (:enabled :json-false)
+                                     :yapf (:enabled :json-false)
+                                     :mccabe (:enabled :json-false)
+                                     :jedi_completion (:enabled t
+                                                       :include_params t
+                                                       :include_class_objects t
+                                                       :include_function_objects t
+                                                       :eager :json-false
+                                                       :cache_for ["pandas" "numpy" "matplotlib" "polars" "jax"]
+                                                       ))))))
+
+  (setq eldoc-echo-area-use-multiline-p nil)
+  :bind (
+         ("C-c p" . start-eglot-python)
+         )
+  :custom
+  (eglot-autoshutdown t)
+  (eglot-events-buffer-config '(:size 0 :format short))
+  (eglot-sync-connect t)
+  (eglot-send-changes-idle-time 3)
+  (flymake-no-changes-timeout 5)
+  (eldoc-echo-area-use-multiline-p nil)
+  ;; Optimizations
+  (eglot-ignored-server-capabilities '(:documentHighlightProvider))
+  (fset #'jsonrpc--log-event #'ignore)
+  (setq jsonrpc-event-hook nil)  
+
+  :config
+  (setq eglot-connect-timeout 120)
+  (setq eglot-sync-connect nil)
+  (setq eglot-send-changes-idle-time 3)
+
+  (defun my/eglot-capf ()
+    (setq-local completion-at-point-functions
+                (list (cape-capf-super
+                       #'eglot-completion-at-point
+                       #'yasnippet-capf
+                       #'cape-dabbrev))))
+
+  (add-hook 'eglot-managed-mode-hook
+          (lambda ()
+            (add-hook 'before-save-hook 'eglot-format-buffer nil t)
+            (my/eglot-capf)))
+
+  (defun pixi-get-environment ()
+    "Interactively select a pixi environment and return its bin path."
+    (interactive)
+    (let* ((project-root (locate-dominating-file default-directory "pixi.toml"))
+           (raw-output (shell-command-to-string "pixi project environment list"))
+           (envs '()))
+      ;; Parse names from the list
+      (dolist (line (split-string raw-output "
+" t))
+        (when (string-match "^[[:alnum:]_-]+\s-*\(.*\)" line)
+          (push (match-string 1 line) envs)))
+      
+      (if (and project-root envs)
+          (let* ((choice (completing-read "Select Environment: " (reverse envs)))
+                 ;; Construct the path: <root>/.pixi/envs/<choice>/bin
+                 (env-path (file-local-name (expand-file-name 
+                            (concat ".pixi/envs/" choice "/bin/") 
+                            project-root))))
+            ;; (message "Path: %s" env-path)
+            env-path)
+        (message "Not in a pixi project or no environments found."))))
+  
+  (defun start-eglot-python ()
+    (interactive)
+    (let* (
+           (contact (concat
+                     (pixi-get-environment)
+                     "pylsp"
+                     )
+                    )
+           (managed-modes (list major-mode))
+           (project (eglot--current-project))
+           (class eglot-lsp-server)
+           (language-ids (list "python"))
+           )
+      ;; (jupyter-run-repl env buffer-file-name t 'jupyter-repl-client)
+      ;; (kill-new contact)
+      (message "Starting Eglot with: %s" contact)
+      (apply 'eglot (list managed-modes project class (list contact) language-ids))
+      ;; (call-interactively 'eglot)
+      )
+    )  
+  )
+
+(use-package eglot-booster
+  :defer t
+  :after eglot
+  :ensure (eglot-booster
+           :type git
+           :host github
+           :repo "jdtsmith/eglot-booster"
+           :local-repo "eglot-booster"
+           )
+  :config
+  (eglot-booster-mode))
+
+(use-package jsonrpc
+  :defer t
+  )
+
+(use-package flycheck-eglot
+  :ensure t
+  :after (flycheck eglot)
+  :config
+  (global-flycheck-eglot-mode 1)
+  :custom
+  (flycheck-help-echo-function nil)
+  (flycheck-display-errors-function nil)
+  )
+
+(use-package consult-eglot
+  :ensure t
+  :after (consult eglot)
+  :bind (:map eglot-mode-map
+              ("M-g s" . consult-eglot-symbols)))
+
+(use-package flycheck
+  :defer t)  
+
+(use-package sideline
+  :delight
+  :defer t
+  :hook (
+         (flycheck-mode . sideline-mode)  
+         (flymake-mode  . sideline-mode)
+         )
+
+  :init
+  (setq sideline-backends-left-skip-current-line nil   ; don't display on current line (left)
+        sideline-backends-right-skip-current-line nil  ; don't display on current line (right)
+        sideline-order-left 'down                    ; or 'up
+        sideline-order-right 'up                     ; or 'down
+        sideline-format-left "%s"                 ; format for left aligment
+        sideline-format-right "%s"                ; format for right aligment
+        sideline-priority 100                        ; overlays' priority
+        sideline-display-backend-name t)             ; display the backend name
+  (setq sideline-backends-right '(sideline-flycheck)
+        )
+  
+  )
+
+(use-package sideline-flycheck
+  :defer t
+  :hook (flycheck-mode . sideline-flycheck-setup))
+#+end_src
+
+*** Tree-sitter
+#+begin_src emacs-lisp :lexical t
+
+(use-package tree-sitter
+  :delight
+  :defer t
+  :hook (
+         (python-mode . tree-sitter-hl-mode)
+         (lisp-mode . tree-sitter-hl-mode)
+         (json-mode . tree-sitter-hl-mode)
+         (sql-mode . tree-sitter-hl-mode)
+         )  
+  )
+
+
+(use-package tree-sitter-langs
+  :defer t
+  :after tree-sitter
+  )
+
+;; Not liking the bottom ones highlights. Instead use above, install languages and use the tree-sitter-hl-mode with the x-mode
+;; do not use the x-ts-mode
 
 #+end_src
 
-*** csv
+*** Latex
+#+begin_src emacs-lisp :lexical t
+(use-package latex
+  :defer t
+  :delight
+  :ensure auctex
+  :mode
+  (("\.tex$" . LaTeX-mode ))
+  :config
+  (setq TeX-auto-save t)
+  (setq TeX-view-program-selection '((output-pdf "PDF Tools"))
+        TeX-view-program-list '(("PDF Tools" TeX-pdf-tools-sync-view))
+        TeX-source-correlate-start-server t)
+  (add-hook 'TeX-after-compilation-finished-functions #'TeX-revert-document-buffer)
+)
+
+(use-package pdf-tools
+  :defer t
+  :delight
+  :mode
+  (("\.pdf$" . pdf-view-mode))
+  :custom
+  pdf-annot-activate-created-annotations t 
+  pdf-view-resize-factor 1.1
+  :hook
+  ((pdf-view-mode) . (lambda () (cua-mode 0)))
+ 
+  :config
+  (pdf-tools-install)
+  (pdf-loader-install)
+  (setq-default pdf-view-display-size 'fit-page)
+  (add-hook 'pdf-view-mode-hook
+            (lambda () (display-line-numbers-mode -1)))
+)
+#+end_src
+
+*** YAML
+#+begin_src emacs-lisp :lexical t
+  (use-package yaml-mode
+    :defer t
+    :config
+    (add-to-list 'auto-mode-alist '("\.yml'" . yaml-mode))
+    (add-hook 'yaml-mode-hook
+      '(lambda ()
+        (define-key yaml-mode-map "\C-m" 'newline-and-indent)))
+    )
+#+end_src
+
+*** JSON
+#+begin_src emacs-lisp :lexical t
+  (use-package json-mode
+    :defer t
+    )
+#+end_src
+
+*** CSV
 #+begin_src emacs-lisp :lexical t 
 (use-package csv-mode
-  :mode "\\.csv\\'"
+  :mode "\.csv'"
   )
 #+end_src
 
-*** d20
+** Text & Editing
+*** Structural Editing
+#+begin_src emacs-lisp :lexical t
+
+(use-package smartparens
+  :delight  
+  :config
+  (require 'smartparens-config)
+  (smartparens-global-mode t)
+  :bind* (
+          ("M-<up>"  . sp-beginning-of-sexp)
+          ("M-<down>"  . sp-end-of-sexp)
+          ("C-<right>"  . sp-forward-slurp-sexp)
+          ("M-<right>"  . sp-forward-barf-sexp)
+          ("C-<left>"   . sp-backward-slurp-sexp)
+          ("M-<left>"   . sp-backward-barf-sexp)
+          ("C-M-k"  . sp-kill-sexp)
+          ("C-k"    . sp-kill-hybrid-sexp)
+          ("M-k"    . sp-backward-kill-sexp)
+          ("C-M-w"  . sp-copy-sexp)
+          ("M-s s"  . sp-split-sexp)
+          ("M-s j"  . sp-join-sexp)
+          ("M-]"  . sp-backward-unwrap-sexp)
+          ("M-["  . sp-unwrap-sexp)
+          ("C-x C-t"  . sp-transpose-hybrid-sexp)
+          )
+  :demand t
+  )
+
+(use-package drag-stuff
+  :delight
+  :defer t
+  :config
+  (drag-stuff-global-mode 1)
+  :bind* (
+          ("C-M-<down>" . drag-stuff-down)
+          ("C-M-<up>" . drag-stuff-up)  
+          )
+  )
+
+(use-package mwim
+  :bind (
+         ;; My personal favorites
+         ("C-a" . mwim-beginning-of-code-or-line)
+         ("C-e" . mwim-end-of-code-or-line)
+         ))
+#+end_src
+
+*** Multiple Cursors
+#+begin_src emacs-lisp :lexical t
+(use-package multiple-cursors
+  :defer t
+  :bind* (         
+         ("H-<return> e" . mc/edit-lines)
+         ("H-<return> m" . mc/mark-more-like-this-extended)
+         ("H-<return> a" . mc/mark-all-like-this)
+         ("H-<return> n" . mc/insert-numbers)
+         ("H-<return> l" . mc/insert-letters)
+         :map mc/keymap
+         ("C-;" . mc-hide-unmatched-lines-mode)
+         )
+  ) 
+
+(use-package ace-mc
+  :delight
+  :bind* ("H-;" . ace-mc-add-multiple-cursors)
+  :defer t
+  )
+#+end_src
+
+*** Visual Enhancements
+#+begin_src emacs-lisp :lexical t
+(use-package page-break-lines
+  :delight
+  :config
+  (global-page-break-lines-mode)
+  )
+
+(use-package ultra-scroll
+  :ensure (ultra-scroll :host github :repo "jdtsmith/ultra-scroll")
+  :init
+  (setq scroll-conservatively 101 ; important!
+        scroll-margin 0)
+  :config
+  (ultra-scroll-mode 1))
+
+(use-package hl-todo
+  :delight
+  :defer t
+  :hook (prog-mode text-mode)
+  :config
+  (setq hl-todo-keyword-faces
+        '(("TODO" . "#E078F5")
+          ("NOTE" . "#1EAFFF")
+          ("HACK" . "#FF5B24")
+          ("BUG"  . "#FF0000")
+          ))
+  (global-hl-todo-mode)
+  ;; :bind* (
+  ;;         ("H-t t" . hl-todo-insert)
+  ;;         ("H-t n" . hl-todo-next)
+  ;;         ("H-t p" . hl-todo-previous)
+  ;;         )
+  )
+
+(use-package indent-bars
+
+  :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
+  :defer t
+  :hook ((prog-mode org-mode python-mode) . indent-bars-mode)
+  :config
+  (setq
+   indent-bars-prefer-character t
+   indent-bars-color '(highlight :face-bg t :blend 0.5)
+   ;;   indent-bars-pattern ". . . . . . . . ." ; play with the number of dots for your usual font size
+   indent-bars-width-frac 0.3
+   indent-bars-pad-frac 0.1
+   indent-bars-display-on-blank-lines t
+   indent-tabs-mode nil)
+
+  ;; (setq
+  ;;  indent-bars-color '(highlight :face-bg t :blend 0.1)
+  ;;  indent-bars-pattern ". . . . . . . . ."
+  ;;  indent-bars-width-frac 0.1
+  ;;  indent-bars-pad-frac 0.1
+  ;;  indent-bars-zigzag nil
+  ;;  indent-bars-color-by-depth '(:regexp "outline-\([0-9]+\)" :blend 1) ; blend=1: blend with BG only
+  ;;  indent-bars-highlight-current-depth '(:blend 1) ; pump up the BG blend on current
+  ;;  indent-bars-display-on-blank-lines t)
+
+  (setq indent-bars-treesit-support t)
+  (setq indent-bars-no-descend-string t)
+  (setq indent-bars-treesit-ignore-blank-lines-types '("module" "call"))
+  (setq indent-bars-treesit-wrap '((python
+                                    argument_list
+                                    attribute
+                                    assignment
+                                    identifier
+                                    parameters
+                                    list
+                                    list_comprehension
+                                    dictionary
+                                    dictionary_comprehension
+                                    parenthesized_expression
+                                    call
+                                    expression_statement
+                                    subscript)))
+  
+  ) ; or whichever modes you prefer
+#+end_src
+
+*** Undo/Redo
+#+begin_src emacs-lisp :lexical t
+
+(use-package undo-tree
+  :delight
+  ;; :init
+  ;; (defadvice undo-tree-make-history-save-file-name
+  ;;     (after undo-tree activate)
+  ;;   (setq ad-return-value (concat ad-return-value ".gz")))
+  :custom
+  (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
+  (backup-directory-alist `(("." . "~/.emacs.d/.saves")))
+  (backup-by-copying t)
+  (delete-old-versions nil)
+  (kept-new-versions 20)
+  (kept-old-versions 60)
+  (version-control t)       ; use versioned backups 
+  (undo-tree-enable-undo-in-region t)
+  ;; (undo-strong-limit (* 1024 1024 1024)) 
+  ;; (amalgamating-undo-limit 10)
+  ;; (undo-limit         (* 1024 1024 1024))
+  ;; (gnus-undo-limit 2000)
+  ;; (undo-outer-limit (* 1024 1024 1024))
+  
+  :config
+  (global-undo-tree-mode)
+  )
+#+end_src
+
+*** Mode Line
+#+begin_src emacs-lisp :lexical t
+
+(use-package smart-mode-line
+  :delight
+  :init
+  (setq sml/name-width 50
+        sml/mode-width 50)
+  (setq sml/theme 'respectful)
+  :config
+  (sml/setup)
+  )
+
+;; (use-package doom-modeline
+;;   :ensure t
+;;   :init (doom-modeline-mode 1)
+;;   :custom
+;;   (doom-modeline-window-width-limit 50)
+;;   (doom-modeline-time-live-icon nil)
+;;   (doom-modeline-time-analogue-clock nil)
+;;   (doom-modeline-env-version nil)
+;;   (doom-modeline-time-icon nil)
+
+
+;;   :config
+;;   (display-time-mode)
+;;   (display-battery-mode)
+;;   )
+#+end_src
+
+*** General Utilities
+#+begin_src emacs-lisp :lexical t :tangle no
+
+(use-package activities
+  :delight
+  :bind* (
+          ("s-a n" . activities-new)
+          ("s-a d" . activities-define)
+          ("s-a a" . activities-resume)
+          ("s-a r" . activities-revert)
+          ("s-a s" . activities-suspend)
+          ("s-a k" . activities-kill)
+          ("s-a RET" . activities-switch)
+          ("s-a b" . activities-switch-buffer)
+          ("s-a l" . activities-list)
+          )
+  
+  :defer t
+  :config
+  (activities-mode t)
+  )
+
+(use-package zoom
+  :delight
+  :custom
+  (zoom-size '(0.618 . 0.618))
+  :defer t
+  )
+
+(use-package jinx
+  :ensure t
+  :delight 
+  ;; :hook (emacs-startup . global-jinx-mode)
+  ;; :bind (("M-$" . jinx-correct)
+  ;;        ("C-M-$" . jinx-languages))
+  )
+#+end_src
+
+*** Snippets
+#+begin_src emacs-lisp :lexical t :tangle yes
+
+(use-package yasnippet
+  :delight yas-minor-mode
+  :defer t
+  :hook ((prog-mode . yas-minor-mode)
+         (text-mode . yas-minor-mode))
+  :config
+  ;; (yas-global-mode)
+  ;; (yas-reload-all)
+  ;; (add-hook 'prog-mode-hook #'yas-minor-mode)
+  )
+
+(use-package yasnippet-snippets
+  :ensure t
+  :after yasnippet
+  :defer t
+  )
+
+(use-package py-snippets
+  :ensure t
+  :after yasnippet
+  :defer t
+  :config
+  (py-snippets-initialize))
+#+end_src
+
+** Navigation & Movement
+*** Ace Family
+#+begin_src emacs-lisp :lexical t
+(use-package ace-jump-mode
+  :delight
+  :bind* ("H-j" . ace-jump-mode)
+  :defer t
+  )
+#+end_src
+
+(use-package ace-window
+  :delight
+  :bind* (
+          ("H-SPC" . ace-window)
+          ("H-M-<left>" . shrink-window-horizontally)
+          ("H-M-<right>" . enlarge-window-horizontally)
+          ("H-M-<up>" . enlarge-window)
+          ("H-M-<down>" . shrink-window)
+          ("H-z" . seth-toggle-zoom-balance)
+          )
+  :defer t
+  :custom
+  (aw-dispatch-always t)
+  :init
+  (require 'zoom)
+  (setq seth-is-zoom 1)
+  (defun seth-toggle-zoom-balance ()
+    (interactive)
+    (setq seth-is-zoom (* -1 seth-is-zoom))
+    (zoom-mode seth-is-zoom)
+    )
+  (zoom-mode seth-is-zoom)
+  (defvar aw-dispatch-alist
+    '((?d aw-delete-window "Delete Window")
+      (?s aw-swap-window "Swap Windows")
+      (?m aw-move-window "Move Window")
+      (?b aw-switch-buffer-in-window "Select Buffer")
+      (?n aw-flip-window)
+      (?B aw-switch-buffer-other-window "Switch Buffer Other Window")
+      (?c aw-split-window-fair "Split Fair Window")
+      (?h aw-split-window-vert "Split Vert Window")
+      (?v aw-split-window-horz "Split Horz Window")
+      (?o delete-other-windows "Delete Other Windows")
+      (?? aw-show-dispatch-help))
+    "List of actions for `aw-dispatch-default'.")
+  )
+
+** Tools
+*** Magit
+#+begin_src emacs-lisp :lexical t
+(use-package magit
+  :delight
+  :defer t
+  :bind* ("C-x g" . magit-status)
+  :config 
+  (setq split-height-threshold nil)
+  (setq split-width-threshold 0)
+  (setq magit-completing-read-function 'consult-completing-read-dwim)
+  (setenv "GIT_ASKPASS" "git-gui--askpass")
+  ;; don't show the diff by default in the commit buffer. Use `C-c C-d' to display it
+  (setq magit-commit-show-diff nil)
+  ;; don't show git variables in magit branch
+  (setq magit-branch-direct-configure nil)
+  ;; don't automatically refresh the status buffer after running a git command
+  (setq magit-refresh-status-buffer nil)
+  )
+
+(use-package magit-todos
+  :delight
+  :defer t
+  :after magit
+  :config
+  (magit-todos-mode 1)
+  )
+#+end_src
+
+*** Google
+#+begin_src emacs-lisp :lexical t
+;; google-this
+(use-package google-this
+  :delight
+  :defer t
+  :config
+  (google-this-mode 1))  
+#+end_src
+
+*** Org-mode
+#+begin_src emacs-lisp :lexical t
+(use-feature org
+  :defer t
+  :custom
+  (enable-local-variables t)
+  (org-display-remote-inline-images 'cache)
+  (org-startup-folded t)
+  (org-startup-indented t)
+  (org-log-done t)
+  (org-return-follows-link t)
+  (org-confirm-babel-evaluate nil)
+  :bind (
+         :map org-mode-map
+         ;;("C-M-<up>" . org-shiftmetaup)
+         ;;("C-M-<down>" . org-shiftmetadown)
+         ("s-C-l" . seth-org/clear-all-results)
+         ("C-M-<left>" . org-shiftmetaleft)
+         ("C-M-<right>" . org-shiftmetaright)
+         ("C-M-S-<left>" . org-shiftcontrolleft)
+         ("C-M-S-<right>" . org-shiftcontrolright)
+         ("s-p" . org-babel-previous-src-block)
+         ("s-n" . org-babel-next-src-block)
+         ("s-l" . org-babel-remove-result)
+         ("s-<tab>" . completion-at-point)
+         ("s-z" . org-babel-switch-to-session)
+         ) 
+  :init
+  ;; (defun seth-org/clear-all-results ()
+  ;;   "Clear all results in the buffer."
+  ;;   (interactive)
+  ;;   (save-excursion
+  ;;     (goto-char (point-min))
+  ;;     (while (org-babel-next-src-block)
+  ;;       (forward-line -1)
+  ;;       (beginning-of-line)
+  ;;       (when (looking-at "#+LASTRUN:")
+  ;;         (delete-region (pos-bol) (1- (pos-bol 2)))
+  ;;         (delete-line)
+  ;;         )
+  ;;       (forward-line 1)
+  ;;       (org-babel-remove-result))))
+
+  ;; (add-hook 'org-mode-hook (lambda ()
+  ;;                            (setq-local seth-jupyter-execution-count 1)))
+  ;; (setq seth-jupyter-execution-count 1)
+  
+  (setq org-src-fontify-natively t
+        org-src-window-setup 'current-window ;; edit in current window
+        org-src-strip-leading-and-trailing-blank-lines t
+        org-src-preserve-indentation t ;; do not put two spaces on the left
+        org-src-tab-acts-natively t)
+
+  
+  :config
+  ;; (org-babel-do-load-languages
+  ;;  'org-babel-load-languages
+  ;;  '((emacs-lisp . t)
+  ;;    (julia . t)
+  ;;    (python . t)
+  ;;    (sql . t)
+  ;;    ;; (sql-mode . t)
+  ;;    ;; (sql-session . t)
+  ;;    (jupyter . t)))
+  
+  ;; (defun do-org-confirm-babel-evaluations (lang body)
+  ;;   (not
+  ;;    (or
+  ;;     (string= lang "elisp")
+  ;;     (string= lang "sql")
+  ;;     (string= lang "sql-mode")
+  ;;     ;; (string= lang "sql-session")
+  ;;     )))
+  ;; (setq org-confirm-babel-evaluate 'do-org-confirm-babel-evaluations)
+  ;; ;; (require 'scimax-jupyter)
+  ;; ;; (defun seth-org-babel-add-time-stamp-after-execute-before-src-block ()
+  ;; ;;   ;; (sleep-for 2)    
+  ;; ;;   (end-of-line)
+  ;; ;;   (save-excursion
+  ;; ;;     (search-backward "#+BEGIN_SRC" 0 t)
+  ;; ;;     (forward-line -1)
+  ;; ;;     (beginning-of-line)
+
+  ;; ;;     (if (looking-at "#+LASTRUN:")
+  ;; ;;         (delete-region (pos-bol) (1- (pos-bol 2)))
+  ;; ;;       (open-line 1)
+  ;; ;;       (next-line 1)
+  ;; ;;       )
+  
+  ;; ;;     (insert (concat
+  ;; ;;              "#+LASTRUN: "
+  ;; ;;              (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
+  ;; ;;              " ["
+  ;; ;;              (int-to-string seth-jupyter-execution-count)
+  ;; ;;              "]"
+  ;; ;;              ))
+  ;; ;;     (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))
+  ;; ;;     )
+  ;; ;;   )
+
+  ;; ;; (add-hook 'org-babel-after-execute-hook
+  ;; ;;           'seth-org-babel-add-time-stamp-after-execute-before-src-block)
+
+  )
+
+;; Backend for HTML Table export
+
+;;(require 'ox-html)
+;;(defun ox-mrkup-filter-bold
+;;    (text back-end info)
+;;  "Markup TEXT as <bold>TEXT</bold>. Ignore BACK-END and INFO."
+;;  (format "<bold>%s</bold>" text))
+;;
+;;(org-export-define-derived-backend 'htmlTable 'html
+;;  :filters-alist
+;;  '((:filter-body . ox-mrkup-filter-body)
+;;    ))
+
+;; (use-package ob-sql-mode
+;;   :ensure t
+;;   ;; :hook (org-mode)
+;;   :config
+;;   (require 'ob-sql-mode)
+;; )
+
+;; (use-package ob-sql-session
+;;   :defer t
+;;   :hook (org-mode)
+;;   :ensure (:host github
+;;            :repo "flintforge/ob-sql-session"
+;;            )
+;;   )
+#+end_src
+
+#+begin_src emacs-lisp :lexical t
+
+(use-package org-modern
+  :hook (org-mode)
+  :defer t
+  :custom-face
+  ;; (org-block   ((t (:background "gray10" :extend t))))
+  (org-block-begin-line   ((t (:inherit org-block :foreground "#876716" :extend t)))) ;; :background "#1b2419"
+  (org-block-end-line     ((t (:inherit org-block-begin-line :foreground "#876716" :extend t)))) ;; :background "#1b2419"
+  (org-drawer             ((t (:inherit shadow))))
+  (org-level-1            ((t (:weight bold :height 1.2 :overline nil :underline t :extend t)))) ;; Blue :foreground "#3375a8"
+  (org-level-2            ((t (:weight bold :height 1.2 :overline nil :extend t)))) ;; Aqua
+  (org-level-3            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Green
+  (org-level-4            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Yellow
+  (org-level-5            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Orange
+  (org-level-6            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Red
+  (org-level-7            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Blue
+  (org-level-8            ((t (:weight bold :height 1.1 :overline nil :extend t))))
+
+  :config
+  (setq-local line-spacing 0.1)
+  (font-lock-add-keywords
+   'org-mode
+   `(("^[ 	]*\(?:[-+*]\|[0-9]+[).]\)[ 	]+\(\(?:\[@\(?:start:\)?[0-9]+\][ 	]*\)?\[\(?:X\|\([0-9]+\)/\2\)\][^
+]*
+\)" 1 'org-headline-done prepend))
+   'append)
+
+  (font-lock-add-keywords
+   'org-mode
+   `(("^[ 	]*\(?:[-+*]\|[0-9]+[).]\)[ 	]+\(\(?:\[@\(?:start:\)?[0-9]+\][ 	]*\)?\[\(?:-\|\([0-9]+\)/\2\)\][^
+]*
+\)" 1 'org-headline-todo prepend))
+   'append)
+
+  (setq
+   ;; Edit settings
+   org-babel-min-lines-for-block-output 1
+   org-auto-align-tags nil
+   org-tags-column 0
+   org-catch-invisible-edits 'show-and-error
+   org-special-ctrl-a/e t
+   org-insert-heading-respect-content t
+
+   ;; Org styling, hide markup etc.
+   org-hide-emphasis-markers t
+   org-pretty-entities nil
+   org-modern-fold-stars '(("▶" . "▼") ("▷" . "▽") ("▶" . "▼") ("▹" . "▿") ("▸" . "▾"))
+   ;; Agenda styling
+   org-agenda-tags-column 0
+   org-agenda-block-separator ?─
+   org-agenda-time-grid
+   '((daily today require-timed)
+     (800 1000 1200 1400 1600 1800 2000)
+     " ┄┄┄┄┄ " "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄")
+   org-agenda-current-time-string
+   "⭠ now ─────────────────────────────────────────────────"
+
+   org-agenda-ndays 7
+   org-deadline-warning-days 10
+   org-agenda-show-all-dates t
+   org-agenda-start-on-weekday nil
+   org-reverse-note-order t
+   org-fast-tag-selection-single-key (quote expert)
+   org-log-into-drawer t
+   org-image-actual-width nil
+   org-export-with-drawers t
+   )
+  )
+#+end_src
+
 #+begin_src emacs-lisp :lexical t
 (use-package org-d20
   :delight
@@ -1444,11 +2767,15 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
       ;; monsters on the same initiative count is ascending
       (setq rows (seq-reverse rows))
       (insert
-       "Round of combat: 1\n|Turn|Creature|Mod|Init|AC|HP|Damage|Status|\n|-\n")
+       "Round of combat: 1
+|Turn|Creature|Mod|Init|AC|HP|Damage|Status|
+|-
+")
       (dolist (row rows)
         (dolist (cell row)
           (insert "|" cell))
-        (insert "|\n"))
+        (insert "|
+"))
       (delete-char -1)
       (org-table-goto-column 4)
       (org-table-sort-lines nil ?N)
@@ -1583,7 +2910,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
           (org-table-goto-line 1)
           (while (org-table-goto-line (1+ (org-table-current-line)))
             (org-table-goto-column 2)
-            (when (looking-at "[^|]+ \\([A-Z]\\|[0-9]+\\)~? *|")
+            (when (looking-at "[^|]+ \([A-Z]\|[0-9]+\)~? *|")
               (setq monster (1+ monster))))))
       (save-excursion
         ;; Ensure we're not on header row (following won't go past end
@@ -1637,7 +2964,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   )
 #+end_src
 
-*** denote
 #+begin_src emacs-lisp :lexical t
 (use-package denote
   :bind* (
@@ -1662,300 +2988,118 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :config
   (setq denote-file-type 'markdown-yaml)
   )
-
 #+end_src
 
-*** nerd icons
-
+*** Vterm
 #+begin_src emacs-lisp :lexical t
-(use-package nerd-icons)
-#+end_src
-
-*** dired
-
-#+begin_src emacs-lisp :lexical t :tangle yes
-
-(use-package nerd-icons-dired
+(use-package vterm
   :defer t
-  :delight
-  :hook (dired-mode . nerd-icons-dired-mode)
-  ;; :custom
-  ;; (all-the-icons-dired-monochrome nil)
-  )
-
-;; (use-package dired-subtree
-;;   :delight
-;;   :bind (
-;;          :map dired-mode-map
-;;          ("H-r" . dired-subtree-remove)
-;;          ("<tab>" . dired-subtree-toggle)
-;;          ("H-p" . dired-subtree-up)
-;;          ("H-n" . dired-subtree-down)
-;;          ("H-<up>" . dired-subtree-beginning)
-;;          ("H-<down>" . dired-subtree-end)
-;;          ("H-m" . dired-subtree-mark-subtree)
-;;          ("H-u" . dired-subtree-unmark-subtree)           
-;;          )
-;;   :defer t
-;;   )
-
-(use-package dired-filter
-  :custom
-  (dired-filter-prefix "/ f")
-  (dired-filter-mark-prefix "/ m")
-  (dired-listing-switches "-alogh")
-  :defer t
-  :hook (dired-mode)
-  )
-
-(use-package dired-sort
-  :after dired
-  :ensure (dired-sort :type git :host github :repo "MichaelKazarian/dired-sort")
-  :defer t
-  :bind (:map dired-mode-map
-              ("/ s n" . dired-sort-by-name)
-              ("/ s r n" . dired-sort-by-name-reverse)
-              ("/ s d" . dired-sort-by-date)
-              ("/ s r d" . dired-sort-by-date-reverse)
-              ("/ s x" . dired-sort-by-extension)	
-              ("/ s r x" . dired-sort-by-extension-reverse)
-              ("/ f h" . dired-sort-toggle-hidden)	
-              ("/ s m" . dired-sort-show-menu)	
-              ("/ s c" . dired-sort-show-completion)              
-              )
-  :config
-  (dired-sort-mode 1)
-  (require 'ls-lisp)
-  (setq ls-lisp-use-insert-directory-program nil)
-  (setq ls-lisp-dirs-first t)
-  )
-
-(use-package dired-preview
-  :after dired
-  :defer t
-  :init
-  (defun dired-preview-toggle ()
-    "just a dummy function to toggle preview"
-    (interactive)
-    )
-  :bind (
-         (:map dired-preview-mode-map
-               ("<tab>" . dired-preview-toggle))
-         
-         
-         )
-  :config
-  ;; Default values for demo purposes
-  ;; (setq dired-preview-delay 0.1)
-  (setq dired-preview-on-start nil)
-  (setq dired-preview-trigger-commands (list 'dired-preview-toggle))
-  (setq dired-preview-max-size (expt 2 20))
-  (setq dired-preview-ignored-extensions-regexp
-        (concat "\\."
-                "\\(gz\\|"
-                "zst\\|"
-                "tar\\|"
-                "xz\\|"
-                "rar\\|"
-                "zip\\|"
-                "iso\\|"
-                "epub"
-                "\\)")) 
-  )
-
-(use-feature dired
-  :defer t
-  :delight
-  :bind* (("C-x C-d" . dired))
-  :custom-face
-  (dired-directory ((t (:foreground "#3375a8" :extend t)))) 
-  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
-  :config
-  ;; (require 'dired-subtree)
-  (when (string= system-type "darwin")       
-    (setq dired-use-ls-dired nil))    
-  )
-
-
-#+end_src
-
-*** drag stuff
-
-#+begin_src emacs-lisp :lexical t
-(use-package drag-stuff
-  :delight
-  :defer t
-  :config
-  (drag-stuff-global-mode 1)
-  :bind* (
-          ("C-M-<down>" . drag-stuff-down)
-          ("C-M-<up>" . drag-stuff-up)  
-          )
-  )
-#+end_src
-
-*** dumb jump
-
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-package dumb-jump
-  :delight
-  :custom
-  (xref-show-definitions-function #'xref-show-definitions-completing-read)
-  :init (add-hook 'xref-backend-functions #'dumb-jump-xref-activate)
-  :config
-  (add-to-list 'dumb-jump-language-file-exts '(:language "python" :ext "org" :agtype "python" :rgtype "py"))
-  (defhydra dumb-jump-hydra (:color blue :columns 3)
-    "Dumb Jump"
-    ("j" dumb-jump-go "Jump")
-    ("o" dumb-jump-go-other-window "Other window")
-    ("e" dumb-jump-go-prefer-external "Go external")
-    ("x" dumb-jump-go-prefer-external-other-window "Go external other window")
-    ("i" dumb-jump-go-prompt "Prompt")
-    ("l" dumb-jump-quick-look "Quick look")
-    ("b" dumb-jump-back "Back"))
-  :bind ("H-h ." . dumb-jump-hydra/body)
-  )
-
-#+end_src
-
-*** embark
-#+begin_src emacs-lisp :lexical t
-(use-package embark
-  :ensure t
-  :defer t
-  :bind*
-  (("C-." . embark-act)         ;; pick some comfortable binding
-   ("C-;" . embark-dwim)        ;; good alternative: M-.
-   ("C-h B" . embark-bindings)  ;; alternative for `describe-bindings'
-   ) 
-
-  :init
-  ;; Optionally replace the key help with a completing-read interface
-  (setq prefix-help-command #'embark-prefix-help-command)
-
-  ;; Show the Embark target at point via Eldoc. You may adjust the
-  ;; Eldoc strategy, if you want to see the documentation from
-  ;; multiple providers. Beware that using this can be a little
-  ;; jarring since the message shown in the minibuffer can be more
-  ;; than one line, causing the modeline to move up and down:
-
-  ;; (add-hook 'eldoc-documentation-functions #'embark-eldoc-first-target)
-  ;; (setq eldoc-documentation-strategy #'eldoc-documentation-compose-eagerly)
-
-  :config
-
-  ;; Hide the mode line of the Embark live/completions buffers
-  (add-to-list 'display-buffer-alist
-               '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
-                 nil
-                 (window-parameters (mode-line-format . none)))))
-
-#+end_src
-
-*** flycheck
-#+begin_src emacs-lisp :lexical t
-
-(use-package flycheck
-  :defer t)  
-
-#+end_src
-
-*** google
-#+begin_src emacs-lisp :lexical t
-;; google-this
-(use-package google-this
-  :delight
-  :defer t
-  :config
-  (google-this-mode 1))  
-#+end_src
-
-*** highlight indend guides
-
-#+begin_src emacs-lisp :lexical t
-(use-package indent-bars
-
-  :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
-  :defer t
-  :hook ((prog-mode org-mode python-mode) . indent-bars-mode)
-  :config
-  (setq
-   indent-bars-prefer-character t
-   indent-bars-color '(highlight :face-bg t :blend 0.5)
-   ;;   indent-bars-pattern ". . . . . . . . ." ; play with the number of dots for your usual font size
-   indent-bars-width-frac 0.3
-   indent-bars-pad-frac 0.1
-   indent-bars-display-on-blank-lines t
-   indent-tabs-mode nil)
-
-  ;; (setq
-  ;;  indent-bars-color '(highlight :face-bg t :blend 0.1)
-  ;;  indent-bars-pattern ". . . . . . . . ."
-  ;;  indent-bars-width-frac 0.1
-  ;;  indent-bars-pad-frac 0.1
-  ;;  indent-bars-zigzag nil
-  ;;  indent-bars-color-by-depth '(:regexp "outline-\\([0-9]+\\)" :blend 1) ; blend=1: blend with BG only
-  ;;  indent-bars-highlight-current-depth '(:blend 1) ; pump up the BG blend on current
-  ;;  indent-bars-display-on-blank-lines t)
-
-  (setq indent-bars-treesit-support t)
-  (setq indent-bars-no-descend-string t)
-  (setq indent-bars-treesit-ignore-blank-lines-types '("module" "call"))
-  (setq indent-bars-treesit-wrap '((python
-                                    argument_list
-                                    attribute
-                                    assignment
-                                    identifier
-                                    parameters
-                                    list
-                                    list_comprehension
-                                    dictionary
-                                    dictionary_comprehension
-                                    parenthesized_expression
-                                    call
-                                    expression_statement
-                                    subscript)))
+  ;;; instructions to build vterm
+  ;; cd /Users/sethfigueroa/.emacs.d/elpaca/builds/vterm/
+  ;; mkdir -p build
+  ;; cd build
+  ;; cmake ..
+  ;; make
+  ;; :init
+  ;; (setq vterm-tramp-shells '(("rpc" "tmux new-session -A -s main")))
+  ;; (setq vterm-shell "tmux new-session -A -s main")
   
-  ) ; or whichever modes you prefer
-
-
-
-
-;; (use-package highlight-indent-guides
-;; :hook (prog-mode . highlight-indent-guides-mode)
-;;    :init
-;;  (setq highlight-indent-guides-method 'bitmap)
-;;      (setq highlight-indent-guides-responsive 'top)
-
-;;    )
-#+end_src
-
-*** HL todo
-
-#+begin_src emacs-lisp :lexical t
-(use-package hl-todo
-  :delight
-  :defer t
-  :hook (prog-mode text-mode)
   :config
-  (setq hl-todo-keyword-faces
-        '(("TODO" . "#E078F5")
-          ("NOTE" . "#1EAFFF")
-          ("HACK" . "#FF5B24")
-          ("BUG"  . "#FF0000")
-          ))
-  (global-hl-todo-mode)
-  ;; :bind* (
-  ;;         ("H-t t" . hl-todo-insert)
-  ;;         ("H-t n" . hl-todo-next)
-  ;;         ("H-t p" . hl-todo-previous)
-  ;;         )
+  (setq vterm-timer-delay 0.01)
+  (add-hook 'vterm-mode-hook (lambda () 
+                               (flycheck-mode -1)
+                               ))
+  (add-hook 'vterm-mode-hook
+            (lambda ()
+              ;; Prevent Emacs from trying to 'sync' point or window on every switch
+              (setq-local window-configuration-change-hook nil)
+              (setq-local post-command-hook 
+                          (remove 'vterm--post-command-hook post-command-hook))))
+  
+  (add-hook 'vterm-mode-hook (lambda () (setq-local tab-line-format nil)))
+
+  (defun my/disable-tab-line-in-vterm ()
+    "Forcefully disable tab-line-mode in the current buffer."
+    (setq-local tab-line-format nil)
+    (when (bound-and-true-p tab-line-mode)
+      (tab-line-mode -1)))
+
+  (add-hook 'vterm-mode-hook
+            (lambda ()
+              ;; 1. Run once on startup
+              (my/disable-tab-line-in-vterm)
+              ;; 2. Run every time the window is selected/configured
+              (add-hook 'window-configuration-change-hook #'my/disable-tab-line-in-vterm nil t)
+              ;; 3. Run after every command (the ultimate guarantee)
+              (add-hook 'post-command-hook #'my/disable-tab-line-in-vterm nil t)))
+
+  
   )
 
+(use-package multi-vterm
+  :defer t  
+  :bind* (
+          ("C-x t" . seth/vterm-project-toggle)
+          )
+  
+  :config
+  (defun seth/vterm-project-rpc-tmux ()
+    "Open vterm using 'rpc' method in the correct remote directory."
+    (interactive)
+    (let* ((host (file-remote-p default-directory 'host))
+           ;; 1. Safely find the project root or use default-directory
+           (root (if-let ((project (project-current)))
+                     (project-root project)
+                   default-directory))
+           ;; 2. Get the LOCAL path on the remote server (strips /rpc:user@host:)
+           (remote-path (file-local-name root))
+           ;; 3. Get folder name and sanitize for session name
+           (project-name (file-name-nondirectory (directory-file-name remote-path)))
+           (session-name (replace-regexp-in-string "\." "_" project-name))
+           ;; 4. Build command with -c to set the starting directory
+           (tmux-cmd (format "tmux new-session -A -s %s -c %s" 
+                             session-name 
+                             (shell-quote-argument remote-path))))
+      (hl-line-mode 0)
+      (if (and host (string= (file-remote-p default-directory 'method) "rpc"))
+          (let ((vterm-tramp-shells (cons `("rpc" ,tmux-cmd) vterm-tramp-shells)))
+            (multi-vterm-project))
+        (let ((vterm-shell tmux-cmd))
+          (multi-vterm-project)))))
+
+  (defun seth/vterm-project-toggle ()
+    "Toggle vterm project: bury if in vterm, otherwise launch with project-named tmux."
+    (interactive)
+    (if (derived-mode-p 'vterm-mode)
+        (quit-window)
+      (seth/vterm-project-rpc-tmux)))
+  
+  (defun my-vterm-hl-line-handler ()
+    "Enable hl-line-mode in vterm-copy-mode, disable it otherwise."
+    (if vterm-copy-mode
+        (hl-line-mode 1)
+      (hl-line-mode 0)))
+
+  ;; Disable hl-line by default when entering vterm
+  (add-hook 'vterm-mode-hook #'my-vterm-hl-line-handler)
+  ;; Toggle hl-line based on whether copy-mode is active
+  (add-hook 'vterm-copy-mode-hook #'my-vterm-hl-line-handler)
+  )
+
+(use-package vterm-anti-flicker-filter
+  :ensure (vterm-anti-flicker-filter
+           :type git
+           :host github
+           :repo "martinbaillie/vterm-anti-flicker-filter"
+           )
+  :defer t
+  :after vterm
+  :config
+  (vterm-anti-flicker-filter-enable)
+  )
 #+end_src
-*** hydra
 
-
+*** Hydra
 #+begin_src emacs-lisp :lexical t
 
 (use-package hydra
@@ -1968,443 +3112,16 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :defer t)
 #+end_src
 
-*** Iscroll
-#+begin_src emacs-lisp :lexical t
-
-;; (use-package iscroll
-;;   :delight
-;;   :defer t
-;;   )
-
-#+end_src
-
-*** latex
-#+begin_src emacs-lisp :lexical t
-(use-package latex
-  :defer t
-  :delight
-  :ensure auctex
-  :mode
-  (("\\.tex$" . LaTeX-mode ))
-  :config
-  (setq TeX-auto-save t)
-  (setq TeX-view-program-selection '((output-pdf "PDF Tools"))
-        TeX-view-program-list '(("PDF Tools" TeX-pdf-tools-sync-view))
-        TeX-source-correlate-start-server t)
-  (add-hook 'TeX-after-compilation-finished-functions #'TeX-revert-document-buffer)
-)
-#+end_src
-*** magit
-
-#+begin_src emacs-lisp :lexical t
-
-(use-package magit
-  :delight
-  :defer t
-  :bind* ("C-x g" . magit-status)
-  :config 
-  (setq split-height-threshold nil)
-  (setq split-width-threshold 0)
-  (setq magit-completing-read-function 'consult-completing-read-dwim)
-  (setenv "GIT_ASKPASS" "git-gui--askpass")
-  ;; don't show the diff by default in the commit buffer. Use `C-c C-d' to display it
-  (setq magit-commit-show-diff nil)
-  ;; don't show git variables in magit branch
-  (setq magit-branch-direct-configure nil)
-  ;; don't automatically refresh the status buffer after running a git command
-  (setq magit-refresh-status-buffer nil)
-  )
-#+end_src
-
-*** magit-todos
-
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-package magit-todos
-  :delight
-  :defer t
-  :after magit
-  :config
-  (magit-todos-mode 1)
-  )
-
-#+end_src
-
-*** marginalia
-#+begin_src emacs-lisp :lexical t :tangle yes
-;; Enable rich annotations using the Marginalia package
-(use-package marginalia
-  ;; Bind `marginalia-cycle' locally in the minibuffer.  To make the binding
-  ;; available in the *Completions* buffer, add it to the
-  ;; `completion-list-mode-map'.
-  :bind (:map minibuffer-local-map
-         ("M-A" . marginalia-cycle))
-  :defer t
-  ;; The :init section is always executed.
-  :init
-  ;; Marginalia must be activated in the :init section of use-package such that
-  ;; the mode gets enabled right away. Note that this forces loading the
-  ;; package.
-  (marginalia-mode)
-  ;; (setq marginalia-remote-file-regexps nil)
-  :after vertico
-  )
-
-(use-package nerd-icons-completion
-  :after marginalia
-  :config
-  (nerd-icons-completion-mode)
-  (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup))
-#+end_src
-
-*** markdown mode
-#+begin_src emacs-lisp :lexical t
-
-(use-package markdown-mode
-  :defer t
-  :custom-face
-  (markdown-header-delimiter-face ((t  :foreground "#616161" :height 0.9)))
-  (markdown-header-face-1 ((t  :height 1.4 :foreground "#A3BE8C" :weight extra-bold :inherit markdown-header-face)))
-  (markdown-header-face-2 ((t  :height 1.2 :foreground "#EBCB8B" :weight extra-bold :inherit markdown-header-face)))
-  (markdown-header-face-3 ((t  :height 1.15 :foreground "#D08770" :weight extra-bold :inherit markdown-header-face)))
-  (markdown-header-face-4 ((t  :height 1.1 :foreground "#BF616A" :weight bold :inherit markdown-header-face)))
-  (markdown-header-face-5 ((t  :height 1.05 :foreground "#b48ead" :weight bold :inherit markdown-header-face)))
-  (markdown-header-face-6 ((t  :height 1 :foreground "#5e81ac" :weight semi-bold :inherit markdown-header-face)))
-)
-
-#+end_src
-
-*** Multiple cursors
-#+begin_src emacs-lisp :lexical t
-(use-package multiple-cursors
-  :defer t
-  :bind* (         
-         ("H-<return> e" . mc/edit-lines)
-         ("H-<return> m" . mc/mark-more-like-this-extended)
-         ("H-<return> a" . mc/mark-all-like-this)
-         ("H-<return> n" . mc/insert-numbers)
-         ("H-<return> l" . mc/insert-letters)
-         :map mc/keymap
-         ("C-;" . mc-hide-unmatched-lines-mode)
-         )
-  ) 
-
-#+end_src
-
-*** mwim
-#+begin_src emacs-lisp :lexical t
-(use-package mwim
-  :bind (
-         ;; My personal favorites
-         ("C-a" . mwim-beginning-of-code-or-line)
-         ("C-e" . mwim-end-of-code-or-line)
-         ))
-
-#+end_src
-
-*** neotree
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-package neotree
-  :delight
-  :defer t
-  :custom-face
-  (neo-dir-link-face ((t (:foreground "#97c8f7" :extend t)))) 
-  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
-  :bind* ("C-x d" . neotree)
-  :custom
-  (neo-theme 'arrow)
-  )
-#+end_src 
-   
-*** org
-**** org general
-
-#+begin_src emacs-lisp :lexical t
-(use-feature org
-  :defer t
-  :custom
-  (enable-local-variables t)
-  (org-display-remote-inline-images 'cache)
-  (org-startup-folded t)
-  (org-startup-indented t)
-  (org-log-done t)
-  (org-return-follows-link t)
-  (org-confirm-babel-evaluate nil)
-  :bind (
-         :map org-mode-map
-         ;;("C-M-<up>" . org-shiftmetaup)
-         ;;("C-M-<down>" . org-shiftmetadown)
-         ("s-C-l" . seth-org/clear-all-results)
-         ("C-M-<left>" . org-shiftmetaleft)
-         ("C-M-<right>" . org-shiftmetaright)
-         ("C-M-S-<left>" . org-shiftcontrolleft)
-         ("C-M-S-<right>" . org-shiftcontrolright)
-         ("s-p" . org-babel-previous-src-block)
-         ("s-n" . org-babel-next-src-block)
-         ("s-l" . org-babel-remove-result)
-         ("s-<tab>" . completion-at-point)
-         ("s-z" . org-babel-switch-to-session)
-         ) 
-  :init
-  ;; (defun seth-org/clear-all-results ()
-  ;;   "Clear all results in the buffer."
-  ;;   (interactive)
-  ;;   (save-excursion
-  ;;     (goto-char (point-min))
-  ;;     (while (org-babel-next-src-block)
-  ;;       (forward-line -1)
-  ;;       (beginning-of-line)
-  ;;       (when (looking-at "#\\+LASTRUN:")
-  ;;         (delete-region (pos-bol) (1- (pos-bol 2)))
-  ;;         (delete-line)
-  ;;         )
-  ;;       (forward-line 1)
-  ;;       (org-babel-remove-result))))
-
-  ;; (add-hook 'org-mode-hook (lambda ()
-  ;;                            (setq-local seth-jupyter-execution-count 1)))
-  ;; (setq seth-jupyter-execution-count 1)
-  
-  (setq org-src-fontify-natively t
-        org-src-window-setup 'current-window ;; edit in current window
-        org-src-strip-leading-and-trailing-blank-lines t
-        org-src-preserve-indentation t ;; do not put two spaces on the left
-        org-src-tab-acts-natively t)
-
-  
-  :config
-  ;; (org-babel-do-load-languages
-  ;;  'org-babel-load-languages
-  ;;  '((emacs-lisp . t)
-  ;;    (julia . t)
-  ;;    (python . t)
-  ;;    (sql . t)
-  ;;    ;; (sql-mode . t)
-  ;;    ;; (sql-session . t)
-  ;;    (jupyter . t)))
-  
-  ;; (defun do-org-confirm-babel-evaluations (lang body)
-  ;;   (not
-  ;;    (or
-  ;;     (string= lang "elisp")
-  ;;     (string= lang "sql")
-  ;;     (string= lang "sql-mode")
-  ;;     ;; (string= lang "sql-session")
-  ;;     )))
-  ;; (setq org-confirm-babel-evaluate 'do-org-confirm-babel-evaluations)
-  ;; ;; (require 'scimax-jupyter)
-  ;; ;; (defun seth-org-babel-add-time-stamp-after-execute-before-src-block ()
-  ;; ;;   ;; (sleep-for 2)    
-  ;; ;;   (end-of-line)
-  ;; ;;   (save-excursion
-  ;; ;;     (search-backward "#+BEGIN_SRC" 0 t)
-  ;; ;;     (forward-line -1)
-  ;; ;;     (beginning-of-line)
-
-  ;; ;;     (if (looking-at "#\\+LASTRUN:")
-  ;; ;;         (delete-region (pos-bol) (1- (pos-bol 2)))
-  ;; ;;       (open-line 1)
-  ;; ;;       (next-line 1)
-  ;; ;;       )
-  
-  ;; ;;     (insert (concat
-  ;; ;;              "#+LASTRUN: "
-  ;; ;;              (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
-  ;; ;;              " ["
-  ;; ;;              (int-to-string seth-jupyter-execution-count)
-  ;; ;;              "]"
-  ;; ;;              ))
-  ;; ;;     (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))
-  ;; ;;     )
-  ;; ;;   )
-
-  ;; ;; (add-hook 'org-babel-after-execute-hook
-  ;; ;;           'seth-org-babel-add-time-stamp-after-execute-before-src-block)
-
-  )
-
-;; Backend for HTML Table export
-
-;;(require 'ox-html)
-;;(defun ox-mrkup-filter-bold
-;;    (text back-end info)
-;;  "Markup TEXT as <bold>TEXT</bold>. Ignore BACK-END and INFO."
-;;  (format "<bold>%s</bold>" text))
-;;
-;;(org-export-define-derived-backend 'htmlTable 'html
-;;  :filters-alist
-;;  '((:filter-body . ox-mrkup-filter-body)
-;;    ))
-
-;; (use-package ob-sql-mode
-;;   :ensure t
-;;   ;; :hook (org-mode)
-;;   :config
-;;   (require 'ob-sql-mode)
-;; )
-
-;; (use-package ob-sql-session
-;;   :defer t
-;;   :hook (org-mode)
-;;   :ensure (:host github
-;;            :repo "flintforge/ob-sql-session"
-;;            )
-;;   )
-#+end_src
-
-**** org modern
-
-#+begin_src emacs-lisp :lexical t
-
-(use-package org-modern
-  :hook (org-mode)
-  :defer t
-  :custom-face
-  ;; (org-block   ((t (:background "gray10" :extend t))))
-  (org-block-begin-line   ((t (:inherit org-block :foreground "#876716" :extend t)))) ;; :background "#1b2419"
-  (org-block-end-line     ((t (:inherit org-block-begin-line :foreground "#876716" :extend t)))) ;; :background "#1b2419"
-  (org-drawer             ((t (:inherit shadow))))
-  (org-level-1            ((t (:weight bold :height 1.2 :overline nil :underline t :extend t)))) ;; Blue :foreground "#3375a8"
-  (org-level-2            ((t (:weight bold :height 1.2 :overline nil :extend t)))) ;; Aqua
-  (org-level-3            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Green
-  (org-level-4            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Yellow
-  (org-level-5            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Orange
-  (org-level-6            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Red
-  (org-level-7            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Blue
-  (org-level-8            ((t (:weight bold :height 1.1 :overline nil :extend t))))
-
-  :config
-  (setq-local line-spacing 0.1)
-  (font-lock-add-keywords
-   'org-mode
-   `(("^[ \t]*\\(?:[-+*]\\|[0-9]+[).]\\)[ \t]+\\(\\(?:\\[@\\(?:start:\\)?[0-9]+\\][ \t]*\\)?\\[\\(?:X\\|\\([0-9]+\\)/\\2\\)\\][^\n]*\n\\)" 1 'org-headline-done prepend))
-   'append)
-
-  (font-lock-add-keywords
-   'org-mode
-   `(("^[ \t]*\\(?:[-+*]\\|[0-9]+[).]\\)[ \t]+\\(\\(?:\\[@\\(?:start:\\)?[0-9]+\\][ \t]*\\)?\\[\\(?:-\\|\\([0-9]+\\)/\\2\\)\\][^\n]*\n\\)" 1 'org-headline-todo prepend))
-   'append)
-
-  (setq
-   ;; Edit settings
-   org-babel-min-lines-for-block-output 1
-   org-auto-align-tags nil
-   org-tags-column 0
-   org-catch-invisible-edits 'show-and-error
-   org-special-ctrl-a/e t
-   org-insert-heading-respect-content t
-
-   ;; Org styling, hide markup etc.
-   org-hide-emphasis-markers t
-   org-pretty-entities nil
-   org-modern-fold-stars '(("▶" . "▼") ("▷" . "▽") ("▶" . "▼") ("▹" . "▿") ("▸" . "▾"))
-   ;; Agenda styling
-   org-agenda-tags-column 0
-   org-agenda-block-separator ?─
-   org-agenda-time-grid
-   '((daily today require-timed)
-     (800 1000 1200 1400 1600 1800 2000)
-     " ┄┄┄┄┄ " "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄")
-   org-agenda-current-time-string
-   "⭠ now ─────────────────────────────────────────────────"
-
-   org-agenda-ndays 7
-   org-deadline-warning-days 10
-   org-agenda-show-all-dates t
-   org-agenda-start-on-weekday nil
-   org-reverse-note-order t
-   org-fast-tag-selection-single-key (quote expert)
-   org-log-into-drawer t
-   org-image-actual-width nil
-   org-export-with-drawers t
-   )
-  )
-#+end_src
-
-*** outline indent
-
-#+begin_src emacs-lisp :lexical t
-;; (use-package outline-indent
-;;   :ensure t
-;;   :delight
-;;   :custom
-;;   (outline-indent-ellipsis " ▼ ")
-;;   :config
-;;   (add-hook 'python-mode-hook #'outline-indent-minor-mode)
-;;   (add-hook 'python-ts-mode-hook #'outline-indent-minor-mode)
-;;   (setq outline-blank-line t)
-;;   :bind* (
-;;           ("H-c <tab>" . outline-cycle)
-;;           ("H-c c <tab>" . outline-cycle-buffer)
-;;           ("H-c c a" . outline-show-all)
-;;           )
-;;   )
-
-(use-package kirigami
-  :ensure (kirigami
-             :type git
-             :host github
-             :repo "jamescherti/kirigami.el")
-  :defer t
-  :bind* (
-          ("H-<tab> o" . kirigami-open-fold)     ; Open fold at point
-          ("H-<tab> c" . kirigami-close-fold)    ; Close fold at point
-          ("H-<tab> r" . kirigami-open-fold-rec) ; Open fold recursively
-          ("H-<tab> a" . kirigami-open-folds)    ; Open all folds
-          ("H-<tab> k" . kirigami-close-folds)   ; Close all folds
-          ("H-<tab> <tab>" . kirigami-toggle-fold) ; Toggle fold at point
-          )
-  )
-
-
-
-
-
-;; https://github.com/jamescherti/minimal-emacs.d?tab=readme-ov-file
-#+end_src
-
-*** page-break lines
-#+begin_src emacs-lisp :lexical t
-(use-package page-break-lines
-  :delight
-  :config
-  (global-page-break-lines-mode)
-  )
-
-#+end_src
-
-*** pdf-tools
-#+begin_src emacs-lisp :lexical t
-(use-package pdf-tools
-  :defer t
-  :delight
-  :mode
-  (("\\.pdf$" . pdf-view-mode))
-  :custom
-  pdf-annot-activate-created-annotations t 
-  pdf-view-resize-factor 1.1
-  :hook
-  ((pdf-view-mode) . (lambda () (cua-mode 0)))
- 
-  :config
-  (pdf-tools-install)
-  (pdf-loader-install)
-  (setq-default pdf-view-display-size 'fit-page)
-  (add-hook 'pdf-view-mode-hook
-            (lambda () (display-line-numbers-mode -1)))
-)
-
-#+end_src
-
-*** popper
+*** Popper
 #+begin_src emacs-lisp :lexical t :tangle no
 
 (use-package popper
   :init
   ;; (setq popper-group-function 'nil) ; projectile projects #'popper-group-by-projectile
   (setq popper-reference-buffers
-        '("\\*Messages\\*"
-          "Output\\*$"
-          "\\*Async Shell Command\\*"
+        '("\*Messages\*"
+          "Output\*$"
+          "\*Async Shell Command\*"
           help-mode
           compilation-mode
           image-mode
@@ -2414,18 +3131,18 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;; Match eshell, shell, term and/or vterm buffers
   (setq popper-reference-buffers
         (append popper-reference-buffers
-                '("^\\*eshell.*\\*$" eshell-mode ;eshell as a popup
-                  "^\\*shell.*\\*$"  shell-mode  ;shell as a popup
-                  "^\\*term.*\\*$"   term-mode   ;term as a popup
-                  "^\\*vterm.*\\*$"  vterm-mode  ;vterm as a popup
-                  "^\\*jupyter-repl*\\*$" jupyter-repl-mode
-                  ;; ("\\*jupyter-*\\*$" . hide)
+                '("^\*eshell.*\*$" eshell-mode ;eshell as a popup
+                  "^\*shell.*\*$"  shell-mode  ;shell as a popup
+                  "^\*term.*\*$"   term-mode   ;term as a popup
+                  "^\*vterm.*\*$"  vterm-mode  ;vterm as a popup
+                  "^\*jupyter-repl*\*$" jupyter-repl-mode
+                  ;; ("\*jupyter-*\*$" . hide)
                   ;; (special-mode . hide)
                   ;; (fundamental-mode . hide)
-                  ("\\*jupyter-display\\*" . hide)
-                  "\\*jupyter-traceback\\*"
-                  ("\\*jupyter-output\\*" . hide)
-                  "\\*jupyter-error\\*"                  
+                  ("\*jupyter-display\*" . hide)
+                  "\*jupyter-traceback\*"
+                  ("\*jupyter-output\*" . hide)
+                  "\*jupyter-error\*"                  
                   )))
   :custom
   (popper-group-function #'popper-group-by-project)
@@ -2443,492 +3160,23 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (popper-mode 1)
   (popper-tab-line-mode 1)
   )
-
-
 #+end_src
 
-*** posframe
-
-*** python
-
-***** how to open python [5/10]
-- [X] first need to start kernel (how to know which one to start)
-- [X] that same kernel needs to start eglot (must get sent to eglot in parallel)
-- [X] need to name that kernel the file name (so that kernels are unique)
-- [X] need to associate the kernel with the buffer using associate-buffer
-- [X] tabber moved to tab-line
-- [ ] work with tabs and their views and projects and buffer types
-- [ ] python fix with tabs now
-- [ ] poppler still finicky, need to fix it
-- [ ] capture output and organize somehow. Copy buffer to another?
-- [ ] maybe need to do a jupyter kernel server? That way I can work on comp. Issue is how to jupytext the files?
-  
-***** TODO [1/3]
-- [ ] how to handle errors i.e. stop running cells and show the correct linum of the whole doc not of the cell
-- [ ] need to go through all cells and clear all
-- [X] add in cells above, cells below
-  
-***** things I want to keep in mind
-I like this
-(setq jupyter-repl-echo-eval-p nil) is there a mini of this where just the output is sent to the repl cells?
-
-**** code-cells
-#+begin_src emacs-lisp :lexical t :tangle no
-
-(use-package code-cells
-  :defer t
-  :config
-  (setcdr code-cells-mode-map nil)
-  (defun seth-code-cells/add-time-stamp-after-execute (&optional var)
-    (interactive)
-    (unless var (setq var nil))
-    (unless (boundp 'seth-code-cells/jupyter-execution-count) (setq-local seth-code-cells/jupyter-execution-count 1))
-    (let (
-          (bounds (code-cells--bounds 1))
-          )
-      (save-excursion
-        (goto-char (car bounds))
-        (delete-region (point) (line-end-position))
-        (insert (concat
-                 "# %% "
-                 (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
-                 " ["
-                 (int-to-string seth-code-cells/jupyter-execution-count)
-                 "]"
-                 ))
-        (apply 'code-cells-eval (code-cells--bounds 1))
-        (setq-local seth-code-cells/jupyter-execution-count (1+ seth-code-cells/jupyter-execution-count))
-        )
-      (if var
-          (code-cells-forward-cell 1)
-        )
-      )      
-    )
-
-  (defun seth-code-cells/clear-timestamps ()
-    (interactive)
-    (let (
-          (bounds (code-cells--bounds 1))
-          )
-      (save-excursion
-        (goto-char (car bounds))
-        (delete-region (point) (line-end-position))
-        (insert "# %%")
-        )
-      )
-    )
-
-  (defun seth-code-cells/split-cell ()
-    (interactive)
-    (save-excursion
-      (move-beginning-of-line 1)
-      (open-line 2)
-      (next-line 1)
-      (insert "# %%")
-      (open-line 1)
-      )
-    (open-line 1)
-    )
-
-  (defun seth-code-cells/restart-jupyter-execution-count (&rest arg)
-    (setq-local seth-code-cells/jupyter-execution-count 1)
-    )
-
-  (defun seth-code-cells/add-cell (&rest arg)
-    (interactive)
-    (let (
-          (bounds (code-cells--bounds 1))   
-          )
-      (cond
-       (arg 
-        (goto-char (car bounds))
-        (open-line 2)
-        (insert "# %%")
-        (open-line 1)
-        (next-line 1)
-        (print "in arg")
-        )
-       (t
-        (goto-char (car (cdr bounds)))
-        (open-line 1)
-        (next-line 1)
-        (insert "# %%")
-        (open-line 3)
-        (next-line 1)
-        (print "not in arg"))
-       )
-      ))
-
-  (defun seth-code-cells/clear-all-results ()
-    "Clear all results in the buffer."
-    (interactive)
-    (save-excursion
-      (goto-char (point-min))
-      (when (looking-at "# %%")
-        (delete-region (point) (line-end-position))
-        (insert "# %%")
-        )
-      (while (code-cells-forward-cell 1)
-        (delete-region (point) (line-end-position))
-        (insert "# %%")
-        ))
-    )
-
-  ;; add below to keep track of what has been run
-  (add-hook 'python-mode-hook (lambda ()
-                                (setq-local seth-code-cells/jupyter-execution-count 1)))
-  (advice-add 'jupyter-repl-restart-kernel :before #'seth-code-cells/restart-jupyter-execution-count)
-  (advice-add 'jupyter-run-repl :before #'seth-code-cells/restart-jupyter-execution-count)
-
-  ;; (defun start-python (env))
-
-  :hook (python-mode . code-cells-mode-maybe)
-  :bind (
-         :map code-cells-mode-map
-         ("C-c C-c" . seth-code-cells/add-time-stamp-after-execute)
-         ("C-<return>" . (lambda() (interactive) (seth-code-cells/add-time-stamp-after-execute 1)))
-         ("C-c c a" . (lambda() (interactive) (seth-code-cells/add-cell 1))) ;; add above
-         ("C-c c b" . (lambda() (interactive) (seth-code-cells/add-cell ))) ;; add below
-         ("M-p" . code-cells-backward-cell)
-         ("M-n" . code-cells-forward-cell)
-         ("C-c c ;" . code-cells-comment-or-uncomment)
-         ("C-c c h" . code-cells-mark-cell)
-         ("C-c c o" . seth-code-cells/clear-timestamps)
-         ("C-c c O" . seth-code-cells/clear-all-results)
-         ("C-c c n" . seth-code-cells/split-cell)
-         )
-  )
-#+end_src
-
-**** eglot
+*** SpeedRect
 #+begin_src emacs-lisp :lexical t
-
-
-
-(use-package flymake)
-(use-feature eglot 
+(use-package speedrect
   :defer t
-  :init
-  (setq-default eglot-workspace-configuration
-              '((:pylsp . (:plugins (:black (:enabled t
-                                                      :cache_config t)
-                                     :pyflakes (:enabled t)
-                                     :pycodestyle (:enabled t
-                                                   :maxLineLength 88
-                                                   :ignore ["E203" "W503"]
-                                                   )
-                                     :autopep8 (:enabled :json-false)
-                                     :pylint (:enabled :json-false)
-                                     :yapf (:enabled :json-false)
-                                     :mccabe (:enabled :json-false)
-                                     :jedi_completion (:enabled t
-                                                       :include_params t
-                                                       :include_class_objects t
-                                                       :include_function_objects t
-                                                       :eager :json-false
-                                                       :cache_for ["pandas" "numpy" "matplotlib" "polars" "jax"]
-                                                       ))))))
-
-  (setq eldoc-echo-area-use-multiline-p nil)
-  :bind (
-         ("C-c p" . start-eglot-python)
-         )
-  :custom
-  (eglot-autoshutdown t)
-  (eglot-events-buffer-config '(:size 0 :format short))
-  (eglot-sync-connect t)
-  (eglot-send-changes-idle-time 3)
-  (flymake-no-changes-timeout 5)
-  (eldoc-echo-area-use-multiline-p nil)
-  ;; Optimizations
-  (eglot-ignored-server-capabilities '(:documentHighlightProvider))
-  (fset #'jsonrpc--log-event #'ignore)
-  (setq jsonrpc-event-hook nil)  
-
   :config
-  (setq eglot-connect-timeout 120)
-  (setq eglot-sync-connect nil)
-  (setq eglot-send-changes-idle-time 3)
-
-  (defun my/eglot-capf ()
-    (setq-local completion-at-point-functions
-                (list (cape-capf-super
-                       #'eglot-completion-at-point
-                       #'yasnippet-capf
-                       #'cape-dabbrev))))
-
-  (add-hook 'eglot-managed-mode-hook
-          (lambda ()
-            (add-hook 'before-save-hook 'eglot-format-buffer nil t)
-            (my/eglot-capf)))
-
-  (defun pixi-get-environment ()
-    "Interactively select a pixi environment and return its bin path."
-    (interactive)
-    (let* ((project-root (locate-dominating-file default-directory "pixi.toml"))
-           (raw-output (shell-command-to-string "pixi project environment list"))
-           (envs '()))
-      ;; Parse names from the list
-      (dolist (line (split-string raw-output "\n" t))
-        (when (string-match "^[[:space:]]*- \\([[:alnum:]_-]+\\)" line)
-          (push (match-string 1 line) envs)))
-      
-      (if (and project-root envs)
-          (let* ((choice (completing-read "Select Environment: " (reverse envs)))
-                 ;; Construct the path: <root>/.pixi/envs/<choice>/bin
-                 (env-path (file-local-name (expand-file-name 
-                            (concat ".pixi/envs/" choice "/bin/") 
-                            project-root))))
-            ;; (message "Path: %s" env-path)
-            env-path)
-        (message "Not in a pixi project or no environments found."))))
-  
-  (defun start-eglot-python ()
-    (interactive)
-    (let* (
-           (contact (concat
-                     (pixi-get-environment)
-                     "pylsp"
-                     )
-                    )
-           (managed-modes (list major-mode))
-           (project (eglot--current-project))
-           (class eglot-lsp-server)
-           (language-ids (list "python"))
-           )
-      ;; (jupyter-run-repl env buffer-file-name t 'jupyter-repl-client)
-      ;; (kill-new contact)
-      (message "Starting Eglot with: %s" contact)
-      (apply 'eglot (list managed-modes project class (list contact) language-ids))
-      ;; (call-interactively 'eglot)
-      )
-    )  
+  (speedrect-mode)
   )
-
-(use-package eglot-booster
-  :defer t
-  :after eglot
-  :ensure (eglot-booster
-           :type git
-           :host github
-           :repo "jdtsmith/eglot-booster"
-           :local-repo "eglot-booster"
-           )
-  :config
-  (eglot-booster-mode))
-
-(use-package jsonrpc
-  :defer t
-  )
-
-(use-package flycheck-eglot
-  :ensure t
-  :after (flycheck eglot)
-  :config
-  (global-flycheck-eglot-mode 1)
-  :custom
-  (flycheck-help-echo-function nil)
-  (flycheck-display-errors-function nil)
-  )
-
-(use-package consult-eglot
-  :ensure t
-  :after (consult eglot)
-  :bind (:map eglot-mode-map
-              ("M-g s" . consult-eglot-symbols)))
-
 #+end_src
 
-**** Jupyter
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-package jupyter
-  :defer t
-  :custom
-  (jupyter-eval-use-overlays t)
-  :config
-  (defvaralias 'org-babel-jupyter-resource-directory 'jupyter-org-resource-directory)
-  (setq org-babel-jupyter-resource-directory "./plots/")
-  )
-
-(use-package zmq
-  :defer t)
-#+end_src
-
-**** python
+*** Nerd Icons
 #+begin_src emacs-lisp :lexical t
-
-(use-feature python
-  :defer t
-  :mode ("\\.py\\'" . python-mode)
-  :interpreter ("python" . python-mode)
-  :bind (
-         :map python-mode-map
-         ("H-<left>" . python-indent-shift-left)
-         ("H-<right>" . python-indent-shift-right)
-         )
-  :config
-  
-  (setq python-indent-offset 4)
-  (setq python-indent-guess-indent-offset nil)
-
-  (defun python-indent-dedent-line-backspace (arg)
-   
-    (interactive "*p")
-    (when (or
-           (and (use-region-p) (= arg 1))
-           (not (python-indent-dedent-line)))
-      (backward-delete-char-untabify arg)))
-
-  (put 'python-indent-dedent-line-backspace 'delete-selection 'supersede)
-
-  )
+(use-package nerd-icons)
 #+end_src
-
-**** yapify
-#+begin_src emacs-lisp :lexical t
-;; (use-package yapfify
-;;   :defer t
-;;   :hook (python-mode . yapf-mode))
-;; (add-hook 'python-mode-hook 'yapf-mode)
-#+end_src
-
-*** sideline mode
-#+begin_src emacs-lisp :lexical t
-(use-package sideline
-  :delight
-  :defer t
-  :hook (
-         (flycheck-mode . sideline-mode)  
-         (flymake-mode  . sideline-mode)
-         )
-
-  :init
-  (setq sideline-backends-left-skip-current-line nil   ; don't display on current line (left)
-        sideline-backends-right-skip-current-line nil  ; don't display on current line (right)
-        sideline-order-left 'down                    ; or 'up
-        sideline-order-right 'up                     ; or 'down
-        sideline-format-left "%s"                 ; format for left aligment
-        sideline-format-right "%s"                ; format for right aligment
-        sideline-priority 100                        ; overlays' priority
-        sideline-display-backend-name t)             ; display the backend name
-  (setq sideline-backends-right '(sideline-flycheck)
-        )
-  
-  )
-
-(use-package sideline-flycheck
-  :defer t
-  :hook (flycheck-mode . sideline-flycheck-setup))
-
-
-#+end_src
-
-*** smart-mode-line
-#+begin_src emacs-lisp :lexical t
-
-(use-package smart-mode-line
-  :delight
-  :init
-  (setq sml/name-width 50
-        sml/mode-width 50)
-  (setq sml/theme 'respectful)
-  :config
-  (sml/setup)
-  )
-
-;; (use-package doom-modeline
-;;   :ensure t
-;;   :init (doom-modeline-mode 1)
-;;   :custom
-;;   (doom-modeline-window-width-limit 50)
-;;   (doom-modeline-time-live-icon nil)
-;;   (doom-modeline-time-analogue-clock nil)
-;;   (doom-modeline-env-version nil)
-;;   (doom-modeline-time-icon nil)
-
-
-;;   :config
-;;   (display-time-mode)
-;;   (display-battery-mode)
-;;   )
-
-#+end_src
-
-*** smartparens
-
-#+begin_src emacs-lisp :lexical t
-
-(use-package smartparens
-  :delight  
-  :config
-  (require 'smartparens-config)
-  (smartparens-global-mode t)
-  :bind* (
-          ("M-<up>"  . sp-beginning-of-sexp)
-          ("M-<down>"  . sp-end-of-sexp)
-          ("C-<right>"  . sp-forward-slurp-sexp)
-          ("M-<right>"  . sp-forward-barf-sexp)
-          ("C-<left>"   . sp-backward-slurp-sexp)
-          ("M-<left>"   . sp-backward-barf-sexp)
-          ("C-M-k"  . sp-kill-sexp)
-          ("C-k"    . sp-kill-hybrid-sexp)
-          ("M-k"    . sp-backward-kill-sexp)
-          ("C-M-w"  . sp-copy-sexp)
-          ("M-s s"  . sp-split-sexp)
-          ("M-s j"  . sp-join-sexp)
-          ("M-]"  . sp-backward-unwrap-sexp)
-          ("M-["  . sp-unwrap-sexp)
-          ("C-x C-t"  . sp-transpose-hybrid-sexp)
-          )
-  :demand t
-  )
-
-#+end_src
-
-*** ssh-tunnels
-#+begin_src emacs-lisp :lexical t
-(use-package ssh-tunnels
-  :delight
-  :defer t
-  :ensure (ssh-tunnels
-           :type git
-           :host github
-           :repo "death/ssh-tunnels"
-           :local-repo "ssh-tunnels"
-           )
-  :custom
-  (ssh-tunnels-configurations
-   '((:name "dev socket"
-            :local-port 12345
-            :remote-port 12345
-            :login "sfigueroa@dev.focusvq.com"
-            :type "-L")
-     ))
-
-  :bind (:map ssh-tunnels-mode-map
-              ("n" . seth-ssh-tunnel-add)
-              )
-  :config
-  (defun seth-ssh-tunnel-add (name port)
-    (interactive "sName: \nnPort: ")
-    (let ((conf `(:name ,name
-                        :local-port ,port
-                        :remote-port ,port
-                        :login "sfigueroa@dev.focusvq.com"
-                        :type "-L"
-                        )))
-      (add-to-list 'ssh-tunnels-configurations conf)
-      (ssh-tunnels-refresh)
-      )
-    )
-  )
-#+end_src 
-
-*** Swiper
-
 
 *** tab-line
-
 #+begin_src emacs-lisp :lexical t 
 
   (use-package tab-config
@@ -3083,7 +3331,6 @@ I like this
     (global-tab-line-mode t)
     (setq tab-line-exclude-modes '(vterm-mode))
     )
-
 #+end_src
 
 *** transpose-frame
@@ -3102,270 +3349,7 @@ I like this
   )
 #+end_src 
 
-*** tramp-hlo
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-package tramp-hlo
-  :ensure (tramp-hlo
-           :type git
-           :host github
-           :repo "jsadusk/tramp-hlo"
-           )
-  :config
-  (tramp-hlo-setup)
-  )
-#+end_src
-
-*** tree-sitter
-#+begin_src emacs-lisp :lexical t
-
-(use-package tree-sitter
-  :delight
-  :defer t
-  :hook (
-         (python-mode . tree-sitter-hl-mode)
-         (lisp-mode . tree-sitter-hl-mode)
-         (json-mode . tree-sitter-hl-mode)
-         (sql-mode . tree-sitter-hl-mode)
-         )  
-  )
-
-
-(use-package tree-sitter-langs
-  :defer t
-  :after tree-sitter
-  )
-
-;; Not liking the bottom ones highlights. Instead use above, install languages and use the tree-sitter-hl-mode with the x-mode
-;; do not use the x-ts-mode
-
-#+end_src
-
-*** ultra scroll
-#+begin_src emacs-lisp :lexical t
-
-(use-package ultra-scroll
-  :ensure (ultra-scroll :host github :repo "jdtsmith/ultra-scroll")
-  :init
-  (setq scroll-conservatively 101 ; important!
-        scroll-margin 0)
-  :config
-  (ultra-scroll-mode 1))
-
-#+end_src
-
-*** undo
-#+begin_src emacs-lisp :lexical t
-
-(use-package undo-tree
-  :delight
-  ;; :init
-  ;; (defadvice undo-tree-make-history-save-file-name
-  ;;     (after undo-tree activate)
-  ;;   (setq ad-return-value (concat ad-return-value ".gz")))
-  :custom
-  (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
-  (backup-directory-alist `(("." . "~/.emacs.d/.saves")))
-  (backup-by-copying t)
-  (delete-old-versions nil)
-  (kept-new-versions 20)
-  (kept-old-versions 60)
-  (version-control t)       ; use versioned backups 
-  (undo-tree-enable-undo-in-region t)
-  ;; (undo-strong-limit (* 1024 1024 1024)) 
-  ;; (amalgamating-undo-limit 10)
-  ;; (undo-limit         (* 1024 1024 1024))
-  ;; (gnus-undo-limit 2000)
-  ;; (undo-outer-limit (* 1024 1024 1024))
-  
-  :config
-  (global-undo-tree-mode)
-  )
-#+end_src
-
-*** vterm
-#+begin_src emacs-lisp :lexical t
-(use-package vterm
-  :defer t
-  ;;; instructions to build vterm
-  ;; cd /Users/sethfigueroa/.emacs.d/elpaca/builds/vterm/
-  ;; mkdir -p build
-  ;; cd build
-  ;; cmake ..
-  ;; make
-  ;; :init
-  ;; (setq vterm-tramp-shells '(("rpc" "tmux new-session -A -s main")))
-  ;; (setq vterm-shell "tmux new-session -A -s main")
-  
-  :config
-  (setq vterm-timer-delay 0.01)
-  (add-hook 'vterm-mode-hook (lambda () 
-                               (flycheck-mode -1)
-                               ))
-  (add-hook 'vterm-mode-hook
-            (lambda ()
-              ;; Prevent Emacs from trying to 'sync' point or window on every switch
-              (setq-local window-configuration-change-hook nil)
-              (setq-local post-command-hook 
-                          (remove 'vterm--post-command-hook post-command-hook))))
-  
-  (add-hook 'vterm-mode-hook (lambda () (setq-local tab-line-format nil)))
-
-  (defun my/disable-tab-line-in-vterm ()
-    "Forcefully disable tab-line-mode in the current buffer."
-    (setq-local tab-line-format nil)
-    (when (bound-and-true-p tab-line-mode)
-      (tab-line-mode -1)))
-
-  (add-hook 'vterm-mode-hook
-            (lambda ()
-              ;; 1. Run once on startup
-              (my/disable-tab-line-in-vterm)
-              ;; 2. Run every time the window is selected/configured
-              (add-hook 'window-configuration-change-hook #'my/disable-tab-line-in-vterm nil t)
-              ;; 3. Run after every command (the ultimate guarantee)
-              (add-hook 'post-command-hook #'my/disable-tab-line-in-vterm nil t)))
-
-  
-  )
-
-(use-package multi-vterm
-  :defer t  
-  :bind* (
-          ("C-x t" . seth/vterm-project-toggle)
-          )
-  
-  :config
-  (defun seth/vterm-project-rpc-tmux ()
-    "Open vterm using 'rpc' method in the correct remote directory."
-    (interactive)
-    (let* ((host (file-remote-p default-directory 'host))
-           ;; 1. Safely find the project root or use default-directory
-           (root (if-let ((project (project-current)))
-                     (project-root project)
-                   default-directory))
-           ;; 2. Get the LOCAL path on the remote server (strips /rpc:user@host:)
-           (remote-path (file-local-name root))
-           ;; 3. Get folder name and sanitize for session name
-           (project-name (file-name-nondirectory (directory-file-name remote-path)))
-           (session-name (replace-regexp-in-string "\\." "_" project-name))
-           ;; 4. Build command with -c to set the starting directory
-           (tmux-cmd (format "tmux new-session -A -s %s -c %s" 
-                             session-name 
-                             (shell-quote-argument remote-path))))
-      (hl-line-mode 0)
-      (if (and host (string= (file-remote-p default-directory 'method) "rpc"))
-          (let ((vterm-tramp-shells (cons `("rpc" ,tmux-cmd) vterm-tramp-shells)))
-            (multi-vterm-project))
-        (let ((vterm-shell tmux-cmd))
-          (multi-vterm-project)))))
-
-  (defun seth/vterm-project-toggle ()
-    "Toggle vterm project: bury if in vterm, otherwise launch with project-named tmux."
-    (interactive)
-    (if (derived-mode-p 'vterm-mode)
-        (quit-window)
-      (seth/vterm-project-rpc-tmux)))
-  
-  (defun my-vterm-hl-line-handler ()
-    "Enable hl-line-mode in vterm-copy-mode, disable it otherwise."
-    (if vterm-copy-mode
-        (hl-line-mode 1)
-      (hl-line-mode 0)))
-
-  ;; Disable hl-line by default when entering vterm
-  (add-hook 'vterm-mode-hook #'my-vterm-hl-line-handler)
-  ;; Toggle hl-line based on whether copy-mode is active
-  (add-hook 'vterm-copy-mode-hook #'my-vterm-hl-line-handler)
-  )
-
-(use-package vterm-anti-flicker-filter
-  :ensure (vterm-anti-flicker-filter
-           :type git
-           :host github
-           :repo "martinbaillie/vterm-anti-flicker-filter"
-           )
-  :defer t
-  :after vterm
-  :config
-  (vterm-anti-flicker-filter-enable)
-  )
-
-
-#+end_src
-
-*** yas
-#+begin_src emacs-lisp :lexical t :tangle yes
-
-(use-package yasnippet
-  :delight yas-minor-mode
-  :defer t
-  :hook ((prog-mode . yas-minor-mode)
-         (text-mode . yas-minor-mode))
-  :config
-  ;; (yas-global-mode)
-  ;; (yas-reload-all)
-  ;; (add-hook 'prog-mode-hook #'yas-minor-mode)
-  )
-
-(use-package yasnippet-snippets
-  :ensure t
-  :after yasnippet
-  :defer t
-  )
-
-(use-package yasnippet-capf
-  :ensure t
-  :after (yasnippet cape)
-  :config
-  (add-to-list 'completion-at-point-functions #'yasnippet-capf))
-
-(use-package jinx
-  :ensure t
-  :delight 
-  ;; :hook (emacs-startup . global-jinx-mode)
-  ;; :bind (("M-$" . jinx-correct)
-  ;;        ("C-M-$" . jinx-languages))
-  )
-
-(use-package py-snippets
-  :ensure t
-  :after yasnippet
-  :defer t
-  :config
-  (py-snippets-initialize))
-
-
-#+end_src
-
-*** YAML
-#+begin_src emacs-lisp :lexical t
-  (use-package yaml-mode
-    :defer t
-    :config
-    (add-to-list 'auto-mode-alist '("\\.yml\\'" . yaml-mode))
-    (add-hook 'yaml-mode-hook
-      '(lambda ()
-        (define-key yaml-mode-map "\C-m" 'newline-and-indent)))
-    )
-#+end_src
-
-*** zoom
-#+begin_src emacs-lisp :lexical t
-(use-package zoom
-  :delight
-  :custom
-  (zoom-size '(0.618 . 0.618))
-  :defer t
-  )
-#+end_src
-
-*** project
-#+begin_src emacs-lisp :lexical t
-(use-package project
-  :defer t
-  )
-#+end_src
-*** Agent-Shell
+** Agent Shell
 #+begin_src emacs-lisp :lexical t
 (use-package agent-shell
   :config
@@ -3435,27 +3419,9 @@ I like this
           ("H-a c" . agent-shell-prompt-compose-toggle)
           )
   )
-
-
 #+end_src
 
-*** json
-#+begin_src emacs-lisp :lexical t
-  (use-package json-mode
-    :defer t
-    )
-#+end_src
-
-*** SpeedRect
-#+begin_src emacs-lisp :lexical t
-(use-package speedrect
-  :defer t
-  :config
-  (speedrect-mode)
-  )
-#+end_src
-
-** Ending
+* Ending
 #+begin_src emacs-lisp :lexical t
 ;;; Load post-init.el
 (minimal-emacs-load-user-init "post-init.el")

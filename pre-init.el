@@ -40,7 +40,8 @@ i.e. windows tiled side-by-side."
   (let ((window (or window (selected-window))))
     (if (> (window-total-width window) (* 2 (window-total-height window)))
         (with-selected-window window (split-window-sensibly-prefer-horizontal window))
-      (with-selected-window window (split-window-sensibly window)))))
+      (with-selected-window window (split-window-sensibly window))))
+  )
 
 (setq
  split-height-threshold 10
