@@ -660,14 +660,14 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (minimal-emacs-load-user-init "pre-init.el")
 
 (use-feature eldoc
-  :demand t
+  :defer t
   :init
   (setq custom-delayed-init-variables '())
   :config
   (global-eldoc-mode))
 
 (use-feature seq
-  :demand t
+  :defer t
   :init
   (setq custom-delayed-init-variables '()))
 
@@ -687,11 +687,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t :tangle yes
 (use-package gcmh
   :delight
+  :commands gcmh-mode
+  :hook (emacs-startup . gcmh-mode)
   :init
   (setq gcmh-idle-delay 5
-        gcmh-high-cons-threshold (* 64 1024 1024 1024))
-  :config
-  (gcmh-mode 1))
+        gcmh-high-cons-threshold (* 64 1024 1024 1024)))
 
 (use-feature emacs
   :init
@@ -823,6 +823,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (use-package corfu
   :ensure t
+  :defer t
+  :hook (emacs-startup . global-corfu-mode)
   :bind* (("C-<tab>" . completion-at-point))
   :custom
   (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
@@ -843,9 +845,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (corfu-bar ((t (:background "gray20"))))
   (corfu-border ((t (:background "gray10"))))
   (corfu-annotations ((t (:background "gray10" :foreground "#70c0b1" :extend t))))
-
-  :init
-  (global-corfu-mode)
   )
 
 (use-package corfu-popupinfo
@@ -866,10 +865,10 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (use-package vertico
   :ensure t
+  :defer t
+  :hook (emacs-startup . vertico-mode)
   :bind (:map vertico-map
           ("M-S" . my-vertico-cycle-sort))
-  :init
-  (vertico-mode 1)
   :config
   (setq vertico-cycle t)
   (setq vertico-resize nil)
@@ -907,6 +906,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t :tangle yes
 (use-package orderless
   :ensure t
+  :defer t
   :custom
   (completion-styles '(orderless basic))
   (completion-category-overrides '((file (styles . (partial-completion substring)))))
@@ -927,6 +927,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t :tangle yes
 (use-package consult
   :ensure t
+  :defer t
   :bind (
          ("C-x b" . consult-buffer)
          ("M-y" . consult-yank-pop)
@@ -945,10 +946,12 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   )
 
 (use-package embark-consult
-  :ensure t)
+  :ensure t
+  :defer t)
 
 (use-package wgrep
   :ensure t
+  :defer t
   :custom
   (wgrep-auto-save-buffer t))
 #+end_src
@@ -957,23 +960,17 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t :tangle yes
 ;; Enable rich annotations using the Marginalia package
 (use-package marginalia
-  ;; Bind `marginalia-cycle' locally in the minibuffer.  To make the binding
-  ;; available in the *Completions* buffer, add it to the
-  ;; `completion-list-mode-map'.
+  :ensure t
+  :defer t
+  :hook (emacs-startup . marginalia-mode)
   :bind (:map minibuffer-local-map
          ("M-A" . marginalia-cycle))
-  :defer t
-  ;; The :init section is always executed.
-  :init
-  ;; Marginalia must be activated in the :init section of use-package such that
-  ;; the mode gets enabled right away. Note that this forces loading the
-  ;; package.
-  (marginalia-mode)
-  ;; (setq marginalia-remote-file-regexps nil)
   :after vertico
+  ;; (setq marginalia-remote-file-regexps nil)
   )
 
 (use-package nerd-icons-completion
+  :defer t
   :after marginalia
   :config
   (nerd-icons-completion-mode)
@@ -984,23 +981,10 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t
 (use-package cape
   :ensure t
+  :defer t
   ;; Bind dedicated completion commands
   ;; Alternative prefix keys: C-c p, M-p, M-+, ...
   :bind* ("C-c c" . hydra-cape/body)
-
-  ;; cape-abbrev: Complete abbreviation (add-global-abbrev, add-mode-abbrev).
-  ;; cape-dabbrev: Complete word from current buffers. See also dabbrev-capf.
-  ;; cape-dict: Complete word from dictionary file.
-  ;; cape-elisp-block: Complete Elisp in Org or Markdown code block.
-  ;; cape-elisp-symbol: Complete Elisp symbol.
-  ;; cape-emoji: Complete Emoji.
-  ;; cape-file: Complete file name.
-  ;; cape-history: Complete from Eshell, Comint or minibuffer history.
-  ;; cape-keyword: Complete programming language keyword.
-  ;; cape-line: Complete entire line from current buffer.
-  ;; cape-rfc1345: Complete Unicode char using RFC 1345 mnemonics.
-  ;; cape-sgml: Complete Unicode char from SGML entity, e.g., &alpha.
-  ;; cape-tex: Complete Unicode char from TeX command, e.g. \hbar.
   :config
   (defhydra hydra-cape (:color blue :hint nil)
     "
@@ -1031,22 +1015,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;; Emacs will try the major-mode specific completions first (like elisp),
   ;; and if they fail, it will fall back to showing this combined list.
   (add-hook 'completion-at-point-functions #'cape-global-super)
-
-  ;;(add-hook 'completion-at-point-functions #'cape-dabbrev)
-  ;;(add-hook 'completion-at-point-functions #'cape-keyword)
-  ;;(add-hook 'completion-at-point-functions #'cape-file)
-  ;;(add-hook 'completion-at-point-functions #'cape-history)
-  ;;(add-to-list 'completion-at-point-functions #'cape-tex)
-  ;;(add-to-list 'completion-at-point-functions #'cape-sgml)
-  ;;(add-to-list 'completion-at-point-functions #'cape-rfc1345)
-  ;;(add-to-list 'completion-at-point-functions #'cape-abbrev)
-  ;; (add-to-list 'completion-at-point-functions #'cape-dict)
-  ;;(add-to-list 'completion-at-point-functions #'cape-elisp-symbol)
-  ;; (add-to-list 'completion-at-point-functions #'cape-line)
   )
 
 (use-package yasnippet-capf
   :ensure t
+  :defer t
   :after (yasnippet cape)
   :config
   (add-to-list 'completion-at-point-functions #'yasnippet-capf))
@@ -1056,7 +1029,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 *** TRAMP Core
 #+begin_src emacs-lisp :lexical t :tangle yes
 (use-package msgpack
-  :ensure t)
+  :ensure t
+  :defer t)
 
 (use-package tramp-rpc
   :ensure (tramp-rpc
@@ -1065,10 +1039,12 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
            :files ("lisp/*.el")
            :main "lisp/tramp-rpc.el"
            )
+  :defer t
   :after (msgpack tramp)
   )
 
 (use-package tramp 
+  :defer t
   :config
   ;; (when (string-equal emacs-version "29.2")
   ;;   (with-current-buffer
@@ -1172,6 +1148,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t :tangle yes
 (use-package consult-dir
   :ensure t
+  :defer t
   :bind (("C-x C-d" . consult-dir)
          :map vertico-map
          ("C-x C-d" . consult-dir)
@@ -1182,6 +1159,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
            :type git
            :host github
            :repo "Ladicle/consult-tramp")
+  :defer t
   :bind ("C-c f" . consult-tramp)
   :config
   (setq consult-tramp-extra-targets '("/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/" "/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/" ))
@@ -1196,6 +1174,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
            :host github
            :repo "jsadusk/tramp-hlo"
            )
+  :defer t
   :config
   (tramp-hlo-setup)
   )
@@ -1253,11 +1232,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   )
 
 (use-package dired-filter
+  :defer t
   :custom
   (dired-filter-prefix "/ f")
   (dired-filter-mark-prefix "/ m")
   (dired-listing-switches "-alogh")
-  :defer t
   :hook (dired-mode)
   )
 
@@ -1634,7 +1613,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 *** LSP & Linting
 #+begin_src emacs-lisp :lexical t
-(use-package flymake)
+(use-package flymake
+  :defer t)
 (use-feature eglot 
   :defer t
   :init
@@ -1748,6 +1728,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (use-package flycheck-eglot
   :ensure t
+  :defer t
   :after (flycheck eglot)
   :config
   (global-flycheck-eglot-mode 1)
@@ -1758,6 +1739,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (use-package consult-eglot
   :ensure t
+  :defer t
   :after (consult eglot)
   :bind (:map eglot-mode-map
               ("M-g s" . consult-eglot-symbols)))
@@ -1849,6 +1831,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 *** CSV
 #+begin_src emacs-lisp :lexical t 
 (use-package csv-mode
+  :defer t
   :mode "\\.csv\\'"
   )
 #+end_src
@@ -1958,6 +1941,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (use-package page-break-lines
   :delight
+  :defer t
   :config
   (global-page-break-lines-mode)
   )
@@ -1983,6 +1967,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (use-package undo-tree
   :delight
+  :defer t
+  :hook (after-init . global-undo-tree-mode)
   :custom
   (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
   (backup-directory-alist `(("." . "~/.emacs.d/.saves")))
@@ -1994,7 +1980,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (undo-tree-enable-undo-in-region t)
   
   :config
-  (global-undo-tree-mode)
+  ;; (global-undo-tree-mode)
   )
 #+end_src
 
@@ -2003,18 +1989,21 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (use-package smart-mode-line
   :delight
+  :defer t
+  :hook (after-init . sml/setup)
   :init
   (setq sml/name-width 50
         sml/mode-width 50)
   (setq sml/theme 'respectful)
   :config
-  (sml/setup)
+  ;; (sml/setup)
   )
 #+end_src
 
 *** General Utilities
 #+begin_src emacs-lisp :lexical t
 (use-package mwim
+  :defer t
   :bind (
          ;; My personal favorites
          ("C-a" . mwim-beginning-of-code-or-line)
