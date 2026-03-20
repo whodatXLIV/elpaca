@@ -840,11 +840,40 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (corfu-scroll-margin 5)        ;; Use scroll margin
 
   :custom-face
-  (corfu-default ((t (:background "gray10" :foreground "#eaeaea" :extend t))))
-  (corfu-current ((t (:background "gray10" :foreground "#969896" :extend t))))
-  (corfu-bar ((t (:background "gray20"))))
-  (corfu-border ((t (:background "gray10"))))
-  (corfu-annotations ((t (:background "gray10" :foreground "#70c0b1" :extend t))))
+  ;; (corfu-default ((t (:background "gray10" :foreground "#eaeaea" :extend t))))
+  ;; (corfu-current ((t (:background "gray10" :foreground "#969896" :extend t))))
+  ;; (corfu-bar ((t (:background "gray20"))))
+  ;; (corfu-border ((t (:background "gray10"))))
+  ;; (corfu-annotations ((t (:background "gray10" :foreground "#70c0b1" :extend t))))
+
+
+  ;; (corfu-default (
+  ;;                 (((class color) (background light)) (:background "#f0f0f0" :foreground "#333333" :extend t))
+  ;;                 (((class color) (background dark))  (:background "gray10" :foreground "#eaeaea" :extend t))
+  ;;                 ))
+  
+  ;; (corfu-current (
+  ;;                 (((class color) (background light)) (:background "#d3d3d3" :foreground "#111111" :extend t))
+  ;;                 (((class color) (background dark))  (:background "gray10" :foreground "#c397d8" :extend t))
+  ;;                 ))
+  
+  ;; (corfu-bar (
+  ;;             (((class color) (background light)) (:background "#cccccc"))
+  ;;             (((class color) (background dark))  (:background "gray20"))
+  ;;             ))
+  
+  (corfu-border (
+                 (((class color) (background light)) (:background "gold"))
+                 (((class color) (background dark))  (:background "gold"))
+                 ))
+  
+  ;; (corfu-annotations (
+  ;;                     (((class color) (background light)) (:background "#f0f0f0" :foreground "#005f5f" :extend t))
+  ;;                     (((class color) (background dark))  (:background "gray10" :foreground "#70c0b1" :extend t))
+  ;;                     ))
+
+
+  
   )
 
 (use-package corfu-popupinfo
@@ -962,7 +991,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package marginalia
   :ensure t
   :defer t
-  :hook (emacs-startup . marginalia-mode)
+  :hook (vertico-mode . marginalia-mode)
   :bind (:map minibuffer-local-map
          ("M-A" . marginalia-cycle))
   :after vertico
