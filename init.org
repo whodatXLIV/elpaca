@@ -3371,7 +3371,7 @@ I like this
 (use-package jinx
   :ensure t
   :delight 
-  :hook (emacs-startup . global-jinx-mode)
+  ;; :hook (emacs-startup . global-jinx-mode)
   ;; :bind (("M-$" . jinx-correct)
   ;;        ("C-M-$" . jinx-languages))
   )
