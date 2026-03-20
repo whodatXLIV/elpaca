@@ -649,21 +649,13 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (provide 'post-init)
   ;;; post-init.el ends here
 
-#+end_src
-
 * Init File
-** preloads
-*** header
+** Core Emacs & UI
+*** Basic Emacs Customizations
 #+begin_src emacs-lisp :lexical t
 
 ;;; init.el --- Init -*- no-byte-compile: t; lexical-binding: t; -*-
 (minimal-emacs-load-user-init "pre-init.el")
-
-#+end_src
-
-*** dependencies
-**** turn off unless needed
-#+begin_src emacs-lisp :lexical t :tangle no
 
 (setq custom-delayed-init-variables '())
 (unload-feature 'eldoc t)
@@ -679,21 +671,18 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :demand t
   )
 (elpaca-wait)
-#+end_src
-**** always on
-
-#+begin_src emacs-lisp :lexical t
-(use-package transient
-  :defer t
-  )
 
 (use-package delight
   :defer t)
+
+;; Allow for shorter responses: "y" for yes and "n" for no.
+(if (boundp 'use-short-answers)
+    (setq use-short-answers t)
+  (advice-add #'yes-or-no-p :override #'y-or-n-p))
+(defalias #'view-hello-file #'ignore)  ; Never show the hello file
 #+end_src
 
-** my settings and my defs
-*** my gc
-
+*** GC & Performance
 #+begin_src emacs-lisp :lexical t :tangle yes
 
 (use-package gcmh
@@ -703,9 +692,89 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         gcmh-high-cons-threshold (* 64 1024 1024 1024))
   :config
   (gcmh-mode 1))
+
+;; Prefer loading newer compiled files
+(setq load-prefer-newer t)
+
+;; Increase how much is read from processes in a single chunk (default is 4kb).
+(setq read-process-output-max (* 512 1024))  ; 512kb
+
+;; Reduce rendering/line scan work by not rendering cursors or regions in
+;; non-focused windows.
+(setq-default cursor-in-non-selected-windows nil)
+(setq highlight-nonselected-windows nil)
+
+;; Disable warnings from the legacy advice API. They aren't useful.
+(setq ad-redefinition-action 'accept)
+
+(setq warning-suppress-types '((lexical-binding)))
+
+;; Don't ping things that look like domain names.
+(setq ffap-machine-p-known 'reject)
+
+;; By default, Emacs "updates" its ui more often than it needs to
+(setq idle-update-delay 1.0)
+
+;; Font compacting can be very resource-intensive, especially when rendering
+;; icon fonts on Windows. This will increase memory usage.
+(setq inhibit-compacting-font-caches t)
 #+end_src
 
-*** theme and font
+*** UI Elements
+#+begin_src emacs-lisp :lexical t
+(use-package transient
+  :defer t
+  )
+
+(setq frame-title-format minimal-emacs-frame-title-format
+      icon-title-format minimal-emacs-frame-title-format)
+
+;; Disable startup screens and messages
+(setq inhibit-splash-screen t)
+
+;; I intentionally avoid calling `menu-bar-mode', `tool-bar-mode', and
+;; `scroll-bar-mode' because manipulating frame parameters can trigger or queue
+;; a superfluous and potentially expensive frame redraw at startup, depending
+;; on the window system. The variables must also be set to `nil' so users don't
+;; have to call the functions twice to re-enable them.
+(unless (memq 'menu-bar minimal-emacs-ui-features)
+  (push '(menu-bar-lines . 0) default-frame-alist)
+  (unless (memq window-system '(mac ns))
+    (setq menu-bar-mode nil)))
+
+(unless (daemonp)
+  (unless noninteractive
+    (when (fboundp 'tool-bar-setup)
+      ;; Temporarily override the tool-bar-setup function to prevent it from
+      ;; running during the initial stages of startup
+      (advice-add #'tool-bar-setup :override #'ignore)
+      (define-advice startup--load-user-init-file
+          (:after (&rest _) minimal-emacs-setup-toolbar)
+        (advice-remove #'tool-bar-setup #'ignore)
+        (when tool-bar-mode
+          (tool-bar-setup))))))
+(unless (memq 'tool-bar minimal-emacs-ui-features)
+  (push '(tool-bar-lines . 0) default-frame-alist)
+  (setq tool-bar-mode nil))
+
+(push '(vertical-scroll-bars) default-frame-alist)
+(push '(horizontal-scroll-bars) default-frame-alist)
+(setq scroll-bar-mode nil)
+(when (fboundp 'horizontal-scroll-bar-mode)
+  (horizontal-scroll-bar-mode -1))
+
+(unless (memq 'tooltips minimal-emacs-ui-features)
+  (when (bound-and-true-p tooltip-mode)
+    (tooltip-mode -1)))
+
+;; Disable GUIs because they are inconsistent across systems, desktop
+;; environments, and themes, and they don't match the look of Emacs.
+(unless (memq 'dialogs minimal-emacs-ui-features)
+  (setq use-file-dialog nil)
+  (setq use-dialog-box nil))
+#+end_src
+
+*** Theme & Font
 #+begin_src emacs-lisp :lexical t :tangle yes
 
 (use-package color-theme-sanityinc-tomorrow
@@ -724,7 +793,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (color-theme-sanityinc-tomorrow-night)
   )
 #+end_src
-*** Mac os use meta
+
+*** macOS Specific
 #+begin_src emacs-lisp :lexical t
 (when (memq window-system '(mac ns))
   (setq mac-option-modifier 'hyper ;; for emacs-mac
@@ -753,7 +823,251 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
       (exec-path-from-shell-initialize))))
 #+end_src
 
-*** tramp
+*** Indentation
+#+begin_src emacs-lisp :lexical t
+(setq-default indent-tabs-mode nil)
+(setq-default tab-width 4)
+
+(setq font-lock-maximum-decoration 4)
+#+end_src
+
+** Completion Framework
+*** Corfu
+#+begin_src emacs-lisp :lexical t :tangle yes
+
+(use-package corfu
+  :ensure t
+  :bind* (("C-<tab>" . completion-at-point))
+  :custom
+  (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
+  (corfu-auto nil)                 ;; Enable auto completion
+  ;; (corfu-auto-delay 0.3)         ;; Delay for auto-completion (important for TRAMP)
+  ;; (corfu-auto-prefix 3)          ;; Require 3 characters before auto-completion
+  (corfu-separator ?\s)          ;; Orderless field separator
+  (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
+  (corfu-quit-no-match t)      ;; Never quit, even if there is no match
+  (corfu-preview-current nil)    ;; Disable current candidate preview
+  (corfu-preselect 'prompt)      ;; Preselect the prompt
+  (corfu-on-exact-match nil)     ;; Configure handling of exact matches
+  (corfu-scroll-margin 5)        ;; Use scroll margin
+
+  :custom-face
+  (corfu-default ((t (:background "gray10" :foreground "#eaeaea" :extend t))))
+  (corfu-current ((t (:background "gray10" :foreground "#969896" :extend t))))
+  (corfu-bar ((t (:background "gray20"))))
+  (corfu-border ((t (:background "gray10"))))
+  (corfu-annotations ((t (:background "gray10" :foreground "#70c0b1" :extend t))))
+
+  :init
+  (global-corfu-mode)
+  )
+
+(use-package corfu-popupinfo
+  :ensure nil
+  :after corfu
+  :hook (corfu-mode . corfu-popupinfo-mode)
+  :custom
+  (corfu-popupinfo-delay '(0.5 . 0.2))
+  (corfu-popupinfo-hide nil)
+  :bind (:map corfu-map
+              ("H-p" . corfu-popupinfo-scroll-down)
+              ("H-n" . corfu-popupinfo-scroll-up)
+              ("H-<tab>" . corfu-popupinfo-toggle)))
+#+end_src
+
+*** Vertico
+#+begin_src emacs-lisp :lexical t :tangle yes
+
+(use-package vertico
+  :ensure t
+  :bind (:map vertico-map
+          ("M-S" . my-vertico-cycle-sort))
+  :init
+  (vertico-mode 1)
+  :config
+  (setq vertico-cycle t)
+  (setq vertico-resize nil)
+  (setq enable-recursive-minibuffers t)
+  (setq read-extended-command-predicate #'command-completion-default-include-p)
+  (setq minibuffer-prompt-properties
+        '(read-only t cursor-intangible t face minibuffer-prompt))
+
+  (defvar my-vertico-sort-methods '(nil vertico-sort-alpha vertico-sort-length-alpha))
+  (defvar-local my-vertico-sort-index 0)
+
+  (defun my-vertico-cycle-sort ()
+    "Cycle through different Vertico sorting methods."
+    (interactive)
+    (setq my-vertico-sort-index
+          (mod (1+ my-vertico-sort-index) (length my-vertico-sort-methods)))
+    (setq-local vertico-sort-override-function
+                (nth my-vertico-sort-index my-vertico-sort-methods))
+    (message "Vertico sort: %s" (or vertico-sort-override-function "Default"))
+    (setq vertico--input t))
+  )
+(use-package vertico-directory
+  :after vertico
+  :ensure nil
+  ;; More convenient directory navigation commands
+  :bind (:map vertico-map
+              ("RET" . vertico-directory-enter)
+              ("DEL" . vertico-directory-delete-char)
+              ("M-DEL" . vertico-directory-delete-word))
+  ;; Tidy shadowed file names (e.g. ~/foo/bar//baz -> /baz)
+  :hook (rfn-eshadow-update-overlay . vertico-directory-tidy))
+#+end_src
+
+*** Orderless
+#+begin_src emacs-lisp :lexical t :tangle yes
+(use-package orderless
+  :ensure t
+  :custom
+  (completion-styles '(orderless basic))
+  (completion-category-overrides '((file (styles . (partial-completion substring)))))
+  (completion-pcm-leading-wildcard t)
+  (orderless-style-dispatchers '(my-orderless-dispatch))
+  :init
+  (defun my-orderless-dispatch (pattern index _total)
+    (cond
+     ;; Ensure that $ works with Consult commands, which add disambiguation suffixes
+     ((string-suffix-p "$" pattern)
+      `(orderless-regexp . ,(concat (substring pattern 0 -1) "[\x100000-\x10FFFD]*$")))
+     ;; Ignore character (!)
+     ((string-prefix-p "!" pattern)
+      `(orderless-without-literal . ,(substring pattern 1))))))
+#+end_src
+
+*** Consult
+#+begin_src emacs-lisp :lexical t :tangle yes
+(use-package consult
+  :ensure t
+  :bind (
+         ("C-x b" . consult-buffer)
+         ("M-y" . consult-yank-pop)
+         ("M-g M-g" . consult-goto-line)
+         ("C-c C-SPC" . consult-mark)
+         ("M-g i" . consult-imenu)
+         ("C-x C-a" . consult-grep)
+         ("C-x f" . consult-recent-file)
+         ("C-s" . consult-line)
+         ("H-s" . consult-ripgrep)         )
+
+  :config
+  ;; Use a debounce delay for preview to avoid severe lag over TRAMP
+  (setq consult-preview-key (list :debounce 0.5 'any))
+  (setq consult-narrow-key "<")
+  )
+
+(use-package embark-consult
+  :ensure t)
+
+(use-package wgrep
+  :ensure t
+  :custom
+  (wgrep-auto-save-buffer t))
+#+end_src
+
+*** Marginalia
+#+begin_src emacs-lisp :lexical t :tangle yes
+;; Enable rich annotations using the Marginalia package
+(use-package marginalia
+  ;; Bind `marginalia-cycle' locally in the minibuffer.  To make the binding
+  ;; available in the *Completions* buffer, add it to the
+  ;; `completion-list-mode-map'.
+  :bind (:map minibuffer-local-map
+         ("M-A" . marginalia-cycle))
+  :defer t
+  ;; The :init section is always executed.
+  :init
+  ;; Marginalia must be activated in the :init section of use-package such that
+  ;; the mode gets enabled right away. Note that this forces loading the
+  ;; package.
+  (marginalia-mode)
+  ;; (setq marginalia-remote-file-regexps nil)
+  :after vertico
+  )
+
+(use-package nerd-icons-completion
+  :after marginalia
+  :config
+  (nerd-icons-completion-mode)
+  (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup))
+#+end_src
+
+*** Completion Backends
+#+begin_src emacs-lisp :lexical t
+(use-package cape
+  :ensure t
+  ;; Bind dedicated completion commands
+  ;; Alternative prefix keys: C-c p, M-p, M-+, ...
+  :bind* ("C-c c" . hydra-cape/body)
+
+  ;; cape-abbrev: Complete abbreviation (add-global-abbrev, add-mode-abbrev).
+  ;; cape-dabbrev: Complete word from current buffers. See also dabbrev-capf.
+  ;; cape-dict: Complete word from dictionary file.
+  ;; cape-elisp-block: Complete Elisp in Org or Markdown code block.
+  ;; cape-elisp-symbol: Complete Elisp symbol.
+  ;; cape-emoji: Complete Emoji.
+  ;; cape-file: Complete file name.
+  ;; cape-history: Complete from Eshell, Comint or minibuffer history.
+  ;; cape-keyword: Complete programming language keyword.
+  ;; cape-line: Complete entire line from current buffer.
+  ;; cape-rfc1345: Complete Unicode char using RFC 1345 mnemonics.
+  ;; cape-sgml: Complete Unicode char from SGML entity, e.g., &alpha.
+  ;; cape-tex: Complete Unicode char from TeX command, e.g. \hbar.
+  :config
+  (defhydra hydra-cape (:color blue :hint nil)
+    "
+  _d_ dabbrev    _f_ file      _k_ keyword    _s_ symbol
+  _l_ line       _i_ ispell    _h_ history    _w_ dict
+  _q_ quit
+  "
+    ("d" cape-dabbrev)
+    ("f" cape-file)
+    ("k" cape-keyword)
+    ("s" cape-symbol)
+    ("l" cape-line)
+    ("i" cape-ispell)
+    ("h" cape-history)
+    ("w" cape-dict)
+    ("q" nil "quit"))
+
+
+  ;; (setq-local completion-at-point-functions
+  ;;             (list (cape-capf-choose #'cape-dabbrev #'cape-file #'cape-keyword)))
+
+  :init
+  ;; Create a "Super" completion backend that merges dabbrev, file, and keywords
+  (defalias 'cape-global-super
+    (cape-capf-super #'cape-dabbrev #'cape-file #'cape-keyword))
+
+  ;; Add the super backend to the global completion list.
+  ;; Emacs will try the major-mode specific completions first (like elisp),
+  ;; and if they fail, it will fall back to showing this combined list.
+  (add-hook 'completion-at-point-functions #'cape-global-super)
+
+  ;;(add-hook 'completion-at-point-functions #'cape-dabbrev)
+  ;;(add-hook 'completion-at-point-functions #'cape-keyword)
+  ;;(add-hook 'completion-at-point-functions #'cape-file)
+  ;;(add-hook 'completion-at-point-functions #'cape-history)
+  ;;(add-to-list 'completion-at-point-functions #'cape-tex)
+  ;;(add-to-list 'completion-at-point-functions #'cape-sgml)
+  ;;(add-to-list 'completion-at-point-functions #'cape-rfc1345)
+  ;;(add-to-list 'completion-at-point-functions #'cape-abbrev)
+  ;; (add-to-list 'completion-at-point-functions #'cape-dict)
+  ;;(add-to-list 'completion-at-point-functions #'cape-elisp-symbol)
+  ;; (add-to-list 'completion-at-point-functions #'cape-line)
+  )
+
+(use-package yasnippet-capf
+  :ensure t
+  :after (yasnippet cape)
+  :config
+  (add-to-list 'completion-at-point-functions #'yasnippet-capf))
+#+end_src
+
+** TRAMP & Remote
+*** TRAMP Core
 #+begin_src emacs-lisp :lexical t :tangle yes
 (use-package msgpack
   :ensure t)
@@ -794,10 +1108,10 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
   ;; Prevent TRAMP from hanging the modeline during disconnects
   (setq remote-file-name-inhibit-cache nil)
-  ;; (setq vc-ignore-dir-regexp
-  ;;       (format "\\(%s\\)\\|\\(%s\\)"
-  ;;               vc-ignore-dir-regexp
-  ;;               tramp-file-name-regexp))
+  (setq vc-ignore-dir-regexp
+        (format "\\(%s\\)\\|\\(%s\\)"
+                vc-ignore-dir-regexp
+                tramp-file-name-regexp))
 
   ;; Aggressive performance options
   (setq remote-file-name-inhibit-locks t)
@@ -866,7 +1180,10 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
   :defer t
   )
+#+end_src
 
+*** TRAMP Utilities
+#+begin_src emacs-lisp :lexical t :tangle yes
 (use-package consult-dir
   :ensure t
   :bind (("C-x C-d" . consult-dir)
@@ -886,172 +1203,162 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq consult-tramp-known-hosts "~/.ssh/known_hosts")
   
   )
-#+end_src
 
-*** recentf
-#+BEGIN_SRC emacs-lisp :lexical t :tangle yes
-(use-feature recentf
-  ;; :after tramp
-  :init
-  (setq recentf-auto-cleanup nil) ;; disable before we start recentf!
-  (setq recentf-max-menu-items 25)
-  (setq recentf-max-saved-items 25)
-  
-  :hook (emacs-startup . recentf-mode)
-  :config
-  (savehist-mode 1)
-  (run-at-time nil (* 5 60) 'recentf-save-list)
-  (add-to-list 'recentf-exclude "\\.png$")
-  (add-to-list 'recentf-exclude "/var/folders")
-  ;; (recentf-cleanup)
-  ;; (setq recentf-auto-cleanup t)
-  ;; :defer t
-  )
-
-#+END_SRC
-
-** Install Packages
-*** 20/20/20
-#+begin_src emacs-lisp :lexical t :tangle no
-
-(use-package twen-twen-tw
-  :delight
-  :ensure (twen-twen-tw
+(use-package tramp-hlo
+  :ensure (tramp-hlo
            :type git
            :host github
-           :repo "benbellick/twen-twen-tw.el"
-           :local-repo "twen-twen-tw")
+           :repo "jsadusk/tramp-hlo"
+           )
   :config
-  (twen-twen-tw-mode 1)
+  (tramp-hlo-setup)
   )
 #+end_src
-*** ace
-**** jump mode
+
+*** SSH Tunnels
 #+begin_src emacs-lisp :lexical t
-(use-package ace-jump-mode
+(use-package ssh-tunnels
   :delight
-  :bind* ("H-j" . ace-jump-mode)
   :defer t
-  )
-#+end_src
-
-**** multiple cursors
-#+begin_src emacs-lisp :lexical t
-(use-package ace-mc
-  :delight
-  :bind* ("H-;" . ace-mc-add-multiple-cursors)
-  :defer t
-  )
-#+end_src
-**** window
-
-#+begin_src emacs-lisp :lexical t
-
-(use-package ace-window
-  :delight
-  :bind* (
-          ("H-SPC" . ace-window)
-          ("H-M-<left>" . shrink-window-horizontally)
-          ("H-M-<right>" . enlarge-window-horizontally)
-          ("H-M-<up>" . enlarge-window)
-          ("H-M-<down>" . shrink-window)
-          ("H-z" . seth-toggle-zoom-balance)
-          )
-  :defer t
-  :custom
-  (aw-dispatch-always t)
-  :init
-  (require 'zoom)
-  (setq seth-is-zoom 1)
-  (defun seth-toggle-zoom-balance ()
-    (interactive)
-    (setq seth-is-zoom (* -1 seth-is-zoom))
-    (zoom-mode seth-is-zoom)
-    )
-  (zoom-mode seth-is-zoom)
-  (defvar aw-dispatch-alist
-    '((?d aw-delete-window "Delete Window")
-      (?s aw-swap-window "Swap Windows")
-      (?m aw-move-window "Move Window")
-      (?b aw-switch-buffer-in-window "Select Buffer")
-      (?n aw-flip-window)
-      (?B aw-switch-buffer-other-window "Switch Buffer Other Window")
-      (?c aw-split-window-fair "Split Fair Window")
-      (?h aw-split-window-vert "Split Vert Window")
-      (?v aw-split-window-horz "Split Horz Window")
-      (?o delete-other-windows "Delete Other Windows")
-      (?? aw-show-dispatch-help))
-    "List of actions for `aw-dispatch-default'.")
-  )
-#+end_src
-*** activities
-#+begin_src emacs-lisp :lexical t :tangle no
-
-(use-package activities
-  :delight
-  :bind* (
-          ("s-a n" . activities-new)
-          ("s-a d" . activities-define)
-          ("s-a a" . activities-resume)
-          ("s-a r" . activities-revert)
-          ("s-a s" . activities-suspend)
-          ("s-a k" . activities-kill)
-          ("s-a RET" . activities-switch)
-          ("s-a b" . activities-switch-buffer)
-          ("s-a l" . activities-list)
-          )
-  
-  :defer t
-  :config
-  (activities-mode t)
-  )
-#+end_src
-*** auto-tangle-mode
-
-#+begin_src emacs-lisp :lexical t
-
-(use-package auto-tangle-mode
-  :delight
-  :ensure (auto-tangle-mode
+  :ensure (ssh-tunnels
+           :type git
            :host github
-           :repo "progfolio/auto-tangle-mode.el"
-           :local-repo "auto-tangle-mode")
-  :defer t 
-  ;; :hook org-mode
-  ;; :config
-  ;; (auto-tangle-mode)
-  ;; (add-hook 'auto-tangle-after-tangle-hook (lambda ()
-  ;;                                            (let ((elpaca-log-functions nil))
-  ;;                                              (load-file "~/.emacs.d/init.el")
-  ;;                                              (elpaca-process-queues))))
-  )
+           :repo "death/ssh-tunnels"
+           :local-repo "ssh-tunnels"
+           )
+  :custom
+  (ssh-tunnels-configurations
+   '((:name "dev socket"
+            :local-port 12345
+            :remote-port 12345
+            :login "sfigueroa@dev.focusvq.com"
+            :type "-L")
+     ))
 
-#+end_src
-
-*** buffer-expose
-#+begin_src emacs-lisp :lexical t
-
-(use-package buffer-expose
-  :delight
+  :bind (:map ssh-tunnels-mode-map
+              ("n" . seth-ssh-tunnel-add)
+              )
   :config
-  (setcdr buffer-expose-mode-map nil)
+  (defun seth-ssh-tunnel-add (name port)
+    (interactive "sName: \nnPort: ")
+    (let ((conf `(:name ,name
+                        :local-port ,port
+                        :remote-port ,port
+                        :login "sfigueroa@dev.focusvq.com"
+                        :type "-L"
+                        )))
+      (add-to-list 'ssh-tunnels-configurations conf)
+      (ssh-tunnels-refresh)
+      )
+    )
+  )
+#+end_src 
+
+** File Management
+*** Dired
+#+begin_src emacs-lisp :lexical t :tangle yes
+
+(use-package nerd-icons-dired
   :defer t
-  :bind* (
-          ("H-b e" . buffer-expose)
-          ("H-b b" . buffer-expose-no-stars)
-          ("H-b c" . buffer-expose-current-mode)
-          ("H-b s" . buffer-expose-major-mode)
-          ("H-b d" . buffer-expose-dired-buffers)
-          ("H-b *" . buffer-expose-stars)
-          )
-  :config
-  (buffer-expose-mode 1)  
+  :delight
+  :hook (dired-mode . nerd-icons-dired-mode)
+  ;; :custom
+  ;; (all-the-icons-dired-monochrome nil)
   )
 
+(use-package dired-filter
+  :custom
+  (dired-filter-prefix "/ f")
+  (dired-filter-mark-prefix "/ m")
+  (dired-listing-switches "-alogh")
+  :defer t
+  :hook (dired-mode)
+  )
+
+(use-package dired-sort
+  :after dired
+  :ensure (dired-sort :type git :host github :repo "MichaelKazarian/dired-sort")
+  :defer t
+  :bind (:map dired-mode-map
+              ("/ s n" . dired-sort-by-name)
+              ("/ s r n" . dired-sort-by-name-reverse)
+              ("/ s d" . dired-sort-by-date)
+              ("/ s r d" . dired-sort-by-date-reverse)
+              ("/ s x" . dired-sort-by-extension)	
+              ("/ s r x" . dired-sort-by-extension-reverse)
+              ("/ f h" . dired-sort-toggle-hidden)	
+              ("/ s m" . dired-sort-show-menu)	
+              ("/ s c" . dired-sort-show-completion)              
+              )
+  :config
+  (dired-sort-mode 1)
+  (require 'ls-lisp)
+  (setq ls-lisp-use-insert-directory-program nil)
+  (setq ls-lisp-dirs-first t)
+  )
+
+(use-package dired-preview
+  :after dired
+  :defer t
+  :init
+  (defun dired-preview-toggle ()
+    "just a dummy function to toggle preview"
+    (interactive)
+    )
+  :bind (
+         (:map dired-preview-mode-map
+               ("<tab>" . dired-preview-toggle))
+         
+         
+         )
+  :config
+  ;; Default values for demo purposes
+  ;; (setq dired-preview-delay 0.1)
+  (setq dired-preview-on-start nil)
+  (setq dired-preview-trigger-commands (list 'dired-preview-toggle))
+  (setq dired-preview-max-size (expt 2 20))
+  (setq dired-preview-ignored-extensions-regexp
+        (concat "\\."
+                "\\(gz\\|"
+                "zst\\|"
+                "tar\\|"
+                "xz\\|"
+                "rar\\|"
+                "zip\\|"
+                "iso\\|"
+                "epub"
+                "\\)")) 
+  )
+
+(use-feature dired
+  :defer t
+  :delight
+  :bind* (("C-x C-d" . dired))
+  :custom-face
+  (dired-directory ((t (:foreground "#3375a8" :extend t)))) 
+  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
+  :config
+  ;; (require 'dired-subtree)
+  (when (string= system-type "darwin")       
+    (setq dired-use-ls-dired nil))    
+  )
 #+end_src
 
-*** bufler
+*** Neotree
+#+begin_src emacs-lisp :lexical t :tangle no
+(use-package neotree
+  :delight
+  :defer t
+  :custom-face
+  (neo-dir-link-face ((t (:foreground "#97c8f7" :extend t)))) 
+  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
+  :bind* ("C-x d" . neotree)
+  :custom
+  (neo-theme 'arrow)
+  )
+#+end_src 
 
+*** Buffer & Window Management
 #+begin_src emacs-lisp :lexical t
 (use-package bufler
   :defer t
@@ -1138,1342 +1445,81 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         )
   )
 
-#+end_src
-
-*** corfu
-#+begin_src emacs-lisp :lexical t :tangle yes
-
-(use-package corfu
-  :ensure t
-  :bind* (("C-<tab>" . completion-at-point))
-  :custom
-  (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
-  (corfu-auto nil)                 ;; Enable auto completion
-  ;; (corfu-auto-delay 0.3)         ;; Delay for auto-completion (important for TRAMP)
-  ;; (corfu-auto-prefix 3)          ;; Require 3 characters before auto-completion
-  (corfu-separator ?\s)          ;; Orderless field separator
-  (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
-  (corfu-quit-no-match t)      ;; Never quit, even if there is no match
-  (corfu-preview-current nil)    ;; Disable current candidate preview
-  (corfu-preselect 'prompt)      ;; Preselect the prompt
-  (corfu-on-exact-match nil)     ;; Configure handling of exact matches
-  (corfu-scroll-margin 5)        ;; Use scroll margin
-
-  :custom-face
-  ;; (corfu-default (
-  ;;                 (((class color) (background light)) (:background "#f0f0f0" :foreground "#333333" :extend t))
-  ;;                 (((class color) (background dark))  (:background "gray10" :foreground "#eaeaea" :extend t))
-  ;;                 ))
-  
-  ;; (corfu-current (
-  ;;                 (((class color) (background light)) (:background "#d3d3d3" :foreground "#111111" :extend t))
-  ;;                 (((class color) (background dark))  (:background "gray10" :foreground "#c397d8" :extend t))
-  ;;                 ))
-  
-  ;; (corfu-bar (
-  ;;             (((class color) (background light)) (:background "#cccccc"))
-  ;;             (((class color) (background dark))  (:background "gray20"))
-  ;;             ))
-  
-  (corfu-border (
-                 (((class color) (background light)) (:background "gold"))
-                 (((class color) (background dark))  (:background "gold"))
-                 ))
-  
-  ;; (corfu-annotations (
-  ;;                     (((class color) (background light)) (:background "#f0f0f0" :foreground "#005f5f" :extend t))
-  ;;                     (((class color) (background dark))  (:background "gray10" :foreground "#70c0b1" :extend t))
-  ;;                     ))
-
-  :init
-  (global-corfu-mode)
-  )
-
-(use-package corfu-popupinfo
-  :ensure nil
-  :after corfu
-  :hook (corfu-mode . corfu-popupinfo-mode)
-  :custom
-  (corfu-popupinfo-delay '(0.5 . 0.2))
-  (corfu-popupinfo-hide nil)
-  :bind (:map corfu-map
-              ("H-p" . corfu-popupinfo-scroll-down)
-              ("H-n" . corfu-popupinfo-scroll-up)
-              ("H-<tab>" . corfu-popupinfo-toggle)))
-
-(use-package cape
-  :ensure t
-  ;; Bind dedicated completion commands
-  ;; Alternative prefix keys: C-c p, M-p, M-+, ...
-  :bind* ("C-c c" . hydra-cape/body)
-
-  ;; cape-abbrev: Complete abbreviation (add-global-abbrev, add-mode-abbrev).
-  ;; cape-dabbrev: Complete word from current buffers. See also dabbrev-capf.
-  ;; cape-dict: Complete word from dictionary file.
-  ;; cape-elisp-block: Complete Elisp in Org or Markdown code block.
-  ;; cape-elisp-symbol: Complete Elisp symbol.
-  ;; cape-emoji: Complete Emoji.
-  ;; cape-file: Complete file name.
-  ;; cape-history: Complete from Eshell, Comint or minibuffer history.
-  ;; cape-keyword: Complete programming language keyword.
-  ;; cape-line: Complete entire line from current buffer.
-  ;; cape-rfc1345: Complete Unicode char using RFC 1345 mnemonics.
-  ;; cape-sgml: Complete Unicode char from SGML entity, e.g., &alpha.
-  ;; cape-tex: Complete Unicode char from TeX command, e.g. \hbar.
-  :config
-  (defhydra hydra-cape (:color blue :hint nil)
-    "
-  _d_ dabbrev    _f_ file      _k_ keyword    _s_ symbol
-  _l_ line       _i_ ispell    _h_ history    _w_ dict
-  _q_ quit
-  "
-    ("d" cape-dabbrev)
-    ("f" cape-file)
-    ("k" cape-keyword)
-    ("s" cape-symbol)
-    ("l" cape-line)
-    ("i" cape-ispell)
-    ("h" cape-history)
-    ("w" cape-dict)
-    ("q" nil "quit"))
-
-
-  ;; (setq-local completion-at-point-functions
-  ;;             (list (cape-capf-choose #'cape-dabbrev #'cape-file #'cape-keyword)))
-
-  :init
-  ;; Create a "Super" completion backend that merges dabbrev, file, and keywords
-  (defalias 'cape-global-super
-    (cape-capf-super #'cape-dabbrev #'cape-file #'cape-keyword))
-
-  ;; Add the super backend to the global completion list.
-  ;; Emacs will try the major-mode specific completions first (like elisp),
-  ;; and if they fail, it will fall back to showing this combined list.
-  (add-hook 'completion-at-point-functions #'cape-global-super)
-
-  ;;(add-hook 'completion-at-point-functions #'cape-dabbrev)
-  ;;(add-hook 'completion-at-point-functions #'cape-keyword)
-  ;;(add-hook 'completion-at-point-functions #'cape-file)
-  ;;(add-hook 'completion-at-point-functions #'cape-history)
-  ;;(add-to-list 'completion-at-point-functions #'cape-tex)
-  ;;(add-to-list 'completion-at-point-functions #'cape-sgml)
-  ;;(add-to-list 'completion-at-point-functions #'cape-rfc1345)
-  ;;(add-to-list 'completion-at-point-functions #'cape-abbrev)
-  ;; (add-to-list 'completion-at-point-functions #'cape-dict)
-  ;;(add-to-list 'completion-at-point-functions #'cape-elisp-symbol)
-  ;; (add-to-list 'completion-at-point-functions #'cape-line)
-  )
-
-
-#+end_src
-
-*** consult
-
-#+begin_src emacs-lisp :lexical t :tangle yes
-
-(use-package vertico
-  :ensure t
-  :bind (:map vertico-map
-          ("M-S" . my-vertico-cycle-sort))
-  :init
-  (vertico-mode 1)
-  :config
-  (setq vertico-cycle t)
-  (setq vertico-resize nil)
-  (setq enable-recursive-minibuffers t)
-  (setq read-extended-command-predicate #'command-completion-default-include-p)
-  (setq minibuffer-prompt-properties
-        '(read-only t cursor-intangible t face minibuffer-prompt))
-
-  (defvar my-vertico-sort-methods '(nil vertico-sort-alpha vertico-sort-length-alpha))
-  (defvar-local my-vertico-sort-index 0)
-
-  (defun my-vertico-cycle-sort ()
-    "Cycle through different Vertico sorting methods."
-    (interactive)
-    (setq my-vertico-sort-index
-          (mod (1+ my-vertico-sort-index) (length my-vertico-sort-methods)))
-    (setq-local vertico-sort-override-function
-                (nth my-vertico-sort-index my-vertico-sort-methods))
-    (message "Vertico sort: %s" (or vertico-sort-override-function "Default"))
-    (setq vertico--input t))
-  )
-(use-package vertico-directory
-  :after vertico
-  :ensure nil
-  ;; More convenient directory navigation commands
-  :bind (:map vertico-map
-              ("RET" . vertico-directory-enter)
-              ("DEL" . vertico-directory-delete-char)
-              ("M-DEL" . vertico-directory-delete-word))
-  ;; Tidy shadowed file names (e.g. ~/foo/bar//baz -> /baz)
-  :hook (rfn-eshadow-update-overlay . vertico-directory-tidy))
-
-(use-package orderless
-  :ensure t
-  :custom
-  (completion-styles '(orderless basic))
-  (completion-category-overrides '((file (styles . (partial-completion substring)))))
-  (completion-pcm-leading-wildcard t)
-  (orderless-style-dispatchers '(my-orderless-dispatch))
-  :init
-  (defun my-orderless-dispatch (pattern index _total)
-    (cond
-     ;; Ensure that $ works with Consult commands, which add disambiguation suffixes
-     ((string-suffix-p "$" pattern)
-      `(orderless-regexp . ,(concat (substring pattern 0 -1) "[\x100000-\x10FFFD]*$")))
-     ;; Ignore character (!)
-     ((string-prefix-p "!" pattern)
-      `(orderless-without-literal . ,(substring pattern 1))))))
-
-(use-package consult
-  :ensure t
-  :bind (
-         ("C-x b" . consult-buffer)
-         ("M-y" . consult-yank-pop)
-         ("M-g M-g" . consult-goto-line)
-         ("C-c C-SPC" . consult-mark)
-         ("M-g i" . consult-imenu)
-         ("C-x C-a" . consult-grep)
-         ("C-x f" . consult-recent-file)
-         ("C-s" . consult-line)
-         ("H-s" . consult-ripgrep)         )
-
-  :config
-  ;; Use a debounce delay for preview to avoid severe lag over TRAMP
-  (setq consult-preview-key (list :debounce 0.5 'any))
-  (setq consult-narrow-key "<")
-  )
-
-(use-package embark-consult
-  :ensure t)
-
-(use-package wgrep
-  :ensure t
-  :custom
-  (wgrep-auto-save-buffer t))
-
-#+end_src
-
-*** csv
-#+begin_src emacs-lisp :lexical t 
-(use-package csv-mode
-  :mode "\\.csv\\'"
-  )
-#+end_src
-
-*** d20
-#+begin_src emacs-lisp :lexical t
-(use-package org-d20
+(use-package buffer-expose
   :delight
-  :defer t
   :config
-  (require 's)
-  (require 'seq)
-  (require 'dash)
-  (require 'cl-lib)
-  (require 'subr-x)
-  (require 'org-table)
-  
-  (pretty-hydra-define d20-hydra (:color blue :hint nil)
-    (
-     "Initiative"
-     (
-      ("i" org-d20-initiative-add "add initiative" :exit nil)
-      ("n" org-d20-initiative-dwim "next initiative" :exit nil)
-      ("p" org-d20-initiative-back "prev initiative" :exit nil)
-      )
-     
-     "Roll"
-     (
-      ("r" org-d20-roll "roll" :exit nil)
-      ("P" org-d20-roll-at-point "roll at point" :exit nil)
-      ("a" org-d20-d20 "Advantage/Disadvatage" :exit nil)
-      )
-     
-     "Edit"
-     (
-      ("d" org-d20-damage "damage" :exit nil)
-      ("t" org-table-align "align" :exit nil)
-      ("q" nil "quit")
-      )
-     )
-    )
-
-  (defun org-d20-initiative ()
-    "Generate an Org-mode table with initiative order and monster/NPC HP."
-    (interactive "*")
-    (let ((rows))
-      (let (name-input init-input ac-input hd-input num-input (monster 1))
-        (cl-loop
-         do (setq name-input (read-string "Monster/NPC name (blank when done): "))
-         (when (> (length name-input) 0)
-           (setq init-input (read-string (concat name-input "'s init modifier: "))
-                 ac-input (read-string (concat name-input "'s Armor Class: "))
-                 hd-input (read-string (concat name-input "'s hit points: "))
-                 num-input
-                 (cdr (org-d20--roll
-                       (read-string (concat "How many " name-input "? ")))))
-           ;; In 5e, all monsters of the same kind have the same
-           ;; initiative
-           (let ((init (int-to-string
-                        (org-d20--d20-plus (string-to-number init-input))))
-                 (monsters-left num-input))
-             (while (>= monsters-left 1)
-               (let (
-                     (hp (int-to-string (cdr (org-d20--roll hd-input))))
-                     (ac (int-to-string (cdr (org-d20--roll ac-input))))
-                     )
-                 (push (list
-                        "" (concat name-input
-                                   " "
-                                   (org-d20--monster-number monster))
-                        (org-d20--num-to-term init-input) init ac hp "0")
-                       rows))
-               (setq monsters-left (1- monsters-left)
-                     monster (1+ monster)))))
-         (unless org-d20-continue-monster-numbering (setq monster 1))
-         while (-all? (lambda (x) (> (length x) 0))
-                      (list name-input init-input ac-input hd-input))))
-      (dolist (pc org-d20-party)
-        (let ((init (read-string (concat (car pc) "'s initiative roll: "))))
-          (push (list "" (car pc) (org-d20--num-to-term (cdr pc)) init "-" "-" "-")
-                rows)))
-      ;; We prepended each new item to the list, so reverse before
-      ;; printing.  This ensures that the numbering/lettering of
-      ;; monsters on the same initiative count is ascending
-      (setq rows (seq-reverse rows))
-      (insert
-       "Round of combat: 1\n|Turn|Creature|Mod|Init|AC|HP|Damage|Status|\n|-\n")
-      (dolist (row rows)
-        (dolist (cell row)
-          (insert "|" cell))
-        (insert "|\n"))
-      (delete-char -1)
-      (org-table-goto-column 4)
-      (org-table-sort-lines nil ?N)
-      (org-table-goto-line 2)
-      (org-table-goto-column 1)
-      (insert ">>>>")                     ; four chars in 'Turn'
-      (org-table-align)))
-
-
-  (defun org-d20-initiative-back ()
-    "Go back an turn on the turn tracker in an initiative table."
-    (interactive "*")
-    (when (org-at-table-p)
-      (cl-loop
-       do (let* ((back (search-backward ">>>>" (org-table-begin) t))
-                 (forward (search-forward ">>>>" (org-table-end) t))
-                 (cur (if back back forward)))
-            (goto-char cur)
-            (skip-chars-backward ">")
-            (delete-char 4)
-            (if (not 
-                 (eq 2 (org-table-current-line)))
-                (progn
-                  (forward-line -1)
-                  (org-table-next-field)
-                  (insert ">>>>"))
-              (save-excursion
-                (search-backward "Round of combat:")
-                (search-forward-regexp "[0-9]+")
-                (skip-chars-backward "0-9")
-                (replace-match
-                 (int-to-string (1- (string-to-number (match-string 0))))))
-              (goto-char (org-table-end))
-              (backward-char)
-              (org-table-goto-column 1)
-              (insert ">>>>")))
-       while (save-excursion
-               (org-table-goto-column 2)
-               (looking-at "~"))))
-    (org-table-align))
-
-  (defun org-d20-initiative-advance ()
-    "Advance the turn tracker in an initiative table."
-    (interactive "*")
-    (when (org-at-table-p)
-      (cl-loop
-       do (let* ((back (search-backward ">>>>" (org-table-begin) t))
-                 (forward (search-forward ">>>>" (org-table-end) t))
-                 (cur (if back back forward)))
-            (goto-char cur)
-            (skip-chars-backward ">")
-            (delete-char 4)
-            (if (save-excursion
-                  (org-table-goto-line (1+ (org-table-current-line))))
-                (progn
-                  (forward-line 1)
-                  (org-table-next-field)
-                  (insert ">>>>"))
-              (save-excursion
-                (search-backward "Round of combat:")
-                (search-forward-regexp "[0-9]+")
-                (skip-chars-backward "0-9")
-                (replace-match
-                 (int-to-string (1+ (string-to-number (match-string 0))))))
-              (org-table-goto-line 2)
-              (insert ">>>>")))
-       while (save-excursion
-               (org-table-goto-column 2)
-               (looking-at "~"))))
-    (org-table-align))
-
-  (defun org-d20-damage (dmg)
-    "Apply DMG poitns of damage to the monster/NPC in the table row at point."
-    (interactive "*nDamage dealt: ")
-    (when (org-at-table-p)
-      (org-table-goto-column 7)
-      (skip-chars-forward " ")
-      (when (looking-at "[0-9]+")
-        (let ((total-damage (+ dmg (string-to-number (match-string 0)))))
-          (replace-match (int-to-string total-damage))
-          (save-excursion
-            (org-table-goto-column 6)
-            (skip-chars-forward " ")
-            (when (looking-at "[0-9]+")
-              (let ((max-hp (string-to-number (match-string 0))))
-                (if (>= total-damage max-hp)
-                    (progn
-                      (org-table-goto-column 2)
-                      (insert "~")
-                      (org-d20--org-table-end-of-current-cell-content)
-                      (insert "~"))
-                  (when (>= total-damage (/ max-hp 2))
-                    (org-table-goto-column 8)
-                    (org-d20--org-table-end-of-current-cell-content)
-                    (unless (looking-back "bloodied" nil)
-                      (unless (looking-back "|" nil)
-                        (insert "; "))
-                      (insert "bloodied")))))))))
-      (org-table-align)))
-
-  (defun org-d20-initiative-dwim ()
-    "Start a new combat or advance the turn tracker, based on point."
-    (interactive "*")
-    (if (org-at-table-p)
-        (org-d20-initiative-advance)
-      (org-d20-initiative)))
-
-
-  (defun org-d20-initiative-add ()
-    "Add a monster to an existing combat."
-    (interactive "*" org-mode)
-    (if (org-at-table-p)
-        (let* ((name-input (read-string "Monster/NPC name: "))
-               (init-input (read-number (concat name-input "'s init modifier: ")))
-               (ac-input (read-number (concat name-input "'s Armor Class: ")))
-               (hd-input (read-string (concat name-input "'s hit points: ")))
-               (num-input (read-string (concat "How many " name-input "? "))))
-          (org-d20--initiative-add-records name-input init-input ac-input hd-input num-input))
-      (org-d20-initiative)))
-
-
-
-
-  (defun org-d20--initiative-add-records (name init-mod ac hd num)
-    (let ((monster 1))
-      ;; First, if we need to, try to count the number of monsters.
-      ;; We can only use a crude heuristic here because we don't
-      ;; know what kind of things the user might have added to the
-      ;; table
-      (when org-d20-continue-monster-numbering
-        (save-excursion
-          (org-table-goto-line 1)
-          (while (org-table-goto-line (1+ (org-table-current-line)))
-            (org-table-goto-column 2)
-            (when (looking-at "[^|]+ \\([A-Z]\\|[0-9]+\\)~? *|")
-              (setq monster (1+ monster))))))
-      (save-excursion
-        ;; Ensure we're not on header row (following won't go past end
-        ;; of table)
-        (org-table-goto-line (1+ (org-table-current-line)))
-        (org-table-goto-line (1+ (org-table-current-line)))
-        (let ((init (int-to-string (org-d20--d20-plus init-mod)))
-              (monsters-left (cdr (org-d20--roll num))))
-          (while (>= monsters-left 1)
-            ;; Open a new row and then immediately move it downwards
-            ;; to ensure that the monsters on the same initiative
-            ;; count are numbered/lettered in ascending order
-            (org-table-insert-row)
-            (org-table-move-row)
-            (org-table-next-field)
-            (insert name)
-            (insert " ")
-            (insert (org-d20--monster-number monster))
-            (org-table-next-field)
-            (insert (org-d20--num-to-term init-mod))
-            (org-table-next-field)
-            (insert init)
-            (org-table-next-field)
-            (insert (int-to-string (cdr (org-d20--roll ac))))
-            (org-table-next-field)
-            (insert (int-to-string (cdr (org-d20--roll hd))))
-            (org-table-next-field)
-            (insert "0")
-            (setq monsters-left (1- monsters-left)
-                  monster (1+ monster))))
-        (org-table-goto-column 4)
-        (org-table-sort-lines nil ?N)
-        (org-table-align))))
-
-
-  ;; (define-key org-mode-map (kbd "H-h d") 'd20-hydra/body)
-
-  
-  :bind (
-         :map org-d20-mode-map
-         ("H-h d" . 'd20-hydra/body)
-         ("H-d i". 'org-d20-initiative-add)
-         ("H-d n". 'org-d20-initiative-dwim)
-         ("H-d p". 'org-d20-initiative-back)
-         ("H-d d". 'org-d20-damage)
-         ("H-d r". 'org-d20-roll)
-         ("H-d e". 'org-d20-roll-at-point)
-         ("H-d a". 'org-d20-d20)
-         )
-  
-  )
-#+end_src
-
-*** denote
-#+begin_src emacs-lisp :lexical t
-(use-package denote
+  (setcdr buffer-expose-mode-map nil)
+  :defer t
   :bind* (
-          ("H-n n" . denote-subdirectory)
-          ("H-n l" . denote-link)
-          ("H-n b" . denote-backlinks)
-          ("H-n q" . denote-query-contents-link)
-          ("H-n f" . denote-query-filenames-link)
-          ("H-n k" . denote-rename-file-keywords)
-          ("H-n o" . denote-open-link-at-point)
-          ("H-n s l" . denote-find-link)
-          ("H-n s b" . denote-find-backlink)
+          ("H-b e" . buffer-expose)
+          ("H-b b" . buffer-expose-no-stars)
+          ("H-b c" . buffer-expose-current-mode)
+          ("H-b s" . buffer-expose-major-mode)
+          ("H-b d" . buffer-expose-dired-buffers)
+          ("H-b *" . buffer-expose-stars)
           )
   :config
-  (setq denote-directory (expand-file-name "~/Google Drive/My Drive/Denote/"))
-  (add-hook 'dired-mode-hook #'denote-dired-mode)
-  (setq denote-rename-buffer-mode t)
+  (buffer-expose-mode 1)  
   )
-
-(use-package denote-markdown
-  :after denote
-  :config
-  (setq denote-file-type 'markdown-yaml)
-  )
-
 #+end_src
 
-*** nerd icons
-
-#+begin_src emacs-lisp :lexical t
-(use-package nerd-icons)
-#+end_src
-
-*** dired
-
-#+begin_src emacs-lisp :lexical t :tangle yes
-
-(use-package nerd-icons-dired
-  :defer t
-  :delight
-  :hook (dired-mode . nerd-icons-dired-mode)
-  ;; :custom
-  ;; (all-the-icons-dired-monochrome nil)
-  )
-
-;; (use-package dired-subtree
-;;   :delight
-;;   :bind (
-;;          :map dired-mode-map
-;;          ("H-r" . dired-subtree-remove)
-;;          ("<tab>" . dired-subtree-toggle)
-;;          ("H-p" . dired-subtree-up)
-;;          ("H-n" . dired-subtree-down)
-;;          ("H-<up>" . dired-subtree-beginning)
-;;          ("H-<down>" . dired-subtree-end)
-;;          ("H-m" . dired-subtree-mark-subtree)
-;;          ("H-u" . dired-subtree-unmark-subtree)           
-;;          )
-;;   :defer t
-;;   )
-
-(use-package dired-filter
-  :custom
-  (dired-filter-prefix "/ f")
-  (dired-filter-mark-prefix "/ m")
-  (dired-listing-switches "-alogh")
-  :defer t
-  :hook (dired-mode)
-  )
-
-(use-package dired-sort
-  :after dired
-  :ensure (dired-sort :type git :host github :repo "MichaelKazarian/dired-sort")
-  :defer t
-  :bind (:map dired-mode-map
-              ("/ s n" . dired-sort-by-name)
-              ("/ s r n" . dired-sort-by-name-reverse)
-              ("/ s d" . dired-sort-by-date)
-              ("/ s r d" . dired-sort-by-date-reverse)
-              ("/ s x" . dired-sort-by-extension)	
-              ("/ s r x" . dired-sort-by-extension-reverse)
-              ("/ f h" . dired-sort-toggle-hidden)	
-              ("/ s m" . dired-sort-show-menu)	
-              ("/ s c" . dired-sort-show-completion)              
-              )
-  :config
-  (dired-sort-mode 1)
-  (require 'ls-lisp)
-  (setq ls-lisp-use-insert-directory-program nil)
-  (setq ls-lisp-dirs-first t)
-  )
-
-(use-package dired-preview
-  :after dired
-  :defer t
+*** Recent Files
+#+BEGIN_SRC emacs-lisp :lexical t :tangle yes
+(use-feature recentf
+  ;; :after tramp
   :init
-  (defun dired-preview-toggle ()
-    "just a dummy function to toggle preview"
-    (interactive)
-    )
-  :bind (
-         (:map dired-preview-mode-map
-               ("<tab>" . dired-preview-toggle))
-         
-         
-         )
-  :config
-  ;; Default values for demo purposes
-  ;; (setq dired-preview-delay 0.1)
-  (setq dired-preview-on-start nil)
-  (setq dired-preview-trigger-commands (list 'dired-preview-toggle))
-  (setq dired-preview-max-size (expt 2 20))
-  (setq dired-preview-ignored-extensions-regexp
-        (concat "\\."
-                "\\(gz\\|"
-                "zst\\|"
-                "tar\\|"
-                "xz\\|"
-                "rar\\|"
-                "zip\\|"
-                "iso\\|"
-                "epub"
-                "\\)")) 
-  )
-
-(use-feature dired
-  :defer t
-  :delight
-  :bind* (("C-x C-d" . dired))
-  :custom-face
-  (dired-directory ((t (:foreground "#3375a8" :extend t)))) 
-  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
-  :config
-  ;; (require 'dired-subtree)
-  (when (string= system-type "darwin")       
-    (setq dired-use-ls-dired nil))    
-  )
-
-
-#+end_src
-
-*** drag stuff
-
-#+begin_src emacs-lisp :lexical t
-(use-package drag-stuff
-  :delight
-  :defer t
-  :config
-  (drag-stuff-global-mode 1)
-  :bind* (
-          ("C-M-<down>" . drag-stuff-down)
-          ("C-M-<up>" . drag-stuff-up)  
-          )
-  )
-#+end_src
-
-*** dumb jump
-
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-package dumb-jump
-  :delight
-  :custom
-  (xref-show-definitions-function #'xref-show-definitions-completing-read)
-  :init (add-hook 'xref-backend-functions #'dumb-jump-xref-activate)
-  :config
-  (add-to-list 'dumb-jump-language-file-exts '(:language "python" :ext "org" :agtype "python" :rgtype "py"))
-  (defhydra dumb-jump-hydra (:color blue :columns 3)
-    "Dumb Jump"
-    ("j" dumb-jump-go "Jump")
-    ("o" dumb-jump-go-other-window "Other window")
-    ("e" dumb-jump-go-prefer-external "Go external")
-    ("x" dumb-jump-go-prefer-external-other-window "Go external other window")
-    ("i" dumb-jump-go-prompt "Prompt")
-    ("l" dumb-jump-quick-look "Quick look")
-    ("b" dumb-jump-back "Back"))
-  :bind ("H-h ." . dumb-jump-hydra/body)
-  )
-
-#+end_src
-
-*** embark
-#+begin_src emacs-lisp :lexical t
-(use-package embark
-  :ensure t
-  :defer t
-  :bind*
-  (("C-." . embark-act)         ;; pick some comfortable binding
-   ("C-;" . embark-dwim)        ;; good alternative: M-.
-   ("C-h B" . embark-bindings)  ;; alternative for `describe-bindings'
-   ) 
-
-  :init
-  ;; Optionally replace the key help with a completing-read interface
-  (setq prefix-help-command #'embark-prefix-help-command)
-
-  ;; Show the Embark target at point via Eldoc. You may adjust the
-  ;; Eldoc strategy, if you want to see the documentation from
-  ;; multiple providers. Beware that using this can be a little
-  ;; jarring since the message shown in the minibuffer can be more
-  ;; than one line, causing the modeline to move up and down:
-
-  ;; (add-hook 'eldoc-documentation-functions #'embark-eldoc-first-target)
-  ;; (setq eldoc-documentation-strategy #'eldoc-documentation-compose-eagerly)
-
-  :config
-
-  ;; Hide the mode line of the Embark live/completions buffers
-  (add-to-list 'display-buffer-alist
-               '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
-                 nil
-                 (window-parameters (mode-line-format . none)))))
-
-#+end_src
-
-*** flycheck
-#+begin_src emacs-lisp :lexical t
-
-(use-package flycheck
-  :defer t)  
-
-#+end_src
-
-*** google
-#+begin_src emacs-lisp :lexical t
-;; google-this
-(use-package google-this
-  :delight
-  :defer t
-  :config
-  (google-this-mode 1))  
-#+end_src
-
-*** highlight indend guides
-
-#+begin_src emacs-lisp :lexical t
-(use-package indent-bars
-
-  :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
-  :defer t
-  :hook ((prog-mode org-mode python-mode) . indent-bars-mode)
-  :config
-  (setq
-   indent-bars-prefer-character t
-   indent-bars-color '(highlight :face-bg t :blend 0.5)
-   ;;   indent-bars-pattern ". . . . . . . . ." ; play with the number of dots for your usual font size
-   indent-bars-width-frac 0.3
-   indent-bars-pad-frac 0.1
-   indent-bars-display-on-blank-lines t
-   indent-tabs-mode nil)
-
-  ;; (setq
-  ;;  indent-bars-color '(highlight :face-bg t :blend 0.1)
-  ;;  indent-bars-pattern ". . . . . . . . ."
-  ;;  indent-bars-width-frac 0.1
-  ;;  indent-bars-pad-frac 0.1
-  ;;  indent-bars-zigzag nil
-  ;;  indent-bars-color-by-depth '(:regexp "outline-\\([0-9]+\\)" :blend 1) ; blend=1: blend with BG only
-  ;;  indent-bars-highlight-current-depth '(:blend 1) ; pump up the BG blend on current
-  ;;  indent-bars-display-on-blank-lines t)
-
-  (setq indent-bars-treesit-support t)
-  (setq indent-bars-no-descend-string t)
-  (setq indent-bars-treesit-ignore-blank-lines-types '("module" "call"))
-  (setq indent-bars-treesit-wrap '((python
-                                    argument_list
-                                    attribute
-                                    assignment
-                                    identifier
-                                    parameters
-                                    list
-                                    list_comprehension
-                                    dictionary
-                                    dictionary_comprehension
-                                    parenthesized_expression
-                                    call
-                                    expression_statement
-                                    subscript)))
+  (setq recentf-auto-cleanup nil) ;; disable before we start recentf!
+  (setq recentf-max-menu-items 25)
+  (setq recentf-max-saved-items 25)
   
-  ) ; or whichever modes you prefer
-
-
-
-
-;; (use-package highlight-indent-guides
-;; :hook (prog-mode . highlight-indent-guides-mode)
-;;    :init
-;;  (setq highlight-indent-guides-method 'bitmap)
-;;      (setq highlight-indent-guides-responsive 'top)
-
-;;    )
-#+end_src
-
-*** HL todo
-
-#+begin_src emacs-lisp :lexical t
-(use-package hl-todo
-  :delight
-  :defer t
-  :hook (prog-mode text-mode)
+  :hook (emacs-startup . recentf-mode)
   :config
-  (setq hl-todo-keyword-faces
-        '(("TODO" . "#E078F5")
-          ("NOTE" . "#1EAFFF")
-          ("HACK" . "#FF5B24")
-          ("BUG"  . "#FF0000")
-          ))
-  (global-hl-todo-mode)
-  ;; :bind* (
-  ;;         ("H-t t" . hl-todo-insert)
-  ;;         ("H-t n" . hl-todo-next)
-  ;;         ("H-t p" . hl-todo-previous)
-  ;;         )
+  (savehist-mode 1)
+  (run-at-time nil (* 5 60) 'recentf-save-list)
+  (add-to-list 'recentf-exclude "\\.png$")
+  (add-to-list 'recentf-exclude "/var/folders")
+  ;; (recentf-cleanup)
+  ;; (setq recentf-auto-cleanup t)
+  ;; :defer t
   )
+#+END_SRC
 
-#+end_src
-*** hydra
-
-
+*** Project Management
 #+begin_src emacs-lisp :lexical t
-
-(use-package hydra
+(use-package project
   :defer t
-  :custom
-  (hydra-is-helpful t)
-  )
-
-(use-package pretty-hydra
-  :defer t)
-#+end_src
-
-*** Iscroll
-#+begin_src emacs-lisp :lexical t
-
-;; (use-package iscroll
-;;   :delight
-;;   :defer t
-;;   )
-
-#+end_src
-
-*** latex
-#+begin_src emacs-lisp :lexical t
-(use-package latex
-  :defer t
-  :delight
-  :ensure auctex
-  :mode
-  (("\\.tex$" . LaTeX-mode ))
-  :config
-  (setq TeX-auto-save t)
-  (setq TeX-view-program-selection '((output-pdf "PDF Tools"))
-        TeX-view-program-list '(("PDF Tools" TeX-pdf-tools-sync-view))
-        TeX-source-correlate-start-server t)
-  (add-hook 'TeX-after-compilation-finished-functions #'TeX-revert-document-buffer)
-)
-#+end_src
-*** magit
-
-#+begin_src emacs-lisp :lexical t
-
-(use-package magit
-  :delight
-  :defer t
-  :bind* ("C-x g" . magit-status)
-  :config 
-  (setq split-height-threshold nil)
-  (setq split-width-threshold 0)
-  (setq magit-completing-read-function 'consult-completing-read-dwim)
-  (setenv "GIT_ASKPASS" "git-gui--askpass")
-  ;; don't show the diff by default in the commit buffer. Use `C-c C-d' to display it
-  (setq magit-commit-show-diff nil)
-  ;; don't show git variables in magit branch
-  (setq magit-branch-direct-configure nil)
-  ;; don't automatically refresh the status buffer after running a git command
-  (setq magit-refresh-status-buffer nil)
   )
 #+end_src
 
-*** magit-todos
-
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-package magit-todos
-  :delight
-  :defer t
-  :after magit
-  :config
-  (magit-todos-mode 1)
-  )
-
-#+end_src
-
-*** marginalia
-#+begin_src emacs-lisp :lexical t :tangle yes
-;; Enable rich annotations using the Marginalia package
-(use-package marginalia
-  ;; Bind `marginalia-cycle' locally in the minibuffer.  To make the binding
-  ;; available in the *Completions* buffer, add it to the
-  ;; `completion-list-mode-map'.
-  :bind (:map minibuffer-local-map
-         ("M-A" . marginalia-cycle))
-  :defer t
-  ;; The :init section is always executed.
-  :init
-  ;; Marginalia must be activated in the :init section of use-package such that
-  ;; the mode gets enabled right away. Note that this forces loading the
-  ;; package.
-  (marginalia-mode)
-  ;; (setq marginalia-remote-file-regexps nil)
-  :after vertico
-  )
-
-(use-package nerd-icons-completion
-  :after marginalia
-  :config
-  (nerd-icons-completion-mode)
-  (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup))
-#+end_src
-
-*** markdown mode
+** Programming Languages
+*** Python
 #+begin_src emacs-lisp :lexical t
 
-(use-package markdown-mode
+(use-feature python
   :defer t
-  :custom-face
-  (markdown-header-delimiter-face ((t  :foreground "#616161" :height 0.9)))
-  (markdown-header-face-1 ((t  :height 1.4 :foreground "#A3BE8C" :weight extra-bold :inherit markdown-header-face)))
-  (markdown-header-face-2 ((t  :height 1.2 :foreground "#EBCB8B" :weight extra-bold :inherit markdown-header-face)))
-  (markdown-header-face-3 ((t  :height 1.15 :foreground "#D08770" :weight extra-bold :inherit markdown-header-face)))
-  (markdown-header-face-4 ((t  :height 1.1 :foreground "#BF616A" :weight bold :inherit markdown-header-face)))
-  (markdown-header-face-5 ((t  :height 1.05 :foreground "#b48ead" :weight bold :inherit markdown-header-face)))
-  (markdown-header-face-6 ((t  :height 1 :foreground "#5e81ac" :weight semi-bold :inherit markdown-header-face)))
-)
-
-#+end_src
-
-*** Multiple cursors
-#+begin_src emacs-lisp :lexical t
-(use-package multiple-cursors
-  :defer t
-  :bind* (         
-         ("H-<return> e" . mc/edit-lines)
-         ("H-<return> m" . mc/mark-more-like-this-extended)
-         ("H-<return> a" . mc/mark-all-like-this)
-         ("H-<return> n" . mc/insert-numbers)
-         ("H-<return> l" . mc/insert-letters)
-         :map mc/keymap
-         ("C-;" . mc-hide-unmatched-lines-mode)
-         )
-  ) 
-
-#+end_src
-
-*** mwim
-#+begin_src emacs-lisp :lexical t
-(use-package mwim
+  :mode ("\\.py\\'" . python-mode)
+  :interpreter ("python" . python-mode)
   :bind (
-         ;; My personal favorites
-         ("C-a" . mwim-beginning-of-code-or-line)
-         ("C-e" . mwim-end-of-code-or-line)
-         ))
+         :map python-mode-map
+         ("H-<left>" . python-indent-shift-left)
+         ("H-<right>" . python-indent-shift-right)
+         )
+  :config
+  
+  (setq python-indent-offset 4)
+  (setq python-indent-guess-indent-offset nil)
 
-#+end_src
-
-*** neotree
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-package neotree
-  :delight
-  :defer t
-  :custom-face
-  (neo-dir-link-face ((t (:foreground "#97c8f7" :extend t)))) 
-  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
-  :bind* ("C-x d" . neotree)
-  :custom
-  (neo-theme 'arrow)
-  )
-#+end_src 
+  (defun python-indent-dedent-line-backspace (arg)
    
-*** org
-**** org general
+    (interactive "*p")
+    (when (or
+           (and (use-region-p) (= arg 1))
+           (not (python-indent-dedent-line)))
+      (backward-delete-char-untabify arg)))
 
-#+begin_src emacs-lisp :lexical t
-(use-feature org
-  :defer t
-  :custom
-  (enable-local-variables t)
-  (org-display-remote-inline-images 'cache)
-  (org-startup-folded t)
-  (org-startup-indented t)
-  (org-log-done t)
-  (org-return-follows-link t)
-  (org-confirm-babel-evaluate nil)
-  :bind (
-         :map org-mode-map
-         ;;("C-M-<up>" . org-shiftmetaup)
-         ;;("C-M-<down>" . org-shiftmetadown)
-         ("s-C-l" . seth-org/clear-all-results)
-         ("C-M-<left>" . org-shiftmetaleft)
-         ("C-M-<right>" . org-shiftmetaright)
-         ("C-M-S-<left>" . org-shiftcontrolleft)
-         ("C-M-S-<right>" . org-shiftcontrolright)
-         ("s-p" . org-babel-previous-src-block)
-         ("s-n" . org-babel-next-src-block)
-         ("s-l" . org-babel-remove-result)
-         ("s-<tab>" . completion-at-point)
-         ("s-z" . org-babel-switch-to-session)
-         ) 
-  :init
-  ;; (defun seth-org/clear-all-results ()
-  ;;   "Clear all results in the buffer."
-  ;;   (interactive)
-  ;;   (save-excursion
-  ;;     (goto-char (point-min))
-  ;;     (while (org-babel-next-src-block)
-  ;;       (forward-line -1)
-  ;;       (beginning-of-line)
-  ;;       (when (looking-at "#\\+LASTRUN:")
-  ;;         (delete-region (pos-bol) (1- (pos-bol 2)))
-  ;;         (delete-line)
-  ;;         )
-  ;;       (forward-line 1)
-  ;;       (org-babel-remove-result))))
-
-  ;; (add-hook 'org-mode-hook (lambda ()
-  ;;                            (setq-local seth-jupyter-execution-count 1)))
-  ;; (setq seth-jupyter-execution-count 1)
-  
-  (setq org-src-fontify-natively t
-        org-src-window-setup 'current-window ;; edit in current window
-        org-src-strip-leading-and-trailing-blank-lines t
-        org-src-preserve-indentation t ;; do not put two spaces on the left
-        org-src-tab-acts-natively t)
-
-  
-  :config
-  ;; (org-babel-do-load-languages
-  ;;  'org-babel-load-languages
-  ;;  '((emacs-lisp . t)
-  ;;    (julia . t)
-  ;;    (python . t)
-  ;;    (sql . t)
-  ;;    ;; (sql-mode . t)
-  ;;    ;; (sql-session . t)
-  ;;    (jupyter . t)))
-  
-  ;; (defun do-org-confirm-babel-evaluations (lang body)
-  ;;   (not
-  ;;    (or
-  ;;     (string= lang "elisp")
-  ;;     (string= lang "sql")
-  ;;     (string= lang "sql-mode")
-  ;;     ;; (string= lang "sql-session")
-  ;;     )))
-  ;; (setq org-confirm-babel-evaluate 'do-org-confirm-babel-evaluations)
-  ;; ;; (require 'scimax-jupyter)
-  ;; ;; (defun seth-org-babel-add-time-stamp-after-execute-before-src-block ()
-  ;; ;;   ;; (sleep-for 2)    
-  ;; ;;   (end-of-line)
-  ;; ;;   (save-excursion
-  ;; ;;     (search-backward "#+BEGIN_SRC" 0 t)
-  ;; ;;     (forward-line -1)
-  ;; ;;     (beginning-of-line)
-
-  ;; ;;     (if (looking-at "#\\+LASTRUN:")
-  ;; ;;         (delete-region (pos-bol) (1- (pos-bol 2)))
-  ;; ;;       (open-line 1)
-  ;; ;;       (next-line 1)
-  ;; ;;       )
-  
-  ;; ;;     (insert (concat
-  ;; ;;              "#+LASTRUN: "
-  ;; ;;              (format-time-string "[%Y-%m-%d %a %H:%M:%S]" (current-time))
-  ;; ;;              " ["
-  ;; ;;              (int-to-string seth-jupyter-execution-count)
-  ;; ;;              "]"
-  ;; ;;              ))
-  ;; ;;     (setq-local seth-jupyter-execution-count (1+ seth-jupyter-execution-count))
-  ;; ;;     )
-  ;; ;;   )
-
-  ;; ;; (add-hook 'org-babel-after-execute-hook
-  ;; ;;           'seth-org-babel-add-time-stamp-after-execute-before-src-block)
+  (put 'python-indent-dedent-line-backspace 'delete-selection 'supersede)
 
   )
-
-;; Backend for HTML Table export
-
-;;(require 'ox-html)
-;;(defun ox-mrkup-filter-bold
-;;    (text back-end info)
-;;  "Markup TEXT as <bold>TEXT</bold>. Ignore BACK-END and INFO."
-;;  (format "<bold>%s</bold>" text))
-;;
-;;(org-export-define-derived-backend 'htmlTable 'html
-;;  :filters-alist
-;;  '((:filter-body . ox-mrkup-filter-body)
-;;    ))
-
-;; (use-package ob-sql-mode
-;;   :ensure t
-;;   ;; :hook (org-mode)
-;;   :config
-;;   (require 'ob-sql-mode)
-;; )
-
-;; (use-package ob-sql-session
-;;   :defer t
-;;   :hook (org-mode)
-;;   :ensure (:host github
-;;            :repo "flintforge/ob-sql-session"
-;;            )
-;;   )
-#+end_src
-
-**** org modern
-
-#+begin_src emacs-lisp :lexical t
-
-(use-package org-modern
-  :hook (org-mode)
-  :defer t
-  :custom-face
-  ;; (org-block   ((t (:background "gray10" :extend t))))
-  (org-block-begin-line   ((t (:inherit org-block :foreground "#876716" :extend t)))) ;; :background "#1b2419"
-  (org-block-end-line     ((t (:inherit org-block-begin-line :foreground "#876716" :extend t)))) ;; :background "#1b2419"
-  (org-drawer             ((t (:inherit shadow))))
-  (org-level-1            ((t (:weight bold :height 1.2 :overline nil :underline t :extend t)))) ;; Blue :foreground "#3375a8"
-  (org-level-2            ((t (:weight bold :height 1.2 :overline nil :extend t)))) ;; Aqua
-  (org-level-3            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Green
-  (org-level-4            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Yellow
-  (org-level-5            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Orange
-  (org-level-6            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Red
-  (org-level-7            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Blue
-  (org-level-8            ((t (:weight bold :height 1.1 :overline nil :extend t))))
-
-  :config
-  (setq-local line-spacing 0.1)
-  (font-lock-add-keywords
-   'org-mode
-   `(("^[ \t]*\\(?:[-+*]\\|[0-9]+[).]\\)[ \t]+\\(\\(?:\\[@\\(?:start:\\)?[0-9]+\\][ \t]*\\)?\\[\\(?:X\\|\\([0-9]+\\)/\\2\\)\\][^\n]*\n\\)" 1 'org-headline-done prepend))
-   'append)
-
-  (font-lock-add-keywords
-   'org-mode
-   `(("^[ \t]*\\(?:[-+*]\\|[0-9]+[).]\\)[ \t]+\\(\\(?:\\[@\\(?:start:\\)?[0-9]+\\][ \t]*\\)?\\[\\(?:-\\|\\([0-9]+\\)/\\2\\)\\][^\n]*\n\\)" 1 'org-headline-todo prepend))
-   'append)
-
-  (setq
-   ;; Edit settings
-   org-babel-min-lines-for-block-output 1
-   org-auto-align-tags nil
-   org-tags-column 0
-   org-catch-invisible-edits 'show-and-error
-   org-special-ctrl-a/e t
-   org-insert-heading-respect-content t
-
-   ;; Org styling, hide markup etc.
-   org-hide-emphasis-markers t
-   org-pretty-entities nil
-   org-modern-fold-stars '(("▶" . "▼") ("▷" . "▽") ("▶" . "▼") ("▹" . "▿") ("▸" . "▾"))
-   ;; Agenda styling
-   org-agenda-tags-column 0
-   org-agenda-block-separator ?─
-   org-agenda-time-grid
-   '((daily today require-timed)
-     (800 1000 1200 1400 1600 1800 2000)
-     " ┄┄┄┄┄ " "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄")
-   org-agenda-current-time-string
-   "⭠ now ─────────────────────────────────────────────────"
-
-   org-agenda-ndays 7
-   org-deadline-warning-days 10
-   org-agenda-show-all-dates t
-   org-agenda-start-on-weekday nil
-   org-reverse-note-order t
-   org-fast-tag-selection-single-key (quote expert)
-   org-log-into-drawer t
-   org-image-actual-width nil
-   org-export-with-drawers t
-   )
-  )
-#+end_src
-
-*** outline indent
-
-#+begin_src emacs-lisp :lexical t
-;; (use-package outline-indent
-;;   :ensure t
-;;   :delight
-;;   :custom
-;;   (outline-indent-ellipsis " ▼ ")
-;;   :config
-;;   (add-hook 'python-mode-hook #'outline-indent-minor-mode)
-;;   (add-hook 'python-ts-mode-hook #'outline-indent-minor-mode)
-;;   (setq outline-blank-line t)
-;;   :bind* (
-;;           ("H-c <tab>" . outline-cycle)
-;;           ("H-c c <tab>" . outline-cycle-buffer)
-;;           ("H-c c a" . outline-show-all)
-;;           )
-;;   )
-
-(use-package kirigami
-  :ensure (kirigami
-             :type git
-             :host github
-             :repo "jamescherti/kirigami.el")
-  :defer t
-  :bind* (
-          ("H-<tab> o" . kirigami-open-fold)     ; Open fold at point
-          ("H-<tab> c" . kirigami-close-fold)    ; Close fold at point
-          ("H-<tab> r" . kirigami-open-fold-rec) ; Open fold recursively
-          ("H-<tab> a" . kirigami-open-folds)    ; Open all folds
-          ("H-<tab> k" . kirigami-close-folds)   ; Close all folds
-          ("H-<tab> <tab>" . kirigami-toggle-fold) ; Toggle fold at point
-          )
-  )
-
-
-
-
-
-;; https://github.com/jamescherti/minimal-emacs.d?tab=readme-ov-file
-#+end_src
-
-*** page-break lines
-#+begin_src emacs-lisp :lexical t
-(use-package page-break-lines
-  :delight
-  :config
-  (global-page-break-lines-mode)
-  )
-
-#+end_src
-
-*** pdf-tools
-#+begin_src emacs-lisp :lexical t
-(use-package pdf-tools
-  :defer t
-  :delight
-  :mode
-  (("\\.pdf$" . pdf-view-mode))
-  :custom
-  pdf-annot-activate-created-annotations t 
-  pdf-view-resize-factor 1.1
-  :hook
-  ((pdf-view-mode) . (lambda () (cua-mode 0)))
- 
-  :config
-  (pdf-tools-install)
-  (pdf-loader-install)
-  (setq-default pdf-view-display-size 'fit-page)
-  (add-hook 'pdf-view-mode-hook
-            (lambda () (display-line-numbers-mode -1)))
-)
-
-#+end_src
-
-*** popper
-#+begin_src emacs-lisp :lexical t :tangle no
-
-(use-package popper
-  :init
-  ;; (setq popper-group-function 'nil) ; projectile projects #'popper-group-by-projectile
-  (setq popper-reference-buffers
-        '("\\*Messages\\*"
-          "Output\\*$"
-          "\\*Async Shell Command\\*"
-          help-mode
-          compilation-mode
-          image-mode
-          magit-status-mode
-          ))
-
-  ;; Match eshell, shell, term and/or vterm buffers
-  (setq popper-reference-buffers
-        (append popper-reference-buffers
-                '("^\\*eshell.*\\*$" eshell-mode ;eshell as a popup
-                  "^\\*shell.*\\*$"  shell-mode  ;shell as a popup
-                  "^\\*term.*\\*$"   term-mode   ;term as a popup
-                  "^\\*vterm.*\\*$"  vterm-mode  ;vterm as a popup
-                  "^\\*jupyter-repl*\\*$" jupyter-repl-mode
-                  ;; ("\\*jupyter-*\\*$" . hide)
-                  ;; (special-mode . hide)
-                  ;; (fundamental-mode . hide)
-                  ("\\*jupyter-display\\*" . hide)
-                  "\\*jupyter-traceback\\*"
-                  ("\\*jupyter-output\\*" . hide)
-                  "\\*jupyter-error\\*"                  
-                  )))
-  :custom
-  (popper-group-function #'popper-group-by-project)
-  (popper-display-control t)  ;This is the DEFAULT behavior
-  (popper-display-function #'display-buffer-reuse-window)
-
-  :bind (
-         ("s-;" . popper-toggle)
-         ("s-C-;" . popper-cycle)
-         ("s-C-:" . popper-cycle-backwards)
-         ("s-M-:" . popper-kill-latest-popup)
-         ("s-M-;" . popper-toggle-type)
-         )
-  :config
-  (popper-mode 1)
-  (popper-tab-line-mode 1)
-  )
-
-
-#+end_src
-
-*** posframe
-
-*** python
-
-***** how to open python [5/10]
-- [X] first need to start kernel (how to know which one to start)
-- [X] that same kernel needs to start eglot (must get sent to eglot in parallel)
-- [X] need to name that kernel the file name (so that kernels are unique)
-- [X] need to associate the kernel with the buffer using associate-buffer
-- [X] tabber moved to tab-line
-- [ ] work with tabs and their views and projects and buffer types
-- [ ] python fix with tabs now
-- [ ] poppler still finicky, need to fix it
-- [ ] capture output and organize somehow. Copy buffer to another?
-- [ ] maybe need to do a jupyter kernel server? That way I can work on comp. Issue is how to jupytext the files?
-  
-***** TODO [1/3]
-- [ ] how to handle errors i.e. stop running cells and show the correct linum of the whole doc not of the cell
-- [ ] need to go through all cells and clear all
-- [X] add in cells above, cells below
-  
-***** things I want to keep in mind
-I like this
-(setq jupyter-repl-echo-eval-p nil) is there a mini of this where just the output is sent to the repl cells?
-
-**** code-cells
-#+begin_src emacs-lisp :lexical t :tangle no
 
 (use-package code-cells
   :defer t
@@ -2600,11 +1646,8 @@ I like this
   )
 #+end_src
 
-**** eglot
+*** LSP & Linting
 #+begin_src emacs-lisp :lexical t
-
-
-
 (use-package flymake)
 (use-feature eglot 
   :defer t
@@ -2717,10 +1760,6 @@ I like this
   :config
   (eglot-booster-mode))
 
-(use-package jsonrpc
-  :defer t
-  )
-
 (use-package flycheck-eglot
   :ensure t
   :after (flycheck eglot)
@@ -2737,63 +1776,6 @@ I like this
   :bind (:map eglot-mode-map
               ("M-g s" . consult-eglot-symbols)))
 
-#+end_src
-
-**** Jupyter
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-package jupyter
-  :defer t
-  :custom
-  (jupyter-eval-use-overlays t)
-  :config
-  (defvaralias 'org-babel-jupyter-resource-directory 'jupyter-org-resource-directory)
-  (setq org-babel-jupyter-resource-directory "./plots/")
-  )
-
-(use-package zmq
-  :defer t)
-#+end_src
-
-**** python
-#+begin_src emacs-lisp :lexical t
-
-(use-feature python
-  :defer t
-  :mode ("\\.py\\'" . python-mode)
-  :interpreter ("python" . python-mode)
-  :bind (
-         :map python-mode-map
-         ("H-<left>" . python-indent-shift-left)
-         ("H-<right>" . python-indent-shift-right)
-         )
-  :config
-  
-  (setq python-indent-offset 4)
-  (setq python-indent-guess-indent-offset nil)
-
-  (defun python-indent-dedent-line-backspace (arg)
-   
-    (interactive "*p")
-    (when (or
-           (and (use-region-p) (= arg 1))
-           (not (python-indent-dedent-line)))
-      (backward-delete-char-untabify arg)))
-
-  (put 'python-indent-dedent-line-backspace 'delete-selection 'supersede)
-
-  )
-#+end_src
-
-**** yapify
-#+begin_src emacs-lisp :lexical t
-;; (use-package yapfify
-;;   :defer t
-;;   :hook (python-mode . yapf-mode))
-;; (add-hook 'python-mode-hook 'yapf-mode)
-#+end_src
-
-*** sideline mode
-#+begin_src emacs-lisp :lexical t
 (use-package sideline
   :delight
   :defer t
@@ -2819,43 +1801,74 @@ I like this
 (use-package sideline-flycheck
   :defer t
   :hook (flycheck-mode . sideline-flycheck-setup))
-
-
 #+end_src
 
-*** smart-mode-line
+*** Tree-sitter
 #+begin_src emacs-lisp :lexical t
 
-(use-package smart-mode-line
+(use-package tree-sitter
   :delight
-  :init
-  (setq sml/name-width 50
-        sml/mode-width 50)
-  (setq sml/theme 'respectful)
-  :config
-  (sml/setup)
+  :defer t
+  :hook (
+         (python-mode . tree-sitter-hl-mode)
+         (lisp-mode . tree-sitter-hl-mode)
+         (json-mode . tree-sitter-hl-mode)
+         (sql-mode . tree-sitter-hl-mode)
+         )  
   )
 
-;; (use-package doom-modeline
-;;   :ensure t
-;;   :init (doom-modeline-mode 1)
-;;   :custom
-;;   (doom-modeline-window-width-limit 50)
-;;   (doom-modeline-time-live-icon nil)
-;;   (doom-modeline-time-analogue-clock nil)
-;;   (doom-modeline-env-version nil)
-;;   (doom-modeline-time-icon nil)
 
-
-;;   :config
-;;   (display-time-mode)
-;;   (display-battery-mode)
-;;   )
-
+(use-package tree-sitter-langs
+  :defer t
+  :after tree-sitter
+  )
 #+end_src
 
-*** smartparens
+*** Latex
+#+begin_src emacs-lisp :lexical t
+(use-package latex
+  :defer t
+  :delight
+  :ensure auctex
+  :mode
+  (("\\.tex$" . LaTeX-mode ))
+  :config
+  (setq TeX-auto-save t)
+  (setq TeX-view-program-selection '((output-pdf "PDF Tools"))
+        TeX-view-program-list '(("PDF Tools" TeX-pdf-tools-sync-view))
+        TeX-source-correlate-start-server t)
+  (add-hook 'TeX-after-compilation-finished-functions #'TeX-revert-document-buffer)
+)
+#+end_src
 
+*** YAML
+#+begin_src emacs-lisp :lexical t
+  (use-package yaml-mode
+    :defer t
+    :config
+    (add-to-list 'auto-mode-alist '("\\.yml\\'" . yaml-mode))
+    (add-hook 'yaml-mode-hook
+      '(lambda ()
+        (define-key yaml-mode-map "\C-m" 'newline-and-indent)))
+    )
+#+end_src
+
+*** JSON
+#+begin_src emacs-lisp :lexical t
+  (use-package json-mode
+    :defer t
+    )
+#+end_src
+
+*** CSV
+#+begin_src emacs-lisp :lexical t 
+(use-package csv-mode
+  :mode "\\.csv\\'"
+  )
+#+end_src
+
+** Text & Editing
+*** Structural Editing
 #+begin_src emacs-lisp :lexical t
 
 (use-package smartparens
@@ -2882,266 +1895,86 @@ I like this
           )
   :demand t
   )
-
 #+end_src
 
-*** ssh-tunnels
+*** Multiple Cursors
 #+begin_src emacs-lisp :lexical t
-(use-package ssh-tunnels
+(use-package multiple-cursors
+  :defer t
+  :bind* (         
+         ("H-<return> e" . mc/edit-lines)
+         ("H-<return> m" . mc/mark-more-like-this-extended)
+         ("H-<return> a" . mc/mark-all-like-this)
+         ("H-<return> n" . mc/insert-numbers)
+         ("H-<return> l" . mc/insert-letters)
+         :map mc/keymap
+         ("C-;" . mc-hide-unmatched-lines-mode)
+         )
+  ) 
+
+(use-package ace-mc
+  :delight
+  :bind* ("H-;" . ace-mc-add-multiple-cursors)
+  :defer t
+  )
+#+end_src
+
+*** Visual Enhancements
+#+begin_src emacs-lisp :lexical t
+(use-package indent-bars
+
+  :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
+  :defer t
+  :hook ((prog-mode org-mode python-mode) . indent-bars-mode)
+  :config
+  (setq
+   indent-bars-prefer-character t
+   indent-bars-color '(highlight :face-bg t :blend 0.5)
+   ;;   indent-bars-pattern ". . . . . . . . ." ; play with the number of dots for your usual font size
+   indent-bars-width-frac 0.3
+   indent-bars-pad-frac 0.1
+   indent-bars-display-on-blank-lines t
+   indent-tabs-mode nil)
+
+  (setq indent-bars-treesit-support t)
+  (setq indent-bars-no-descend-string t)
+  (setq indent-bars-treesit-ignore-blank-lines-types '("module" "call"))
+  (setq indent-bars-treesit-wrap '((python
+                                    argument_list
+                                    attribute
+                                    assignment
+                                    identifier
+                                    parameters
+                                    list
+                                    list_comprehension
+                                    dictionary
+                                    dictionary_comprehension
+                                    parenthesized_expression
+                                    call
+                                    expression_statement
+                                    subscript)))
+  
+  )
+
+(use-package hl-todo
   :delight
   :defer t
-  :ensure (ssh-tunnels
-           :type git
-           :host github
-           :repo "death/ssh-tunnels"
-           :local-repo "ssh-tunnels"
-           )
-  :custom
-  (ssh-tunnels-configurations
-   '((:name "dev socket"
-            :local-port 12345
-            :remote-port 12345
-            :login "sfigueroa@dev.focusvq.com"
-            :type "-L")
-     ))
-
-  :bind (:map ssh-tunnels-mode-map
-              ("n" . seth-ssh-tunnel-add)
-              )
+  :hook (prog-mode text-mode)
   :config
-  (defun seth-ssh-tunnel-add (name port)
-    (interactive "sName: \nnPort: ")
-    (let ((conf `(:name ,name
-                        :local-port ,port
-                        :remote-port ,port
-                        :login "sfigueroa@dev.focusvq.com"
-                        :type "-L"
-                        )))
-      (add-to-list 'ssh-tunnels-configurations conf)
-      (ssh-tunnels-refresh)
-      )
-    )
-  )
-#+end_src 
-
-*** Swiper
-
-
-*** tab-line
-
-#+begin_src emacs-lisp :lexical t 
-
-  (use-package tab-config
-    :ensure (tab-config
-             :type git
-             :host github
-             :repo "whodatXLIV/tab-config"
-             :local-repo "tab-config"
-             :files (:defaults "tab-config.el" (:exclude "*init.el" "*.md" "*png" "custom.el"))
-             )
-    :defer t
-    :after (tab-line)
-    :bind* (
-            ("M-S-<up>" . seth-tab-config-tab2-select-filter-button)
-            ("M-S-<left>" . switch-highlighted-tab-or-buffer)
-            ("M-S-<right>" . seth-switch-highlighted-tab-or-buffer)
-            ("M-S-<down>" . tab-line-mode)
-            )
-       
-    :config
-    (setq tab2-line-tab-buffer-plist (list))
-
-    (defun seth-tab-config-tab2-select-filter-button ()
-      (interactive)
-      (tab2-select-filter-button t)
-      )
-    (defun seth-switch-highlighted-tab-or-buffer ()
-      (interactive)
-      (switch-highlighted-tab-or-buffer 1)
-      )
-    ;; remove a buffer from a view
-    (defun tab-remove-view ()
-      (interactive)
-      (let* (
-  	       (buffer (current-buffer)))
-        (if (tab2-buffer-in-multiple-viewsp buffer)
-  	      ;; The buffer is in other views so only:
-  	      ;; remove this buffer from the buffer list for this view and switch
-  	      (let* ((view (tab2-get-current-view))
-  	             (new-buffers (remove buffer (tab2-view-buffers view))))
-  	        (setf (tab2-view-buffers view) new-buffers)
-  	        (if new-buffers
-                  (switch-to-buffer (nth 0 new-buffers))
-  	          (switch-to-buffer "*scratch*"))
-              )
-          )))
-    
-    (defun tab-rotate-list-left (li)
-      (nconc (last li) (butlast li))      
-      )
-
-    (defun tab-rotate-list-right (li)
-      (append (cdr li) (list (car li)))      
-      )
-    (defun tab-current-index (current-name name-select)
-      (car (remq nil (seq-map-indexed (lambda (elt idx) (when (equal (car elt) current-name) idx)) name-select)))
-      )
-
-    (defun switch-highlighted-tab-or-buffer (&optional direction)
-      (interactive)
-      (let* ((tablist (tab2-get-tabs))
-             (isGroup (window-parameter nil 'tab-line-groups))
-             (name-select (when isGroup
-                            (mapcar (lambda (elt) (list (cdr (assq 'name elt)) (cdr (assq 'select elt)))) tablist)
-                            ))
-             (current-name (when isGroup
-                             (cdr (assq 'name (car (seq-filter (lambda (elt) (cdr (assq 'selected elt))) tablist))))
-                             ))
-             (current-index (when isGroup
-                              (tab-current-index current-name name-select)
-                              ))
-             )
-        (cond ((not isGroup)
-               (if direction
-                   (tab-line-switch-to-next-tab) ;; regular tab line switch for buffers
-                 (tab-line-switch-to-prev-tab)))
-              (isGroup
-               (if direction
-                   (setq rotated-list (tab-rotate-list-right name-select))
-                 (setq rotated-list (tab-rotate-list-left name-select)) 
-                 )
-               (funcall (cadr (nth current-index rotated-list)))
-               ;; change to selected tab (rotated)
-               ;; once the group tab is selected then need to go to the current buffer in that tab
-               ;; or if no current buffer in tab2-line-tab-buffer-plist then go to first buffer
-               ;; if a buffer no longer exists then remove that buffer from plist
-               (let* (
-                      (buflist (tab2-get-tabs)) ;; the buffers I can go to
-                      (buffer-select (mapcar (lambda (elt) (list (cdr (assq 'buffer elt)))) buflist)) ;; the buffer names I can select
-                      (tab-name (car (nth current-index rotated-list))) ;; the tab I want to see if in plist
-                      (last-buffer (plist-get tab2-line-tab-buffer-plist tab-name #'equal)) ;; the last buffer if in plist
-                      (buffer-current-name (when (member (list last-buffer) buffer-select) last-buffer)) ;; if the last buffer still exists
-                      (buffer-current-index (if buffer-current-name
-                                                (tab-current-index buffer-current-name buffer-select)
-                                              0))
-                      ;;if above is nil then go to 0th tab
-                      )
-                 (force-mode-line-update) ;; update to get new tab settings
-                 (tab-line-select-tab-buffer (car (nth buffer-current-index buffer-select)) (selected-window)) ;; go to buffer
-                 )
-               (when (not (window-parameter nil 'tab-line-views)) ;; don't go up level if in views
-                 (tab2-select-filter-button nil) ;; go up level
-                 (tab2-get-tabs) ;; update to get new tab settings
-                 (force-mode-line-update) ;; update to get new tab settings
-                 )
-               )
-              )
-        )
-      )
-    (defun seth-add-to-tab-line-tab-buffer-plist (arg)
-      ;; update plist
-      (when arg
-        (let* ((tablist (tab2-get-tabs))
-               (isGroup (window-parameter nil 'tab-line-groups))
-               (name-select (when isGroup
-                              (mapcar (lambda (elt) (list (cdr (assq 'name elt)) (cdr (assq 'select elt)))) tablist)
-                              ))
-               (current-name (when isGroup
-                               (cdr (assq 'name (car (seq-filter (lambda (elt) (cdr (assq 'selected elt))) tablist))))
-                               ))
-               )
-          (when isGroup
-            (setq tab2-line-tab-buffer-plist (plist-put tab2-line-tab-buffer-plist current-name (current-buffer) #'equal))
-            )
+  (setq hl-todo-keyword-faces
+        '(("TODO" . "#E078F5")
+          ("NOTE" . "#1EAFFF")
+          ("HACK" . "#FF5B24")
+          ("BUG"  . "#FF0000")
           ))
-      )
-
-    (advice-add 'tab2-select-filter-button :after #'seth-add-to-tab-line-tab-buffer-plist)
-    ;; (advice-remove 'tab2-select-filter-button #'seth-add-to-tab-line-tab-buffer-plist)
-
-    (defvar tab2-white-list-modes
-      '(text-mode lisp-interaction-mode vterm-mode fundamental-mode magit-status-mode) ;; special-mode jupyter-repl-mode
-      "List of modes that will be tracked even if the buffer is not a file")
-
-    (defvar tab2-white-list-buffer-names
-      '()
-      "List of buffer names that will be tracked even if the buffer is not a file")
-    
-    )
-
-  (use-feature tab-line
-    :defer t
-    :hook (after-init)
-    :custom-face
-    (tab-line ((t (:height 150))))
-    (tab-line-highlight ((t (:background "white"))))
-    (tab-line-tab ((t (:foreground "#c397d8"))))
-    (tab-line-tab-current ((t (:weight bold :box (:line-width -2 :color "#c397d8") :background "#414141" :foreground "#c397d8" :inverse-video nil))))
-    (tab-line-tab-inactive ((t (:background "#c397d8" :inverse-video t))))
-    (tab-line-tab-modified ((t (:background "#c397d8" :box (:line-width -2 :color "gray1") :foreground "gray1" :inverse-video nil))))
-    :config
-    (global-tab-line-mode t)
-    (setq tab-line-exclude-modes '(vterm-mode))
-    )
-
-#+end_src
-
-*** transpose-frame
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-package transpose-frame
-  :delight
-  :defer t
-  :bind* (
-          ("H-f t" . transpose-frame)
-          ("H-f h" . flip-frame)
-          ("H-f v" . flop-frame)
-          ("H-f r" . rotate-frame)
-          ("H-f c" . rotate-frame-clockwise)
-          ("H-f a" . rotate-frame-anti-clockwise)
-          )
+  (global-hl-todo-mode)
   )
-#+end_src 
 
-*** tramp-hlo
-#+begin_src emacs-lisp :lexical t :tangle no
-(use-package tramp-hlo
-  :ensure (tramp-hlo
-           :type git
-           :host github
-           :repo "jsadusk/tramp-hlo"
-           )
+(use-package page-break-lines
+  :delight
   :config
-  (tramp-hlo-setup)
+  (global-page-break-lines-mode)
   )
-#+end_src
-
-*** tree-sitter
-#+begin_src emacs-lisp :lexical t
-
-(use-package tree-sitter
-  :delight
-  :defer t
-  :hook (
-         (python-mode . tree-sitter-hl-mode)
-         (lisp-mode . tree-sitter-hl-mode)
-         (json-mode . tree-sitter-hl-mode)
-         (sql-mode . tree-sitter-hl-mode)
-         )  
-  )
-
-
-(use-package tree-sitter-langs
-  :defer t
-  :after tree-sitter
-  )
-
-;; Not liking the bottom ones highlights. Instead use above, install languages and use the tree-sitter-hl-mode with the x-mode
-;; do not use the x-ts-mode
-
-#+end_src
-
-*** ultra scroll
-#+begin_src emacs-lisp :lexical t
 
 (use-package ultra-scroll
   :ensure (ultra-scroll :host github :repo "jdtsmith/ultra-scroll")
@@ -3151,17 +1984,19 @@ I like this
   :config
   (ultra-scroll-mode 1))
 
+(use-package zoom
+  :delight
+  :custom
+  (zoom-size '(0.618 . 0.618))
+  :defer t
+  )
 #+end_src
 
-*** undo
+*** Undo/Redo
 #+begin_src emacs-lisp :lexical t
 
 (use-package undo-tree
   :delight
-  ;; :init
-  ;; (defadvice undo-tree-make-history-save-file-name
-  ;;     (after undo-tree activate)
-  ;;   (setq ad-return-value (concat ad-return-value ".gz")))
   :custom
   (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
   (backup-directory-alist `(("." . "~/.emacs.d/.saves")))
@@ -3171,31 +2006,332 @@ I like this
   (kept-old-versions 60)
   (version-control t)       ; use versioned backups 
   (undo-tree-enable-undo-in-region t)
-  ;; (undo-strong-limit (* 1024 1024 1024)) 
-  ;; (amalgamating-undo-limit 10)
-  ;; (undo-limit         (* 1024 1024 1024))
-  ;; (gnus-undo-limit 2000)
-  ;; (undo-outer-limit (* 1024 1024 1024))
   
   :config
   (global-undo-tree-mode)
   )
 #+end_src
 
-*** vterm
+*** Mode Line
+#+begin_src emacs-lisp :lexical t
+
+(use-package smart-mode-line
+  :delight
+  :init
+  (setq sml/name-width 50
+        sml/mode-width 50)
+  (setq sml/theme 'respectful)
+  :config
+  (sml/setup)
+  )
+#+end_src
+
+*** General Utilities
+#+begin_src emacs-lisp :lexical t
+(use-package mwim
+  :bind (
+         ;; My personal favorites
+         ("C-a" . mwim-beginning-of-code-or-line)
+         ("C-e" . mwim-end-of-code-or-line)
+         ))
+
+(use-package drag-stuff
+  :delight
+  :defer t
+  :config
+  (drag-stuff-global-mode 1)
+  :bind* (
+          ("C-M-<down>" . drag-stuff-down)
+          ("C-M-<up>" . drag-stuff-up)  
+          )
+  )
+
+(use-package embark
+  :ensure t
+  :defer t
+  :bind*
+  (("C-." . embark-act)         ;; pick some comfortable binding
+   ("C-;" . embark-dwim)        ;; good alternative: M-.
+   ("C-h B" . embark-bindings)  ;; alternative for `describe-bindings'
+   ) 
+
+  :init
+  ;; Optionally replace the key help with a completing-read interface
+  (setq prefix-help-command #'embark-prefix-help-command)
+
+  :config
+
+  ;; Hide the mode line of the Embark live/completions buffers
+  (add-to-list 'display-buffer-alist
+               '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+                 nil
+                 (window-parameters (mode-line-format . none)))))
+#+end_src
+
+*** Snippets
+#+begin_src emacs-lisp :lexical t :tangle yes
+
+(use-package yasnippet
+  :delight yas-minor-mode
+  :defer t
+  :hook ((prog-mode . yas-minor-mode)
+         (text-mode . yas-minor-mode))
+  :config
+  )
+
+(use-package yasnippet-snippets
+  :ensure t
+  :after yasnippet
+  :defer t
+  )
+
+(use-package py-snippets
+  :ensure t
+  :after yasnippet
+  :defer t
+  :config
+  (py-snippets-initialize))
+#+end_src
+
+** Navigation & Movement
+*** Ace Family
+#+begin_src emacs-lisp :lexical t
+(use-package ace-jump-mode
+  :delight
+  :bind* ("H-j" . ace-jump-mode)
+  :defer t
+  )
+
+(use-package ace-window
+  :delight
+  :bind* (
+          ("H-SPC" . ace-window)
+          ("H-M-<left>" . shrink-window-horizontally)
+          ("H-M-<right>" . enlarge-window-horizontally)
+          ("H-M-<up>" . enlarge-window)
+          ("H-M-<down>" . shrink-window)
+          ("H-z" . seth-toggle-zoom-balance)
+          )
+  :defer t
+  :custom
+  (aw-dispatch-always t)
+  :init
+  (require 'zoom)
+  (setq seth-is-zoom 1)
+  (defun seth-toggle-zoom-balance ()
+    (interactive)
+    (setq seth-is-zoom (* -1 seth-is-zoom))
+    (zoom-mode seth-is-zoom)
+    )
+  (zoom-mode seth-is-zoom)
+  (defvar aw-dispatch-alist
+    '((?d aw-delete-window "Delete Window")
+      (?s aw-swap-window "Swap Windows")
+      (?m aw-move-window "Move Window")
+      (?b aw-switch-buffer-in-window "Select Buffer")
+      (?n aw-flip-window)
+      (?B aw-switch-buffer-other-window "Switch Buffer Other Window")
+      (?c aw-split-window-fair "Split Fair Window")
+      (?h aw-split-window-vert "Split Vert Window")
+      (?v aw-split-window-horz "Split Horz Window")
+      (?o delete-other-windows "Delete Other Windows")
+      (?? aw-show-dispatch-help))
+    "List of actions for `aw-dispatch-default'.")
+  )
+#+end_src
+
+** Tools
+*** Magit
+#+begin_src emacs-lisp :lexical t
+
+(use-package magit
+  :delight
+  :defer t
+  :bind* ("C-x g" . magit-status)
+  :config 
+  (setq split-height-threshold nil)
+  (setq split-width-threshold 0)
+  (setq magit-completing-read-function 'consult-completing-read-dwim)
+  (setenv "GIT_ASKPASS" "git-gui--askpass")
+  ;; don't show the diff by default in the commit buffer. Use `C-c C-d' to display it
+  (setq magit-commit-show-diff nil)
+  ;; don't show git variables in magit branch
+  (setq magit-branch-direct-configure nil)
+  ;; don't automatically refresh the status buffer after running a git command
+  (setq magit-refresh-status-buffer nil)
+  )
+
+(use-package magit-todos
+  :delight
+  :defer t
+  :after magit
+  :config
+  (magit-todos-mode 1)
+  )
+#+end_src
+
+*** Google
+#+begin_src emacs-lisp :lexical t
+;; google-this
+(use-package google-this
+  :delight
+  :defer t
+  :config
+  (google-this-mode 1))  
+#+end_src
+
+*** Org-mode
+#+begin_src emacs-lisp :lexical t
+(use-feature org
+  :defer t
+  :custom
+  (enable-local-variables t)
+  (org-display-remote-inline-images 'cache)
+  (org-startup-folded t)
+  (org-startup-indented t)
+  (org-log-done t)
+  (org-return-follows-link t)
+  (org-confirm-babel-evaluate nil)
+  :bind (
+         :map org-mode-map
+         ("s-C-l" . seth-org/clear-all-results)
+         ("C-M-<left>" . org-shiftmetaleft)
+         ("C-M-<right>" . org-shiftmetaright)
+         ("C-M-S-<left>" . org-shiftcontrolleft)
+         ("C-M-S-<right>" . org-shiftcontrolright)
+         ("s-p" . org-babel-previous-src-block)
+         ("s-n" . org-babel-next-src-block)
+         ("s-l" . org-babel-remove-result)
+         ("s-<tab>" . completion-at-point)
+         ("s-z" . org-babel-switch-to-session)
+         ) 
+  :init
+  (setq org-src-fontify-natively t
+        org-src-window-setup 'current-window ;; edit in current window
+        org-src-strip-leading-and-trailing-blank-lines t
+        org-src-preserve-indentation t ;; do not put two spaces on the left
+        org-src-tab-acts-natively t)
+
+  
+  :config
+  )
+
+(use-package org-modern
+  :hook (org-mode)
+  :defer t
+  :custom-face
+  (org-block-begin-line   ((t (:inherit org-block :foreground "#876716" :extend t)))) ;; :background "#1b2419"
+  (org-block-end-line     ((t (:inherit org-block-begin-line :foreground "#876716" :extend t)))) ;; :background "#1b2419"
+  (org-drawer             ((t (:inherit shadow))))
+  (org-level-1            ((t (:weight bold :height 1.2 :overline nil :underline t :extend t)))) ;; Blue :foreground "#3375a8"
+  (org-level-2            ((t (:weight bold :height 1.2 :overline nil :extend t)))) ;; Aqua
+  (org-level-3            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Green
+  (org-level-4            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Yellow
+  (org-level-5            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Orange
+  (org-level-6            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Red
+  (org-level-7            ((t (:weight bold :height 1.1 :overline nil :extend t)))) ;; Blue
+  (org-level-8            ((t (:weight bold :height 1.1 :overline nil :extend t))))
+
+  :config
+  (setq-local line-spacing 0.1)
+  (font-lock-add-keywords
+   'org-mode
+   `(("^[ \t]*\\(?:[-+*]\\|[0-9]+[).]\\)[ \t]+\\(\\(?:\\[@\\(?:start:\\)?[0-9]+\\][ \t]*\\)?\\[\\(?:X\\|\\([0-9]+\\)/\\2\\)\\][^\n]*\n\\)" 1 'org-headline-done prepend))
+   'append)
+
+  (font-lock-add-keywords
+   'org-mode
+   `(("^[ \t]*\\(?:[-+*]\\|[0-9]+[).]\\)[ \t]+\\(\\(?:\\[@\\(?:start:\\)?[0-9]+\\][ \t]*\\)?\\[\\(?:-\\|\\([0-9]+\\)/\\2\\)\\][^\n]*\n\\)" 1 'org-headline-todo prepend))
+   'append)
+
+  (setq
+   ;; Edit settings
+   org-babel-min-lines-for-block-output 1
+   org-auto-align-tags nil
+   org-tags-column 0
+   org-catch-invisible-edits 'show-and-error
+   org-special-ctrl-a/e t
+   org-insert-heading-respect-content t
+
+   ;; Org styling, hide markup etc.
+   org-hide-emphasis-markers t
+   org-pretty-entities nil
+   org-modern-fold-stars '(("▶" . "▼") ("▷" . "▽") ("▶" . "▼") ("▹" . "▿") ("▸" . "▾"))
+   ;; Agenda styling
+   org-agenda-tags-column 0
+   org-agenda-block-separator ?─
+   org-agenda-time-grid
+   '((daily today require-timed)
+     (800 1000 1200 1400 1600 1800 2000)
+     " ┄┄┄┄┄ " "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄")
+   org-agenda-current-time-string
+   "⭠ now ─────────────────────────────────────────────────"
+
+   org-agenda-ndays 7
+   org-deadline-warning-days 10
+   org-agenda-show-all-dates t
+   org-agenda-start-on-weekday nil
+   org-reverse-note-order t
+   org-fast-tag-selection-single-key (quote expert)
+   org-log-into-drawer t
+   org-image-actual-width nil
+   org-export-with-drawers t
+   )
+  )
+
+(use-package org-d20
+  :delight
+  :defer t
+  :config
+  (require 's)
+  (require 'seq)
+  (require 'dash)
+  (require 'cl-lib)
+  (require 'org-table)
+  
+  (pretty-hydra-define d20-hydra (:color blue :hint nil)
+    (
+     "Initiative"
+     (
+      ("i" org-d20-initiative-add "add initiative" :exit nil)
+      ("n" org-d20-initiative-dwim "next initiative" :exit nil)
+      ("p" org-d20-initiative-back "prev initiative" :exit nil)
+      )
+     
+     "Roll"
+     (
+      ("r" org-d20-roll "roll" :exit nil)
+      ("P" org-d20-roll-at-point "roll at point" :exit nil)
+      ("a" org-d20-d20 "Advantage/Disadvatage" :exit nil)
+      )
+     
+     "Edit"
+     (
+      ("d" org-d20-damage "damage" :exit nil)
+      ("t" org-table-align "align" :exit nil)
+      ("q" nil "quit")
+      )
+     )
+    )
+
+  :bind (
+         :map org-d20-mode-map
+         ("H-h d" . 'd20-hydra/body)
+         ("H-d i". 'org-d20-initiative-add)
+         ("H-d n". 'org-d20-initiative-dwim)
+         ("H-d p". 'org-d20-initiative-back)
+         ("H-d d". 'org-d20-damage)
+         ("H-d r". 'org-d20-roll)
+         ("H-d e". 'org-d20-roll-at-point)
+         ("H-d a". 'org-d20-d20)
+         )
+  )
+#+end_src
+
+*** Vterm
 #+begin_src emacs-lisp :lexical t
 (use-package vterm
   :defer t
-  ;;; instructions to build vterm
-  ;; cd /Users/sethfigueroa/.emacs.d/elpaca/builds/vterm/
-  ;; mkdir -p build
-  ;; cd build
-  ;; cmake ..
-  ;; make
-  ;; :init
-  ;; (setq vterm-tramp-shells '(("rpc" "tmux new-session -A -s main")))
-  ;; (setq vterm-shell "tmux new-session -A -s main")
-  
   :config
   (setq vterm-timer-delay 0.01)
   (add-hook 'vterm-mode-hook (lambda () 
@@ -3277,95 +2413,148 @@ I like this
   ;; Toggle hl-line based on whether copy-mode is active
   (add-hook 'vterm-copy-mode-hook #'my-vterm-hl-line-handler)
   )
-
-(use-package vterm-anti-flicker-filter
-  :ensure (vterm-anti-flicker-filter
-           :type git
-           :host github
-           :repo "martinbaillie/vterm-anti-flicker-filter"
-           )
-  :defer t
-  :after vterm
-  :config
-  (vterm-anti-flicker-filter-enable)
-  )
-
-
 #+end_src
 
-*** yas
-#+begin_src emacs-lisp :lexical t :tangle yes
-
-(use-package yasnippet
-  :delight yas-minor-mode
-  :defer t
-  :hook ((prog-mode . yas-minor-mode)
-         (text-mode . yas-minor-mode))
-  :config
-  ;; (yas-global-mode)
-  ;; (yas-reload-all)
-  ;; (add-hook 'prog-mode-hook #'yas-minor-mode)
-  )
-
-(use-package yasnippet-snippets
-  :ensure t
-  :after yasnippet
-  :defer t
-  )
-
-(use-package yasnippet-capf
-  :ensure t
-  :after (yasnippet cape)
-  :config
-  (add-to-list 'completion-at-point-functions #'yasnippet-capf))
-
-(use-package jinx
-  :ensure t
-  :delight 
-  ;; :hook (emacs-startup . global-jinx-mode)
-  ;; :bind (("M-$" . jinx-correct)
-  ;;        ("C-M-$" . jinx-languages))
-  )
-
-(use-package py-snippets
-  :ensure t
-  :after yasnippet
-  :defer t
-  :config
-  (py-snippets-initialize))
-
-
-#+end_src
-
-*** YAML
+*** Hydra
 #+begin_src emacs-lisp :lexical t
-  (use-package yaml-mode
-    :defer t
-    :config
-    (add-to-list 'auto-mode-alist '("\\.yml\\'" . yaml-mode))
-    (add-hook 'yaml-mode-hook
-      '(lambda ()
-        (define-key yaml-mode-map "\C-m" 'newline-and-indent)))
-    )
-#+end_src
 
-*** zoom
-#+begin_src emacs-lisp :lexical t
-(use-package zoom
-  :delight
+(use-package hydra
+  :defer t
   :custom
-  (zoom-size '(0.618 . 0.618))
-  :defer t
+  (hydra-is-helpful t)
+  )
+
+(use-package pretty-hydra
+  :defer t)
+#+end_src
+
+*** Popper
+#+begin_src emacs-lisp :lexical t :tangle no
+
+(use-package popper
+  :init
+  (setq popper-reference-buffers
+        '("\\*Messages\\*"
+          "Output\\*$"
+          "\\*Async Shell Command\\*"
+          help-mode
+          compilation-mode
+          image-mode
+          magit-status-mode
+          ))
+
+  ;; Match eshell, shell, term and/or vterm buffers
+  (setq popper-reference-buffers
+        (append popper-reference-buffers
+                '("^\\*eshell.*\\*$" eshell-mode ;eshell as a popup
+                  "^\\*shell.*\\*$"  shell-mode  ;shell as a popup
+                  "^\\*term.*\\*$"   term-mode   ;term as a popup
+                  "^\\*vterm.*\\*$"  vterm-mode  ;vterm as a popup
+                  "^\\*jupyter-repl*\\*$" jupyter-repl-mode
+                  ("\\*jupyter-display\\*" . hide)
+                  "\\*jupyter-traceback\\*"
+                  ("\\*jupyter-output\\*" . hide)
+                  "\\*jupyter-error\\*"                  
+                  )))
+  :custom
+  (popper-group-function #'popper-group-by-project)
+  (popper-display-control t)  ;This is the DEFAULT behavior
+  (popper-display-function #'display-buffer-reuse-window)
+
+  :bind (
+         ("s-;" . popper-toggle)
+         ("s-C-;" . popper-cycle)
+         ("s-C-:" . popper-cycle-backwards)
+         ("s-M-:" . popper-kill-latest-popup)
+         ("s-M-;" . popper-toggle-type)
+         )
+  :config
+  (popper-mode 1)
+  (popper-tab-line-mode 1)
   )
 #+end_src
 
-*** project
+*** SpeedRect
 #+begin_src emacs-lisp :lexical t
-(use-package project
+(use-package speedrect
   :defer t
+  :config
+  (speedrect-mode)
   )
 #+end_src
-*** Agent-Shell
+
+*** Nerd Icons
+#+begin_src emacs-lisp :lexical t
+(use-package nerd-icons)
+#+end_src
+
+*** tab-line
+#+begin_src emacs-lisp :lexical t 
+
+  (use-package tab-config
+    :ensure (tab-config
+             :type git
+             :host github
+             :repo "whodatXLIV/tab-config"
+             :local-repo "tab-config"
+             :files (:defaults "tab-config.el" (:exclude "*init.el" "*.md" "*png" "custom.el"))
+             )
+    :defer t
+    :after (tab-line)
+    :bind* (
+            ("M-S-<up>" . seth-tab-config-tab2-select-filter-button)
+            ("M-S-<left>" . switch-highlighted-tab-or-buffer)
+            ("M-S-<right>" . seth-switch-highlighted-tab-or-buffer)
+            ("M-S-<down>" . tab-line-mode)
+            )
+       
+    :config
+    (setq tab2-line-tab-buffer-plist (list))
+
+    (defun seth-tab-config-tab2-select-filter-button ()
+      (interactive)
+      (tab2-select-filter-button t)
+      )
+    (defun seth-switch-highlighted-tab-or-buffer ()
+      (interactive)
+      (switch-highlighted-tab-or-buffer 1)
+      )
+    )
+
+  (use-feature tab-line
+    :defer t
+    :hook (after-init)
+    :custom-face
+    (tab-line ((t (:height 150))))
+    (tab-line-highlight ((t (:background "white"))))
+    (tab-line-tab ((t (:foreground "#c397d8"))))
+    (tab-line-tab-current ((t (:weight bold :box (:line-width -2 :color "#c397d8") :background "#414141" :foreground "#c397d8" :inverse-video nil))))
+    (tab-line-tab-inactive ((t (:background "#c397d8" :inverse-video t))))
+    (tab-line-tab-modified ((t (:background "#c397d8" :box (:line-width -2 :color "gray1") :foreground "gray1" :inverse-video nil))))
+    :config
+    (global-tab-line-mode t)
+    (setq tab-line-exclude-modes '(vterm-mode))
+    )
+
+#+end_src
+
+*** transpose-frame
+#+begin_src emacs-lisp :lexical t :tangle no
+(use-package transpose-frame
+  :delight
+  :defer t
+  :bind* (
+          ("H-f t" . transpose-frame)
+          ("H-f h" . flip-frame)
+          ("H-f v" . flop-frame)
+          ("H-f r" . rotate-frame)
+          ("H-f c" . rotate-frame-clockwise)
+          ("H-f a" . rotate-frame-anti-clockwise)
+          )
+  )
+#+end_src 
+
+** Agent Shell
 #+begin_src emacs-lisp :lexical t
 (use-package agent-shell
   :config
@@ -3396,66 +2585,14 @@ I like this
   (setq agent-shell-sidebar-minimum-width "5%")
   (setq agent-shell-sidebar-maximum-width "100%")
 
-  (defun agent-shell-prompt-compose-toggle ()
-    "Toggle the agent shell compose buffer visibility."
-    (interactive)
-    (let* ((shell-buffer (or (agent-shell--current-shell)
-                             (seq-first (agent-shell-project-buffers))
-                             (agent-shell--shell-buffer)))
-           (viewport-buffer (when shell-buffer
-                              (agent-shell-viewport--buffer :shell-buffer shell-buffer :existing-only t)))
-           (window (and viewport-buffer (get-buffer-window viewport-buffer t))))
-      (cond
-       ((and window (eq (selected-window) window))
-        (quit-window nil window))
-       (window
-        (select-frame-set-input-focus (window-frame window))
-        (select-window window))
-       (t
-        (let ((agent-shell-display-action
-               `(display-buffer-in-direction
-                 . ((direction . ,agent-shell-sidebar-position)
-                    (window-width . ,(agent-shell-sidebar--calculate-width))
-                    (dedicated . t)))))
-          (agent-shell-prompt-compose))))))
-
-  (cl-defun agent-shell-sidebar--display-buffer (&key buffer project-root)
-    "Display BUFFER as a normal window for PROJECT-ROOT."
-    (let ((window (display-buffer
-                   buffer
-                   `(display-buffer-in-direction
-                     . ((direction . ,agent-shell-sidebar-position)
-                        (window-width . ,(agent-shell-sidebar--calculate-width))
-                        (dedicated . t))))))
-      (agent-shell-sidebar--setup-window :buffer buffer :project-root project-root)
-      window))
-
   :bind* (
           ("H-a t" . agent-shell-sidebar-toggle)
           ("H-a c" . agent-shell-prompt-compose-toggle)
           )
   )
-
-
 #+end_src
 
-*** json
-#+begin_src emacs-lisp :lexical t
-  (use-package json-mode
-    :defer t
-    )
-#+end_src
-
-*** SpeedRect
-#+begin_src emacs-lisp :lexical t
-(use-package speedrect
-  :defer t
-  :config
-  (speedrect-mode)
-  )
-#+end_src
-
-** Ending
+* Ending
 #+begin_src emacs-lisp :lexical t
 ;;; Load post-init.el
 (minimal-emacs-load-user-init "post-init.el")
