@@ -806,7 +806,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq tramp-copy-size-limit (* 1024 1024))
   (setq tramp-verbose 1) ; Reduce logging overhead significantly
   (setq tramp-chunksize 2000)
-  (setq tramp-use-ssh-controlmaster-options t) ; Use ssh multiplexing
+  (setq tramp-use-ssh-controlmaster-options nil) ; Use ssh multiplexing
 
 
   ;; ;; this is where things break for eglot
@@ -864,13 +864,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;;     value))
   ;; (advice-add 'vc-git-root :around #'memoize-vc-git-root)
 
-  ;; ;; memoize all git candidates in the current project
-  ;; (defvar $counsel-git-cands-cache nil)
-  ;; (defun $memoize-counsel-git-cands (orig dir)
-  ;;   ($memoize-remote (magit-toplevel dir) '$counsel-git-cands-cache orig dir))
-  ;; (advice-add 'counsel-git-cands :around #'$memoize-counsel-git-cands)
-
-  
   :defer t
   )
 
@@ -1191,10 +1184,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;;                     (((class color) (background light)) (:background "#f0f0f0" :foreground "#005f5f" :extend t))
   ;;                     (((class color) (background dark))  (:background "gray10" :foreground "#70c0b1" :extend t))
   ;;                     ))
-
-
-
-
 
   :init
   (global-corfu-mode)
@@ -1974,8 +1963,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :custom
   (hydra-is-helpful t)
   )
-(use-package ivy-hydra
-  :defer t)
 
 (use-package pretty-hydra
   :defer t)
@@ -1988,53 +1975,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 ;;   :delight
 ;;   :defer t
 ;;   )
-
-#+end_src
-
-*** Ivy
-#+begin_src emacs-lisp :lexical t :tangle yes
-
-(use-package ivy
-  :config
-  (setq ivy-use-virtual-buffers t)
-  (setq ivy-virtual-abbreviate 'full)
-  (setq ivy-re-builders-alist '(
-                                (t . ivy--regex-ignore-order)
-                                (t . ivy--regex-plus)
-                                (t . ivy--regex-fuzzy)
-                                (t . ivy--regex)
-                                (t . regexp-quote)
-                                ))
-  (setq ivy-height 12)
-  (setq ivy-display-style 'fancy)
-  (setq ivy-count-format "[%d/%d] ")
-  (setq ivy-initial-inputs-alist nil)
-  (setq ivy-use-selectable-prompt t)
-  (setq ivy-magic-slash-non-match-action 'ivy-magic-slash-non-match-create)
-  ;; default pattern ignores order.
-  ;; (setf (cdr (assoc t ivy-re-builders-alist))
-  ;;       'ivy--regex-ignore-order)
-  :delight
-  :defer t
-  ;; :custom-face
-  ;; (ivy-current-match ((t (:inherit nil :background "gray20"))))
-  ;; (ivy-virtual ((t (:inherit font-lock-builtin-face))))
-  )
-
-(use-package counsel
-  :ensure t
-  :defer t)
-
-(use-package ivy-rich
-  :ensure t
-  :defer t)
-
-(use-package nerd-icons-ivy-rich
-  :ensure t
-  :init
-  (nerd-icons-ivy-rich-mode 1)
-  (ivy-rich-mode 1))
-
 
 #+end_src
 
@@ -2065,7 +2005,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :config 
   (setq split-height-threshold nil)
   (setq split-width-threshold 0)
-  (setq magit-completing-read-function 'ivy-completing-read)
+  (setq magit-completing-read-function 'consult-completing-read-dwim)
   (setenv "GIT_ASKPASS" "git-gui--askpass")
   ;; don't show the diff by default in the commit buffer. Use `C-c C-d' to display it
   (setq magit-commit-show-diff nil)
@@ -2945,18 +2885,6 @@ I like this
 
 #+end_src
 
-*** smex
-#+begin_src emacs-lisp :lexical t
-;; keep recent commands available in M-x
-(use-package smex
-  :init
-  (smex-initialize)
-  ;; :bind
-  ;; ("M-x" . smex)
-  )
-
-#+end_src
-
 *** ssh-tunnels
 #+begin_src emacs-lisp :lexical t
 (use-package ssh-tunnels
@@ -3406,10 +3334,7 @@ I like this
   :config
   (py-snippets-initialize))
 
-(use-package ivy-yasnippet
-  :ensure (:repo "emacsattic/ivy-yasnippet")
-  :bind ("H-," . ivy-yasnippet)
-  )
+
 #+end_src
 
 *** YAML
