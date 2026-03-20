@@ -790,21 +790,24 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq auto-revert-remote-files nil) ; Stop Emacs from polling for file changes
     
   ;; Set a shorter timeout for TRAMP connections
-  ;; (setq tramp-connection-timeout 120)
+  (setq tramp-connection-timeout 120)
 
   ;; Prevent TRAMP from hanging the modeline during disconnects
-  ;; (setq remote-file-name-inhibit-cache nil)
+  (setq remote-file-name-inhibit-cache nil)
   ;; (setq vc-ignore-dir-regexp
   ;;       (format "\\(%s\\)\\|\\(%s\\)"
   ;;               vc-ignore-dir-regexp
   ;;               tramp-file-name-regexp))
 
-    ;;;;;;;
-  ;; (setq remote-file-name-inhibit-locks t
-  ;;       tramp-use-scp-direct-remote-copying t
-  ;;       remote-file-name-inhibit-auto-save-visited t)
-  ;; (setq tramp-copy-size-limit (* 1024 1024)
-  ;;       tramp-verbose 2)
+  ;; Aggressive performance options
+  (setq remote-file-name-inhibit-locks t)
+  (setq remote-file-name-inhibit-auto-save-visited t)
+  (setq tramp-use-scp-direct-remote-copying t)
+  (setq tramp-copy-size-limit (* 1024 1024))
+  (setq tramp-verbose 1) ; Reduce logging overhead significantly
+  (setq tramp-chunksize 2000)
+  (setq tramp-use-ssh-controlmaster-options t) ; Use ssh multiplexing
+
 
   ;; ;; this is where things break for eglot
   ;; (connection-local-set-profile-variables
@@ -1314,7 +1317,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
          ("H-s" . consult-ripgrep)         )
 
   :config
-  (setq consult-preview-key 'any)
+  ;; Use a debounce delay for preview to avoid severe lag over TRAMP
+  (setq consult-preview-key (list :debounce 0.5 'any))
   (setq consult-narrow-key "<")
   )
 
@@ -2067,8 +2071,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;; the mode gets enabled right away. Note that this forces loading the
   ;; package.
   (marginalia-mode)
-  (setq marginalia-remote-file-regexps nil)
-
+  ;; (setq marginalia-remote-file-regexps nil)
   :after vertico
   )
 
