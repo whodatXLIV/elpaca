@@ -2077,12 +2077,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :config
   (nerd-icons-completion-mode)
   (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup))
-
-;; (use-package all-the-icons-completion
-;;   :after (marginalia all-the-icons)
-;;   :hook (marginalia-mode . all-the-icons-completion-marginalia-setup)
-;;   :init
-;;   (all-the-icons-completion-mode))
 #+end_src
 
 *** markdown mode
@@ -2675,8 +2669,6 @@ I like this
   (setq jsonrpc-event-hook nil)  
 
   :config
-
-  (setq eglot-stay-out-of '(company))
   (setq eglot-connect-timeout 120)
   (setq eglot-sync-connect nil)
   (setq eglot-send-changes-idle-time 3)
@@ -2798,12 +2790,6 @@ I like this
          ("H-<right>" . python-indent-shift-right)
          )
   :config
-  (defun seth-python-company-mode-hook ()
-    (setq-local company-backends
-                '((company-capf company-dabbrev-code :with company-yasnippet)
-                  company-files)))
-  
-  (add-hook 'python-mode-hook #'seth-python-company-mode-hook)
   
   (setq python-indent-offset 4)
   (setq python-indent-guess-indent-offset nil)
@@ -3249,7 +3235,7 @@ I like this
   (setq vterm-timer-delay 0.01)
   (add-hook 'vterm-mode-hook (lambda () 
                                (flycheck-mode -1)
-                               (company-mode -1)))
+                               ))
   (add-hook 'vterm-mode-hook
             (lambda ()
               ;; Prevent Emacs from trying to 'sync' point or window on every switch
