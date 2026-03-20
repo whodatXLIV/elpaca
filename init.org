@@ -899,7 +899,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :bind (:map vertico-map
           ("M-S" . my-vertico-cycle-sort))
   :config
-  (setq vertico-cycle t)
+  (setq vertico-cycle nil)
   (setq vertico-resize nil)
   (setq enable-recursive-minibuffers t)
   (setq read-extended-command-predicate #'command-completion-default-include-p)
@@ -972,6 +972,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;; Use a debounce delay for preview to avoid severe lag over TRAMP
   (setq consult-preview-key (list :debounce 0.5 'any))
   (setq consult-narrow-key "<")
+  (setq consult-line-start-from-top t)
+
   )
 
 (use-package embark-consult
@@ -995,15 +997,18 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :bind (:map minibuffer-local-map
          ("M-A" . marginalia-cycle))
   :after vertico
-  ;; (setq marginalia-remote-file-regexps nil)
+  :config
+  (setq marginalia-remote-file-regexps nil)
   )
 
 (use-package nerd-icons-completion
   :defer t
   :after marginalia
+  :hook (marginalia-mode)
   :config
-  (nerd-icons-completion-mode)
-  (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup))
+  ;; (nerd-icons-completion-mode)
+  (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup)
+  )
 #+end_src
 
 *** Completion Backends
@@ -1997,7 +2002,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package undo-tree
   :delight
   :defer t
-  :hook (after-init . global-undo-tree-mode)
+  :hook (emacs-startup . global-undo-tree-mode)
   :custom
   (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
   (backup-directory-alist `(("." . "~/.emacs.d/.saves")))
