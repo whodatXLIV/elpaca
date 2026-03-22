@@ -824,6 +824,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package corfu
   :ensure t
   :defer t
+  :delight t
   :hook (emacs-startup . global-corfu-mode)
   :bind* (("C-<tab>" . completion-at-point))
   :custom
@@ -895,6 +896,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package vertico
   :ensure t
   :defer t
+  :delight t
   :hook (emacs-startup . vertico-mode)
   :bind (:map vertico-map
           ("M-S" . my-vertico-cycle-sort))
@@ -936,6 +938,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package orderless
   :ensure t
   :defer t
+  :delight t
   :custom
   (completion-styles '(orderless basic))
   (completion-category-overrides '((file (styles . (partial-completion substring)))))
@@ -957,7 +960,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package consult
   :ensure t
   :defer t
-  :bind (
+  :delight t
+  :bind* (
          ("C-x b" . consult-buffer)
          ("M-y" . consult-yank-pop)
          ("M-g M-g" . consult-goto-line)
@@ -965,16 +969,24 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
          ("M-g i" . consult-imenu)
          ("C-x C-a" . consult-grep)
          ("C-x f" . consult-recent-file)
-         ("C-s" . consult-line)
-         ("H-s" . consult-ripgrep)         )
+         ("H-s" . consult-ripgrep)
+         )
 
   :config
   ;; Use a debounce delay for preview to avoid severe lag over TRAMP
-  (setq consult-preview-key (list :debounce 0.5 'any))
+  (setq consult-preview-key (list :debounce 0.01 'any))
   (setq consult-narrow-key "<")
-  (setq consult-line-start-from-top t)
-
+  (setq consult-line-start-from-top nil)
   )
+
+(use-package consult-dir
+  :ensure t
+  :defer t
+  :bind (("C-x C-d" . consult-dir)
+         :map vertico-map
+         ("C-x C-d" . consult-dir)
+         ("C-x C-j" . consult-dir-jump-file)))
+
 
 (use-package embark-consult
   :ensure t
@@ -987,15 +999,90 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (wgrep-auto-save-buffer t))
 #+end_src
 
+*** Ivy / Counsel / Swiper
+#+begin_src emacs-lisp :lexical t :tangle yes
+;; Ivy, Counsel, and Swiper are an alternative completion framework to Vertico and Consult.
+;; We apply the same keybindings and general settings as found in the Vertico/Consult setup.
+
+(use-package ivy
+  :ensure t
+  :defer t
+  :delight t
+  :hook (emacs-startup . ivy-mode)
+  :bind (:map ivy-minibuffer-map
+              ("RET" . ivy-alt-done)
+              ("DEL" . ivy-backward-delete-char)
+              ("M-DEL" . ivy-backward-kill-word)
+              ("M-S" . ivy-rotate-sort))
+  :config
+  ;; Enable recursive minibuffers, similar to Vertico
+  (setq enable-recursive-minibuffers t)
+  
+  ;; Live previews via virtual buffers
+  ;; (setq ivy-use-virtual-buffers t)
+  
+  ;; Similar to Vertico sorting toggle:
+  ;; `ivy-rotate-sort` toggles the sort function for the current collection.
+  
+  ;; Display count like Vertico
+  (setq ivy-count-format "(%d/%d) "))
+
+(use-package swiper
+  :ensure t
+  :defer t
+  :delight t
+  :bind* (
+          ("C-s" . swiper)
+          ;; ("H-s" . swiper-all)
+          )
+  )
+
+(use-package counsel
+  :ensure t
+  :defer t
+  :delight t
+  :hook (ivy-mode . counsel-mode)
+  :config
+  ;; Delay for live preview to avoid severe lag over TRAMP
+  (setq ivy-dynamic-exhibit-delay-ms 10)
+  )
+
+;; (use-package ivy-rich
+;;   :ensure t
+;;   :after ivy
+;;   :init
+;;   (ivy-rich-mode 1)
+;;   :config
+;;     (setq ivy-rich-parse-remote-file-path t) ; Enable remote parsing
+;;     (setcdr (assq t ivy-format-functions-alist) #'ivy-format-function-line)
+;;   )
+
+;; (use-package nerd-icons-ivy-rich
+;;   :ensure t
+;;   :after ivy-rich
+;;   :init
+;;   (nerd-icons-ivy-rich-mode 1))
+
+(use-package ivy-prescient
+  :ensure t
+  :delight t
+  :after counsel
+  :init
+  (ivy-prescient-mode 1)
+  (prescient-persist-mode 1))
+#+end_src
+
 *** Marginalia
 #+begin_src emacs-lisp :lexical t :tangle yes
 ;; Enable rich annotations using the Marginalia package
 (use-package marginalia
   :ensure t
+  :delight t
   :defer t
-  :hook (vertico-mode . marginalia-mode)
-  :bind (:map minibuffer-local-map
-         ("M-A" . marginalia-cycle))
+  :hook ((vertico-mode ivy-mode))
+  :bind* (
+         ("M-A" . marginalia-cycle)
+         )
   :after vertico
   :config
   (setq marginalia-remote-file-regexps nil)
@@ -1064,6 +1151,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t :tangle yes
 (use-package msgpack
   :ensure t
+  :after tramp
   :defer t)
 
 (use-package tramp-rpc
@@ -1113,10 +1201,10 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq remote-file-name-inhibit-locks t)
   (setq remote-file-name-inhibit-auto-save-visited t)
   (setq tramp-use-scp-direct-remote-copying t)
-  (setq tramp-copy-size-limit (* 1024 1024))
+  (setq tramp-copy-size-limit (* 64 1024 1024))
   (setq tramp-verbose 1) ; Reduce logging overhead significantly
   (setq tramp-chunksize 2000)
-  (setq tramp-use-ssh-controlmaster-options nil) ; Use ssh multiplexing
+  (setq tramp-use-ssh-controlmaster-options t) ; Use ssh multiplexing
 
 
   ;; ;; this is where things break for eglot
@@ -1174,43 +1262,44 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;;     value))
   ;; (advice-add 'vc-git-root :around #'memoize-vc-git-root)
 
-  :defer t
   )
 #+end_src
 
 *** TRAMP Utilities
 #+begin_src emacs-lisp :lexical t :tangle yes
-(use-package consult-dir
-  :ensure t
-  :defer t
-  :bind (("C-x C-d" . consult-dir)
-         :map vertico-map
-         ("C-x C-d" . consult-dir)
-         ("C-x C-j" . consult-dir-jump-file)))
+;; (use-package consult-tramp
+;;   :ensure (consult-tramp
+;;            :type git
+;;            :host github
+;;            :repo "Ladicle/consult-tramp")
+;;   :defer t
+;;   :bind ("C-c f" . consult-tramp)
+;;   :config
+;;   (setq consult-tramp-extra-targets '("/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/" "/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/" ))
+;;   (setq consult-tramp-method "rcp")
+;;   (setq consult-tramp-known-hosts "~/.ssh/known_hosts")
 
-(use-package consult-tramp
-  :ensure (consult-tramp
-           :type git
-           :host github
-           :repo "Ladicle/consult-tramp")
-  :defer t
-  :bind ("C-c f" . consult-tramp)
-  :config
-  (setq consult-tramp-extra-targets '("/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/" "/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/" ))
-  (setq consult-tramp-method "rcp")
-  (setq consult-tramp-known-hosts "~/.ssh/known_hosts")
-  
-  )
+;;   )
 
-(use-package tramp-hlo
-  :ensure (tramp-hlo
-           :type git
-           :host github
-           :repo "jsadusk/tramp-hlo"
-           )
+;; (use-package tramp-hlo
+;;   :ensure (tramp-hlo
+;;            :type git
+;;            :host github
+;;            :repo "jsadusk/tramp-hlo"
+;;            )
+;;   :defer t
+;;   :config
+;;   (tramp-hlo-setup)
+;;   )
+
+(use-package counsel-tramp
+  :bind* ("C-c f" . counsel-tramp)
   :defer t
-  :config
-  (tramp-hlo-setup)
+  :init
+  (setq counsel-tramp-custom-connections '(/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/ /rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/ ))
+  (setq counsel-tramp-default-method "rpc")
+  (setq make-backup-files nil)
+  (setq create-lockfiles nil) 
   )
 #+end_src
 
@@ -1938,7 +2027,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
    indent-bars-pad-frac 0.1
    indent-bars-display-on-blank-lines t
    indent-tabs-mode nil)
-
+  (indent-bars-mode t)
   (setq indent-bars-treesit-support t)
   (setq indent-bars-no-descend-string t)
   (setq indent-bars-treesit-ignore-blank-lines-types '("module" "call"))
