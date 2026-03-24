@@ -829,52 +829,22 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :bind* (("C-<tab>" . completion-at-point))
   :custom
   (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
-  (corfu-auto nil)                 ;; Enable auto completion
-  ;; (corfu-auto-delay 0.3)         ;; Delay for auto-completion (important for TRAMP)
-  ;; (corfu-auto-prefix 3)          ;; Require 3 characters before auto-completion
+  (corfu-auto t)                 ;; Enable auto completion
+  (corfu-auto-delay 0.5)         ;; Delay for auto-completion (snappy but TRAMP-safe)
+  (corfu-auto-prefix 2)          ;; Require 2 characters before auto-completion
   (corfu-separator ?\s)          ;; Orderless field separator
   (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
-  (corfu-quit-no-match t)      ;; Never quit, even if there is no match
+  (corfu-quit-no-match t)        ;; Never quit, even if there is no match
   (corfu-preview-current nil)    ;; Disable current candidate preview
   (corfu-preselect 'prompt)      ;; Preselect the prompt
   (corfu-on-exact-match nil)     ;; Configure handling of exact matches
   (corfu-scroll-margin 5)        ;; Use scroll margin
 
   :custom-face
-  ;; (corfu-default ((t (:background "gray10" :foreground "#eaeaea" :extend t))))
-  ;; (corfu-current ((t (:background "gray10" :foreground "#969896" :extend t))))
-  ;; (corfu-bar ((t (:background "gray20"))))
-  ;; (corfu-border ((t (:background "gray10"))))
-  ;; (corfu-annotations ((t (:background "gray10" :foreground "#70c0b1" :extend t))))
-
-
-  ;; (corfu-default (
-  ;;                 (((class color) (background light)) (:background "#f0f0f0" :foreground "#333333" :extend t))
-  ;;                 (((class color) (background dark))  (:background "gray10" :foreground "#eaeaea" :extend t))
-  ;;                 ))
-  
-  ;; (corfu-current (
-  ;;                 (((class color) (background light)) (:background "#d3d3d3" :foreground "#111111" :extend t))
-  ;;                 (((class color) (background dark))  (:background "gray10" :foreground "#c397d8" :extend t))
-  ;;                 ))
-  
-  ;; (corfu-bar (
-  ;;             (((class color) (background light)) (:background "#cccccc"))
-  ;;             (((class color) (background dark))  (:background "gray20"))
-  ;;             ))
-  
   (corfu-border (
                  (((class color) (background light)) (:background "gold"))
                  (((class color) (background dark))  (:background "gold"))
                  ))
-  
-  ;; (corfu-annotations (
-  ;;                     (((class color) (background light)) (:background "#f0f0f0" :foreground "#005f5f" :extend t))
-  ;;                     (((class color) (background dark))  (:background "gray10" :foreground "#70c0b1" :extend t))
-  ;;                     ))
-
-
-  
   )
 
 (use-package corfu-popupinfo
@@ -895,7 +865,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (use-package vertico
   :ensure t
-  :defer t
+  ;; :defer t
   :delight t
   :hook (emacs-startup . vertico-mode)
   :bind (:map vertico-map
@@ -921,23 +891,22 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     (message "Vertico sort: %s" (or vertico-sort-override-function "Default"))
     (setq vertico--input t))
   )
-(use-package vertico-directory
-  :after vertico
-  :ensure nil
-  ;; More convenient directory navigation commands
-  :bind (:map vertico-map
-              ("RET" . vertico-directory-enter)
-              ("DEL" . vertico-directory-delete-char)
-              ("M-DEL" . vertico-directory-delete-word))
-  ;; Tidy shadowed file names (e.g. ~/foo/bar//baz -> /baz)
-  :hook (rfn-eshadow-update-overlay . vertico-directory-tidy))
+;; (use-package vertico-directory
+;;   :after vertico
+;;   :ensure nil
+;;   ;; More convenient directory navigation commands
+;;   :bind (:map vertico-map
+;;               ("RET" . vertico-directory-enter)
+;;               ("DEL" . vertico-directory-delete-char)
+;;               ("M-DEL" . vertico-directory-delete-word))
+;;   ;; Tidy shadowed file names (e.g. ~/foo/bar//baz -> /baz)
+;;   :hook (rfn-eshadow-update-overlay . vertico-directory-tidy))
 #+end_src
 
 *** Orderless
 #+begin_src emacs-lisp :lexical t :tangle yes
 (use-package orderless
   :ensure t
-  :defer t
   :delight t
   :custom
   (completion-styles '(orderless basic))
@@ -962,15 +931,16 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :defer t
   :delight t
   :bind* (
-         ("C-x b" . consult-buffer)
-         ("M-y" . consult-yank-pop)
-         ("M-g M-g" . consult-goto-line)
-         ("C-c C-SPC" . consult-mark)
-         ("M-g i" . consult-imenu)
-         ("C-x C-a" . consult-grep)
-         ("C-x f" . consult-recent-file)
-         ("H-s" . consult-ripgrep)
-         )
+          ("C-x b" . consult-buffer)
+          ("M-y" . consult-yank-pop)
+          ("M-g M-g" . consult-goto-line)
+          ("C-c C-SPC" . consult-mark)
+          ("M-g i" . consult-imenu)
+          ("C-x C-a" . consult-grep)
+          ("C-x f" . consult-recent-file)
+          ("H-s" . consult-ripgrep)
+          ("M-g f" . consult-flymake)
+          )
 
   :config
   ;; Use a debounce delay for preview to avoid severe lag over TRAMP
@@ -979,13 +949,13 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq consult-line-start-from-top nil)
   )
 
-(use-package consult-dir
-  :ensure t
-  :defer t
-  :bind (("C-x C-d" . consult-dir)
-         :map vertico-map
-         ("C-x C-d" . consult-dir)
-         ("C-x C-j" . consult-dir-jump-file)))
+;; (use-package consult-dir
+;;   :ensure t
+;;   :defer t
+;;   :bind (("C-x C-d" . consult-dir)
+;;          :map vertico-map
+;;          ("C-x C-d" . consult-dir)
+;;          ("C-x C-j" . consult-dir-jump-file)))
 
 
 (use-package embark-consult
@@ -1001,75 +971,88 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 *** Ivy / Counsel / Swiper
 #+begin_src emacs-lisp :lexical t :tangle yes
-;; Ivy, Counsel, and Swiper are an alternative completion framework to Vertico and Consult.
-;; We apply the same keybindings and general settings as found in the Vertico/Consult setup.
+  ;; Ivy, Counsel, and Swiper are an alternative completion framework to Vertico and Consult.
+  ;; We apply the same keybindings and general settings as found in the Vertico/Consult setup.
 
-(use-package ivy
-  :ensure t
-  :defer t
-  :delight t
-  :hook (emacs-startup . ivy-mode)
-  :bind (:map ivy-minibuffer-map
-              ("RET" . ivy-alt-done)
-              ("DEL" . ivy-backward-delete-char)
-              ("M-DEL" . ivy-backward-kill-word)
-              ("M-S" . ivy-rotate-sort))
-  :config
-  ;; Enable recursive minibuffers, similar to Vertico
-  (setq enable-recursive-minibuffers t)
-  
-  ;; Live previews via virtual buffers
-  ;; (setq ivy-use-virtual-buffers t)
-  
-  ;; Similar to Vertico sorting toggle:
-  ;; `ivy-rotate-sort` toggles the sort function for the current collection.
-  
-  ;; Display count like Vertico
-  (setq ivy-count-format "(%d/%d) "))
+  (use-package ivy
+    :ensure t
+    :defer t
+    :delight t
+    :hook (emacs-startup . ivy-mode)
+    :bind (:map ivy-minibuffer-map
+                ("RET" . ivy-alt-done)
+                ("DEL" . ivy-backward-delete-char)
+                ("M-DEL" . ivy-backward-kill-word)
+                ("M-S" . ivy-rotate-sort))
+    :config
+    ;; Enable recursive minibuffers, similar to Vertico
+    (setq enable-recursive-minibuffers t)
+    
+    (setq ivy-use-virtual-buffers nil)
+    (setq ivy-virtual-abbreviate 'full)
+    (setq ivy-re-builders-alist '(
+                                  (t . ivy--regex-ignore-order)
+                                  (t . ivy--regex-plus)
+                                  (t . ivy--regex-fuzzy)
+                                  (t . ivy--regex)
+                                  (t . regexp-quote)
+                                  ))
+    (setq ivy-height 12)
+    (setq ivy-display-style 'fancy)
+    (setq ivy-count-format "[%d/%d] ")
+    (setq ivy-initial-inputs-alist nil)
+    (setq ivy-use-selectable-prompt t)
+    (setq ivy-magic-slash-non-match-action 'ivy-magic-slash-non-match-create)
+   )
 
-(use-package swiper
-  :ensure t
-  :defer t
-  :delight t
-  :bind* (
-          ("C-s" . swiper)
-          ;; ("H-s" . swiper-all)
-          )
-  )
+  (use-package swiper
+    :ensure t
+    :defer t
+    :delight t
+    :bind* (
+            ("C-s" . swiper)
+            ;; ("H-s" . swiper-all)
+            )
+    )
 
-(use-package counsel
-  :ensure t
-  :defer t
-  :delight t
-  :hook (ivy-mode . counsel-mode)
-  :config
-  ;; Delay for live preview to avoid severe lag over TRAMP
-  (setq ivy-dynamic-exhibit-delay-ms 10)
-  )
+  (use-package counsel
+    :ensure t
+    :defer t
+    :delight t
+    :hook (ivy-mode . counsel-mode)
+    :config
+    ;; Delay for live preview to avoid severe lag over TRAMP
+    (setq ivy-dynamic-exhibit-delay-ms 10)
+    )
 
-;; (use-package ivy-rich
-;;   :ensure t
-;;   :after ivy
-;;   :init
-;;   (ivy-rich-mode 1)
-;;   :config
-;;     (setq ivy-rich-parse-remote-file-path t) ; Enable remote parsing
-;;     (setcdr (assq t ivy-format-functions-alist) #'ivy-format-function-line)
-;;   )
+  ;; (use-package ivy-rich
+  ;;   :ensure t
+  ;;   :after ivy
+  ;;   :init
+  ;;   (ivy-rich-mode 1)
+  ;;   :config
+  ;;     (setq ivy-rich-parse-remote-file-path t) ; Enable remote parsing
+  ;;     (setcdr (assq t ivy-format-functions-alist) #'ivy-format-function-line)
+  ;;   )
 
-;; (use-package nerd-icons-ivy-rich
-;;   :ensure t
-;;   :after ivy-rich
-;;   :init
-;;   (nerd-icons-ivy-rich-mode 1))
+  ;; (use-package nerd-icons-ivy-rich
+  ;;   :ensure t
+  ;;   :after ivy-rich
+  ;;   :init
+  ;;   (nerd-icons-ivy-rich-mode 1))
 
-(use-package ivy-prescient
-  :ensure t
-  :delight t
-  :after counsel
-  :init
-  (ivy-prescient-mode 1)
-  (prescient-persist-mode 1))
+  (use-package ivy-prescient
+    :ensure t
+    :delight t
+    :after counsel
+    :config
+    (setq ivy-prescient-sort-commands '(:not swiper swiper-isearch))
+    (add-to-list 'ivy-sort-functions-alist '(counsel-find-file . nil))
+    (setq ivy-prescient-retain-classic-highlighting nil)
+    :init
+    (ivy-prescient-mode 1)
+    (prescient-persist-mode 1)
+    )
 #+end_src
 
 *** Marginalia
@@ -1190,8 +1173,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;; Set a shorter timeout for TRAMP connections
   (setq tramp-connection-timeout 120)
 
-  ;; Prevent TRAMP from hanging the modeline during disconnects
-  (setq remote-file-name-inhibit-cache nil)
+  ;; Prevent TRAMP from hanging the modeline during disconnects  
   (setq vc-ignore-dir-regexp
         (format "\\(%s\\)\\|\\(%s\\)"
                 vc-ignore-dir-regexp
@@ -1200,6 +1182,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;; Aggressive performance options
   (setq remote-file-name-inhibit-locks t)
   (setq remote-file-name-inhibit-auto-save-visited t)
+  (setq remote-file-name-inhibit-cache nil)
+  (setq tramp-auto-save-directory (expand-file-name "tramp-autosave" user-emacs-directory))
   (setq tramp-use-scp-direct-remote-copying t)
   (setq tramp-copy-size-limit (* 64 1024 1024))
   (setq tramp-verbose 1) ; Reduce logging overhead significantly
@@ -1742,46 +1726,52 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :defer t
   :init
   (setq-default eglot-workspace-configuration
-              '((:pylsp . (:plugins (:black (:enabled t
-                                                      :cache_config t)
-                                     :pyflakes (:enabled t)
-                                     :pycodestyle (:enabled t
-                                                   :maxLineLength 88
-                                                   :ignore ["E203" "W503"]
-                                                   )
-                                     :autopep8 (:enabled :json-false)
-                                     :pylint (:enabled :json-false)
-                                     :yapf (:enabled :json-false)
+              '((:pylsp . (:plugins (
+                                     ;; 1. Disable ALL slow Python-based linters
+                                     :pycodestyle (:enabled :json-false)
                                      :mccabe (:enabled :json-false)
+                                     :pyflakes (:enabled :json-false)
+                                     :flake8 (:enabled :json-false)
+                                     :pylint (:enabled :json-false)
+                                     :autopep8 (:enabled :json-false)
+                                     :yapf (:enabled :json-false)
+                                     :black (:enabled :json-false) ;; Disable black plugin (Ruff handles this)
+
+                                     ;; 2. Enable Ruff for everything
+                                     :ruff (:enabled t
+                                            :formatEnabled t       ;; Ruff handles formatting
+                                            :ignore ["E402"]
+                                            :lineLength 88)
+
+                                     ;; 3. Configure Jedi for Completions (the only Python part left)
                                      :jedi_completion (:enabled t
+                                                       :fuzzy t
                                                        :include_params t
                                                        :include_class_objects t
                                                        :include_function_objects t
                                                        :eager :json-false
-                                                       :cache_for ["pandas" "numpy" "matplotlib" "polars" "jax"]
-                                                       ))))))
+                                                       :cache_for ["pandas" "numpy" "matplotlib" "polars" "jax"])
+                                     :jedi_hover (:enabled t)
+                                     )))))
 
-  (setq eldoc-echo-area-use-multiline-p nil)
   :bind (
          ("C-c p" . start-eglot-python)
          )
   :custom
   (eglot-autoshutdown t)
   (eglot-events-buffer-config '(:size 0 :format short))
-  (eglot-sync-connect t)
-  (eglot-send-changes-idle-time 3)
-  (flymake-no-changes-timeout 5)
+  (eglot-sync-connect nil)            ;; Don't block UI on connection
+  (eglot-send-changes-idle-time 0.5)  ;; Snappier feedback (standard is 0.5)
+  (eglot-connect-timeout 120)
   (eldoc-echo-area-use-multiline-p nil)
+  
   ;; Optimizations
-  (eglot-ignored-server-capabilities '(:documentHighlightProvider))
+  (eglot-ignored-server-capabilities '(:documentHighlightProvider)) ;; Kept :hoverProvider for eldoc-box
+  (eglot-extend-to-xref t)            ;; Find definitions across project
   (fset #'jsonrpc--log-event #'ignore)
   (setq jsonrpc-event-hook nil)  
 
   :config
-  (setq eglot-connect-timeout 120)
-  (setq eglot-sync-connect nil)
-  (setq eglot-send-changes-idle-time 3)
-
   (defun my/eglot-capf ()
     (setq-local completion-at-point-functions
                 (list (cape-capf-super
@@ -1849,49 +1839,68 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :config
   (eglot-booster-mode))
 
-(use-package flycheck-eglot
-  :ensure t
-  :defer t
-  :after (flycheck eglot)
+;; (use-package flycheck-eglot
+;;   :ensure t
+;;   :defer t
+;;   :after (flycheck eglot)
+;;   :hook (eglot-managed-mode)
+;;   :config
+;;   (global-flycheck-eglot-mode 1)
+;;   :custom
+;;   (flycheck-help-echo-function nil)
+;;   (flycheck-display-errors-function nil)
+;;   )
+
+;; (use-package consult-eglot
+;;   :ensure t
+;;   :defer t
+;;   :after (consult eglot)
+;;   :bind (:map eglot-mode-map
+;;               ("M-g s" . consult-eglot-symbols)))
+
+(use-package eldoc-box
+  :hook (eglot-managed-mode . eldoc-box-hover-at-point-mode)
   :config
-  (global-flycheck-eglot-mode 1)
-  :custom
-  (flycheck-help-echo-function nil)
-  (flycheck-display-errors-function nil)
+  (setq eldoc-idle-delay 0.5) ;; Give TRAMP half a second before asking for docs
+  ;; Customizing the look
+  (setq eldoc-box-max-pixel-width 600
+        eldoc-box-max-pixel-height 400)
+  (with-eval-after-load 'eldoc-box
+  ;; Don't show the doc box while the Corfu completion menu is open
+  (add-hook 'eldoc-box-buffer-hook
+            (lambda ()
+              (when (and (bound-and-true-p corfu-mode)
+                         (frame-live-p corfu--frame)
+                         (frame-visible-p corfu--frame))
+                (eldoc-box-quit)))))
+  (add-hook 'eldoc-box-buffer-setup-hook #'eldoc-box-prettify-ts-errors 0 t)
   )
 
-(use-package consult-eglot
-  :ensure t
-  :defer t
-  :after (consult eglot)
-  :bind (:map eglot-mode-map
-              ("M-g s" . consult-eglot-symbols)))
 
-(use-package sideline
-  :delight
-  :defer t
-  :hook (
-         (flycheck-mode . sideline-mode)  
-         (flymake-mode  . sideline-mode)
-         )
+;; (use-package sideline
+;;   :delight
+;;   :defer t
+;;   :hook (
+;;          (flycheck-mode . sideline-mode)  
+;;          (flymake-mode  . sideline-mode)
+;;          )
 
-  :init
-  (setq sideline-backends-left-skip-current-line nil   ; don't display on current line (left)
-        sideline-backends-right-skip-current-line nil  ; don't display on current line (right)
-        sideline-order-left 'down                    ; or 'up
-        sideline-order-right 'up                     ; or 'down
-        sideline-format-left "%s"                 ; format for left aligment
-        sideline-format-right "%s"                ; format for right aligment
-        sideline-priority 100                        ; overlays' priority
-        sideline-display-backend-name t)             ; display the backend name
-  (setq sideline-backends-right '(sideline-flycheck)
-        )
+;;   :init
+;;   (setq sideline-backends-left-skip-current-line nil   ; don't display on current line (left)
+;;         sideline-backends-right-skip-current-line nil  ; don't display on current line (right)
+;;         sideline-order-left 'down                    ; or 'up
+;;         sideline-order-right 'up                     ; or 'down
+;;         sideline-format-left "%s"                 ; format for left aligment
+;;         sideline-format-right "%s"                ; format for right aligment
+;;         sideline-priority 100                        ; overlays' priority
+;;         sideline-display-backend-name t)             ; display the backend name
+;;   (setq sideline-backends-right '(sideline-flycheck)
+;;         )
   
-  )
-
-(use-package sideline-flycheck
-  :defer t
-  :hook (flycheck-mode . sideline-flycheck-setup))
+;;   )
+;; (use-package sideline-flycheck
+;;   :defer t
+;;   :hook (flycheck-mode . sideline-flycheck-setup))
 #+end_src
 
 *** Tree-sitter
@@ -2014,39 +2023,22 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 *** Visual Enhancements
 #+begin_src emacs-lisp :lexical t
 (use-package indent-bars
-
   :ensure (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
   :defer t
-  :hook ((prog-mode org-mode python-mode) . indent-bars-mode)
+  :hook ((prog-mode org-mode) . indent-bars-mode)
+  :custom
+  (indent-bars-prefer-character t)
+  (indent-bars-color '(highlight :face-bg t :blend 0.5))
+  (indent-bars-width-frac 0.3)
+  (indent-bars-pad-frac 0.1)
+  (indent-bars-display-on-blank-lines t)
+  (indent-bars-treesit-support nil) ;; Currently using external tree-sitter package
+  (indent-bars-no-descend-string t)
   :config
-  (setq
-   indent-bars-prefer-character t
-   indent-bars-color '(highlight :face-bg t :blend 0.5)
-   ;;   indent-bars-pattern ". . . . . . . . ." ; play with the number of dots for your usual font size
-   indent-bars-width-frac 0.3
-   indent-bars-pad-frac 0.1
-   indent-bars-display-on-blank-lines t
-   indent-tabs-mode nil)
-  (indent-bars-mode t)
-  (setq indent-bars-treesit-support t)
-  (setq indent-bars-no-descend-string t)
-  (setq indent-bars-treesit-ignore-blank-lines-types '("module" "call"))
-  (setq indent-bars-treesit-wrap '((python
-                                    argument_list
-                                    attribute
-                                    assignment
-                                    identifier
-                                    parameters
-                                    list
-                                    list_comprehension
-                                    dictionary
-                                    dictionary_comprehension
-                                    parenthesized_expression
-                                    call
-                                    expression_statement
-                                    subscript)))
-  
-  )
+  (setq indent-tabs-mode nil)
+  ;; Integration with external tree-sitter-hl-mode
+  (with-eval-after-load 'tree-sitter
+    (add-hook 'tree-sitter-after-on-hook (lambda () (indent-bars-mode 1)) 99)))
 
 (use-package hl-todo
   :delight
@@ -2089,8 +2081,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t
 
 (use-package undo-tree
-  :delight
-  :defer t
+  :delight  
   :hook (emacs-startup . global-undo-tree-mode)
   :custom
   (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
@@ -2103,7 +2094,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (undo-tree-enable-undo-in-region t)
   
   :config
-  ;; (global-undo-tree-mode)
+  (add-to-list 'undo-tree-incompatible-major-modes #'magit-status-mode)
+  (global-undo-tree-mode)
   )
 #+end_src
 
@@ -2432,9 +2424,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :defer t
   :config
   (setq vterm-timer-delay 0.01)
-  (add-hook 'vterm-mode-hook (lambda () 
-                               (flycheck-mode -1)
-                               ))
+  ;; (add-hook 'vterm-mode-hook (lambda () 
+  ;;                              (flycheck-mode -1)
+  ;;                              ))
   (add-hook 'vterm-mode-hook
             (lambda ()
               ;; Prevent Emacs from trying to 'sync' point or window on every switch
