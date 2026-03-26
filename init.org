@@ -2266,6 +2266,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package google-this
   :delight
   :defer t
+  :hook (emacs-startup . google-this-mode)
   :config
   (google-this-mode 1))  
 #+end_src
