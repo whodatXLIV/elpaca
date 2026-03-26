@@ -2241,7 +2241,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :config 
   (setq split-height-threshold nil)
   (setq split-width-threshold 0)
-  (setq magit-completing-read-function 'consult-completing-read-dwim)
+  (setq magit-completing-read-function 'magit-builtin-completing-read)
   (setenv "GIT_ASKPASS" "git-gui--askpass")
   ;; don't show the diff by default in the commit buffer. Use `C-c C-d' to display it
   (setq magit-commit-show-diff nil)
