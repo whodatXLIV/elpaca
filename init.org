@@ -2473,7 +2473,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
            ;; 2. Get the LOCAL path on the remote server (strips /rpc:user@host:)
            (remote-path (file-local-name root))
            ;; 3. Get folder name and sanitize for session name
-           (project-name (file-name-nondirectory (directory-file-name remote-path)))
+           ;; (project-name (file-name-nondirectory (directory-file-name remote-path)))
+           (project-name (directory-file-name remote-path))
            (session-name (replace-regexp-in-string "\\." "_" project-name))
            ;; 4. Build command with -c to set the starting directory
            (tmux-cmd (format "tmux new-session -A -s %s -c %s" 
