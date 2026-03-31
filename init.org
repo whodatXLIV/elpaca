@@ -1046,7 +1046,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     :delight t
     :after counsel
     :config
-    (setq ivy-prescient-sort-commands '(:not swiper swiper-isearch))
+    (setq ivy-prescient-sort-commands '(:not swiper swiper-isearch counsel-find-file))
     (add-to-list 'ivy-sort-functions-alist '(counsel-find-file . nil))
     (setq ivy-prescient-retain-classic-highlighting nil)
     :init
@@ -1151,130 +1151,46 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-package tramp 
   :defer t
   :config
-  ;; (when (string-equal emacs-version "29.2")
-  ;;   (with-current-buffer
-  ;;       (url-retrieve-synchronously
-  ;;        "https://git.savannah.gnu.org/cgit/emacs.git/plain/lisp/emacs-lisp/loaddefs-gen.el?h=emacs-29")
-  ;;     (goto-char (point-min))
-  ;;     (while (looking-at "^.+$") (forward-line))
-  ;;     (eval-region (point) (point-max))))
+  
   (setq shell-file-name "/bin/bash") 
   (setq tramp-default-method "rpc")
   (with-eval-after-load 'tramp (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
   (with-eval-after-load 'tramp '(setenv "SHELL" "/bin/bash"))
 
-  (setq vc-handled-backends '(Git)) ; Disable all VC checks globally (fastest)
-  ;; OR, just for remote files:
-  (setq tramp-vc-handled-backends '(Git))
-  (setq remote-file-name-inhibit-cache nil)
-  (setq tramp-completion-reread-directory-timeout 60) ; Cache directory listings longer
-  (setq auto-revert-remote-files nil) ; Stop Emacs from polling for file changes
+  ;; (setq vc-handled-backends '(Git)) ; Disable all VC checks globally (fastest)
+  ;; ;; OR, just for remote files:
+  ;; (setq tramp-vc-handled-backends '(Git))
+  ;; (setq remote-file-name-inhibit-cache nil)
+  ;; (setq tramp-completion-reread-directory-timeout 60) ; Cache directory listings longer
+  ;; (setq auto-revert-remote-files nil) ; Stop Emacs from polling for file changes
     
   ;; Set a shorter timeout for TRAMP connections
-  (setq tramp-connection-timeout 120)
+  ;; (setq tramp-connection-timeout 120)
 
-  ;; Prevent TRAMP from hanging the modeline during disconnects  
-  (setq vc-ignore-dir-regexp
-        (format "\\(%s\\)\\|\\(%s\\)"
-                vc-ignore-dir-regexp
-                tramp-file-name-regexp))
+  ;; Prevent TRAMP from hanging the modeline during disconnects
+  ;; (setq vc-ignore-dir-regexp "")
+  ;; (setq vc-ignore-dir-regexp
+  ;;       (format "\\(%s\\)\\|\\(%s\\)"
+  ;;               vc-ignore-dir-regexp
+  ;;               tramp-file-name-regexp))
 
-  ;; Aggressive performance options
-  (setq remote-file-name-inhibit-locks t)
-  (setq remote-file-name-inhibit-auto-save-visited t)
-  (setq remote-file-name-inhibit-cache nil)
-  (setq tramp-auto-save-directory (expand-file-name "tramp-autosave" user-emacs-directory))
-  (setq tramp-use-scp-direct-remote-copying t)
-  (setq tramp-copy-size-limit (* 64 1024 1024))
-  (setq tramp-verbose 1) ; Reduce logging overhead significantly
-  (setq tramp-chunksize 2000)
-  (setq tramp-use-ssh-controlmaster-options t) ; Use ssh multiplexing
+  ;; ;; Aggressive performance options
+  ;; (setq remote-file-name-inhibit-locks t)
+  ;; (setq remote-file-name-inhibit-auto-save-visited t)
+  ;; (setq remote-file-name-inhibit-cache nil)
+  ;; (setq tramp-auto-save-directory (expand-file-name "tramp-autosave" user-emacs-directory))
+  ;; (setq tramp-use-scp-direct-remote-copying t)
+  ;; (setq tramp-copy-size-limit (* 1024 1024 1024))
+  ;; (setq tramp-verbose 1) ; Reduce logging overhead significantly
+  ;; (setq tramp-chunksize 2000)
+  ;; (setq tramp-use-ssh-controlmaster-options t) ; Use ssh multiplexing
 
-
-  ;; ;; this is where things break for eglot
-  ;; (connection-local-set-profile-variables
-  ;;  'remote-direct-async-process
-  ;;  '((tramp-direct-async-process . t)))
-
-  ;; (connection-local-set-profiles
-  ;;  '(:application tramp :protocol "scp")
-  ;;  'remote-direct-async-process)
-  ;; ;;;;;; to here it breaks
-
-  ;; (setq magit-tramp-pipe-stty-settings 'pty)
-
-  ;; (with-eval-after-load 'tramp
-  ;;   (with-eval-after-load 'compile
-  ;;     (remove-hook 'compilation-mode-hook #'tramp-compile-disable-ssh-controlmaster-options)))
-
-  ;; (defun memoize-remote (key cache orig-fn &rest args)
-  ;;   "Memoize a value if the key is a remote path."
-  ;;   (if (and key
-  ;;            (file-remote-p key))
-  ;;       (if-let ((current (assoc key (symbol-value cache))))
-  ;;           (cdr current)
-  ;;         (let ((current (apply orig-fn args)))
-  ;;           (set cache (cons (cons key current) (symbol-value cache)))
-  ;;           current))
-  ;;     (apply orig-fn args)))
-
-
-  ;; ;; Memoize current project
-  ;; (defvar project-current-cache nil)
-  ;; (defun memoize-project-current (orig &optional prompt directory)
-  ;;   (memoize-remote (or directory
-  ;;                       project-current-directory-override
-  ;;                       default-directory)
-  ;;                   'project-current-cache orig prompt directory))
-
-  ;; (advice-add 'project-current :around #'memoize-project-current)
-
-  ;; ;; Memoize magit top level
-  ;; (defvar magit-toplevel-cache nil)
-  ;; (defun memoize-magit-toplevel (orig &optional directory)
-  ;;   (memoize-remote (or directory default-directory)
-  ;;                   'magit-toplevel-cache orig directory))
-  ;; (advice-add 'magit-toplevel :around #'memoize-magit-toplevel)
-
-  ;; ;; memoize vc-git-root
-  ;; (defvar vc-git-root-cache nil)
-  ;; (defun memoize-vc-git-root (orig file)
-  ;;   (let ((value (memoize-remote (file-name-directory file) 'vc-git-root-cache orig file)))
-  ;;     ;; sometimes vc-git-root returns nil even when there is a root there
-  ;;     (when (null (cdr (car vc-git-root-cache)))
-  ;;       (setq vc-git-root-cache (cdr vc-git-root-cache)))
-  ;;     value))
-  ;; (advice-add 'vc-git-root :around #'memoize-vc-git-root)
 
   )
 #+end_src
 
 *** TRAMP Utilities
 #+begin_src emacs-lisp :lexical t :tangle yes
-;; (use-package consult-tramp
-;;   :ensure (consult-tramp
-;;            :type git
-;;            :host github
-;;            :repo "Ladicle/consult-tramp")
-;;   :defer t
-;;   :bind ("C-c f" . consult-tramp)
-;;   :config
-;;   (setq consult-tramp-extra-targets '("/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/" "/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/" ))
-;;   (setq consult-tramp-method "rcp")
-;;   (setq consult-tramp-known-hosts "~/.ssh/known_hosts")
-
-;;   )
-
-;; (use-package tramp-hlo
-;;   :ensure (tramp-hlo
-;;            :type git
-;;            :host github
-;;            :repo "jsadusk/tramp-hlo"
-;;            )
-;;   :defer t
-;;   :config
-;;   (tramp-hlo-setup)
-;;   )
 
 (use-package counsel-tramp
   :bind* ("C-c f" . counsel-tramp)
@@ -1787,7 +1703,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (defun pixi-get-environment ()
     "Interactively select a pixi environment and return its bin path."
     (interactive)
-    (let* ((project-root (locate-dominating-file default-directory "pixi.toml"))
+    (let* ((project-root (locate-dominating-file default-directory ".git"))
            (raw-output (shell-command-to-string "pixi project environment list"))
            (envs '()))
       ;; Parse names from the list
@@ -2038,7 +1954,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq indent-tabs-mode nil)
   ;; Integration with external tree-sitter-hl-mode
   (with-eval-after-load 'tree-sitter
-    (add-hook 'tree-sitter-after-on-hook (lambda () (indent-bars-mode 1)) 99)))
+    (add-hook 'tree-sitter-after-on-hook (lambda () (indent-bars-mode 1)) 99))
+  ;; Specific override for Python if auto-detection fails
+  (add-hook 'python-mode-hook (lambda () (indent-bars-mode 1)) 99))
 
 (use-package hl-todo
   :delight
@@ -2251,13 +2169,13 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq magit-refresh-status-buffer nil)
   )
 
-(use-package magit-todos
-  :delight
-  :defer t
-  :after magit
-  :config
-  (magit-todos-mode 1)
-  )
+;; (use-package magit-todos
+;;   :delight
+;;   :defer t
+;;   :after magit
+;;   :config
+;;   (magit-todos-mode 1)
+;;   )
 #+end_src
 
 *** Google
@@ -2270,6 +2188,206 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :config
   (google-this-mode 1))  
 #+end_src
+
+*** MU4E
+#+begin_src emacs-lisp :lexical t
+(use-package mu4e
+  :delight
+  :defer t
+  :ensure nil ; Don't try to download it; it's already on the system  
+  :load-path "/opt/homebrew/share/emacs/site-lisp/mu/mu4e/"
+  :commands mu4e
+  :config
+  (require 'smtpmail)
+  (setq mu4e-maildir "~/Mail"
+        mu4e-mu-binary (executable-find "mu")
+        mu4e-attachment-dir  "~/Mail/Downloads"
+        mu4e-get-mail-command (concat (executable-find "mbsync") " -a")
+        mu4e-update-interval 300
+        mu4e-change-filenames-when-moving t
+        )
+
+  (setq mu4e-split-view 'vertical) 
+  (setq mu4e-user-mail-address-list '(
+                                      "sethamin.7@gmail.com"
+                                      "seth.figueroa@focusae.com"
+                                      )
+        )
+
+  ;; for the generic imap account:
+  (setq   mu4e-maildir-shortcuts
+          '(("/Focus/INBOX" . ?f)
+            ("/Focus/Sent Messages" . ?F)
+            ("/Gmail/INBOX" . ?g)
+            ("/Gmail/[Gmail]/Sent Mail" . ?G)
+            ))
+
+  
+  (setq mu4e-html2text-command 'mu4e-shr2text)
+  (when (fboundp 'xwidget-webkit-browse-url)
+    (setq mu4e-display-html-method 'xwidgets))
+  (add-to-list 'mu4e-view-actions
+               '("Import S/MIME cert" . (lambda (msg)
+                                          (shell-command (format "gpgsm --import %s" 
+                                                                 (shell-quote-argument (mu4e-message-field msg :path))))
+                                          (message "S/MIME certificate imported."))))
+
+
+  ;; (setq mu4e-compose-signature-auto-include nil
+  ;;       mu4e-sent-messages-behavior 'delete)
+  
+  ;; (setq epg-debug t)
+  (setq mu4e-view-auto-decrypt t)
+  
+  (require 'epg)
+  (setq mml-smime-use 'epg                 ; Use EasyPG for S/MIME
+        mml-default-sign-method "smime"    ; Set default signature to S/MIME
+        ;; Use the fingerprint you found with 'gpgsm --list-keys'
+        smime-keys '(("seth.figueroa@focusae.com" "900DE5BC28610178AF63A9B299CA27445972C35D" nil))
+        )
+
+  
+  ;; Automatically sign all outgoing mu4e messages
+  ;; (add-hook 'mu4e-compose-mode-hook 'mml-secure-message-sign-smime)
+  
+  ;; gpg encryptiom & decryption:
+  ;; this can be left alone
+  (require 'epa-file)
+  (epa-file-enable)
+
+  (setq epa-pinentry-mode 'loopback)
+  (auth-source-forget-all-cached)
+
+  ;; don't keep message compose buffers around after sending:
+  (setq message-kill-buffer-on-exit t)
+
+  ;; send function:
+  ;; (setq send-mail-function 'sendmail-send-it
+  ;;       message-send-mail-function 'sendmail-send-it)
+
+  (setq send-mail-function 'message-send-mail-with-sendmail
+        message-send-mail-function 'message-send-mail-with-sendmail)
+
+  ;; chose from account before sending
+  ;; this is a custom function that works for me.
+  ;; well I stole it somewhere long ago.
+  ;; I suggest using it to make matters easy
+  ;; of course adjust the email adresses and account descriptions
+  (setq message-send-mail-function 'message-send-mail-with-sendmail
+        sendmail-program (executable-find "msmtp")
+        message-sendmail-f-is-evil t
+        message-sendmail-envelope-from 'header)
+
+
+  ;; mu4e cc & bcc
+  ;; this is custom as well
+  (add-hook 'mu4e-compose-mode-hook
+            (defun timu/add-cc-and-bcc ()
+              "My Function to automatically add Cc & Bcc: headers.
+    This is in the mu4e compose mode."
+              (save-excursion (message-add-header "Cc:\n"))
+              (save-excursion (message-add-header "Bcc:\n"))))
+
+  ;; mu4e address completion
+  (add-hook 'mu4e-compose-mode-hook 'corfu-mode)
+  
+  ;; ;; store link to message if in header view, not to header query:
+  ;; (setq org-mu4e-link-query-in-headers-mode nil)
+
+  ;; ;; don't have to confirm when quitting:
+  ;; (setq mu4e-confirm-quit nil)
+
+  ;; ;; number of visible headers in horizontal split view:
+  ;; (setq mu4e-headers-visible-lines 20)
+
+  ;; ;; don't show threading by default:
+  ;; (setq mu4e-headers-show-threads nil)
+
+  ;; ;; hide annoying "mu4e Retrieving mail..." msg in mini buffer:
+  ;; (setq mu4e-hide-index-messages t)
+
+  ;; ;; customize the reply-quote-string:
+  ;; (setq message-citation-line-format "%N @ %Y-%m-%d %H:%M :\n")
+
+  ;; ;; M-x find-function RET message-citation-line-format for docs:
+  ;; (setq message-citation-line-function 'message-insert-formatted-citation-line)
+
+  ;; ;; by default do not show related emails:
+  ;; (setq mu4e-headers-include-related nil)
+
+  ;; ;; by default do not show threads:
+  ;; (setq mu4e-headers-show-threads nil)
+  (setq mu4e-contexts
+        `(,(make-mu4e-context
+            :name "gmail"
+            :match-func (lambda (msg) (when msg (string-match-p "^/gmail" (mu4e-message-field msg :maildir))))
+            :vars '((user-mail-address . "sethamin.7@gmail.com")
+                    (user-full-name . "Seth Figueroa")
+                    (mu4e-attachment-dir . "~/Mail/Downloads/Gmail")
+                    ;; Force msmtp to use the 'gmail' account for this context
+                    (message-sendmail-extra-arguments . ("-a" "gmail"))
+                    (mu4e-drafts-folder . "/Gmail/[Gmail]/Drafts")
+                    (mu4e-trash-folder . "/Gmail/[Gmail]/Trash")
+                    (mu4e-sent-folder . "/Gmail/[Gmail]/Sent Mail")))
+
+          ,(make-mu4e-context
+            :name "focus"
+            :match-func (lambda (msg) (when msg (string-match-p "^/focus" (mu4e-message-field msg :maildir))))
+            :vars '((user-mail-address . "seth.figueroa@focusae.com")
+                    (user-full-name . "Seth Figueroa")
+                    (mu4e-attachment-dir . "~/Mail/Downloads/Focus")
+                    ;; Force msmtp to use the 'focus' account for this context
+                    (message-sendmail-extra-arguments . ("-a" "focus"))
+                    (mu4e-drafts-folder . "/Focus/INBOX") ; Adjust these paths to match your actual maildir
+                    (mu4e-trash-folder . "/Focus/[Gmail]/Trash")
+                    (mu4e-sent-folder . "/Focus/Sent Messages")))))
+
+
+  (setq mu4e-context-policy 'pick-first) ;; start with the first (default) context;
+  (setq mu4e-compose-context-policy 'ask) ;; ask for context if no context matches;
+
+
+  )
+
+(use-package mu4e-views
+  :after mu4e
+  :defer nil  
+  :bind (:map mu4e-headers-mode-map
+	          ("v" . mu4e-views-mu4e-select-view-msg-method) ;; select viewing method
+	          ("M-n" . mu4e-views-cursor-msg-view-window-down) ;; from headers window scroll the email view
+	          ("M-p" . mu4e-views-cursor-msg-view-window-up) ;; from headers window scroll the email view
+              ("f" . mu4e-views-toggle-auto-view-selected-message) ;; toggle opening messages automatically when moving in the headers view
+              ("i" . mu4e-views-mu4e-view-as-nonblocked-html) ;; show currently selected email with all remote content
+	          )
+  :init
+  (require 'goto-addr) ; Ensures goto-address-url-regexp is defined
+  :config
+  (setq mu4e-views-completion-method 'ivy) ;; use ivy for completion
+  (setq mu4e-views-default-view-method "html") ;; make xwidgets default
+  (mu4e-views-mu4e-use-view-msg-method "html-nonblock") ;; select the default
+  (setq mu4e-views-next-previous-message-behaviour 'stick-to-current-window) ;; when pressing n and p stay in the current window
+  (setq mu4e-views-auto-view-selected-message t) ;; automatically open messages when moving in the headers view
+  )
+
+(use-package consult-mu
+  :straight (consult-mu :type git :host github :repo "armindarvish/consult-mu" :branch "main")
+  :after mu4e
+  :defer nil
+  :custom
+  ;;maximum number of results shown in minibuffer
+  (consult-mu-maxnum 200)
+  ;;show preview when pressing any keys
+  (consult-mu-preview-key 'any)
+  ;;do not mark email as read when previewed
+  (consult-mu-mark-previewed-as-read nil)
+  ;;do not amrk email as read when selected. This is a good starting point to ensure you would not miss important emails marked as read by mistake especially when trying this package out. Later you can change this to t.
+  (consult-mu-mark-viewed-as-read nil)
+  ;; open the message in mu4e-view-buffer when selected.
+  (consult-mu-action #'consult-mu--view-action)
+  )
+
+#+end_src
+
 
 *** Org-mode
 #+begin_src emacs-lisp :lexical t
@@ -2435,23 +2553,22 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
               (setq-local post-command-hook 
                           (remove 'vterm--post-command-hook post-command-hook))))
   
-  (add-hook 'vterm-mode-hook (lambda () (setq-local tab-line-format nil)))
+  ;; (add-hook 'vterm-mode-hook (lambda () (setq-local tab-line-format t)))
 
-  (defun my/disable-tab-line-in-vterm ()
-    "Forcefully disable tab-line-mode in the current buffer."
-    (setq-local tab-line-format nil)
-    (when (bound-and-true-p tab-line-mode)
-      (tab-line-mode -1)))
+  ;; (defun my/disable-tab-line-in-vterm ()
+  ;;   "Forcefully disable tab-line-mode in the current buffer."
+  ;;   (setq-local tab-line-format nil)
+  ;;   (when (bound-and-true-p tab-line-mode)
+  ;;     (tab-line-mode -1)))
 
-  (add-hook 'vterm-mode-hook
-            (lambda ()
-              ;; 1. Run once on startup
-              (my/disable-tab-line-in-vterm)
-              ;; 2. Run every time the window is selected/configured
-              (add-hook 'window-configuration-change-hook #'my/disable-tab-line-in-vterm nil t)
-              ;; 3. Run after every command (the ultimate guarantee)
-              (add-hook 'post-command-hook #'my/disable-tab-line-in-vterm nil t)))
-
+  ;; (add-hook 'vterm-mode-hook
+  ;;           (lambda ()
+  ;;             ;; 1. Run once on startup
+  ;;             (my/disable-tab-line-in-vterm)
+  ;;             ;; 2. Run every time the window is selected/configured
+  ;;             (add-hook 'window-configuration-change-hook #'my/disable-tab-line-in-vterm nil t)
+  ;;             ;; 3. Run after every command (the ultimate guarantee)
+  ;;             (add-hook 'post-command-hook #'my/disable-tab-line-in-vterm nil t)))
   
   )
 
@@ -2712,7 +2829,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (tab-line-tab-modified ((t (:background "#c397d8" :box (:line-width -2 :color "gray1") :foreground "gray1" :inverse-video nil))))
   :config
   (global-tab-line-mode t)
-  (setq tab-line-exclude-modes '(vterm-mode))
+  ;; (setq tab-line-exclude-modes '(vterm-mode))
+  
   )
 
 #+end_src
