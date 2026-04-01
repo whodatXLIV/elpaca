@@ -2191,14 +2191,88 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 *** MU4E
 #+begin_src emacs-lisp :lexical t
+(eval-after-load 'smime
+  '(progn
+     (message "DEBUG: smime loaded, applying caching config.")
+
+     ;; --- S/MIME Configuration ---
+     (setq smime-keys '(("seth.figueroa@focusae.com" "~/Mail/Certificates/seth.figueroa@focusae.com.pem")))
+     (setq mml-smime-use 'openssl)
+
+     ;; --- S/MIME Passphrase Caching ---
+     (defvar my/smime-passphrase nil
+       "Cache for the S/MIME passphrase for the current Emacs session.")
+
+     (defun my/get-smime-passphrase ()
+       "Get the S/MIME passphrase, prompting if not already cached."
+       (unless my/smime-passphrase
+         (setq my/smime-passphrase (read-passwd "S/MIME Passphrase (caching): ")))
+       my/smime-passphrase)
+
+     (defun my/smime-add-passphrase-advice (old-fn operation &rest options)
+       "Advice for `smime-openssl` to add the cached passphrase for decryption."
+       (if (eq operation '-decrypt)
+           (let ((pass (my/get-smime-passphrase)))
+             (if (and pass (> (length pass) 0))
+                 (apply old-fn operation (append options (list "-passin" (concat "pass:" pass))))
+               (apply old-fn operation options)))
+         (apply old-fn operation options)))
+
+     (advice-add 'smime-openssl :around #'my/smime-add-passphrase-advice)))
+
 (use-package mu4e
   :delight
   :defer t
-  :ensure nil ; Don't try to download it; it's already on the system  
+  :ensure nil ; Don't try to download it; it's already on the system
   :load-path "/opt/homebrew/share/emacs/site-lisp/mu/mu4e/"
   :commands mu4e
   :config
   (require 'smtpmail)
+  (require 'smime)
+
+  ;; Tell mu4e not to use the broken EPG backend
+  (setq mu4e-crypt-use-epg nil)
+
+  (add-to-list 'mu4e-view-actions
+               '("Import S/MIME cert" . (lambda (msg)
+                                          (let* ((from (mu4e-message-field msg :from))
+                                                 (email (plist-get (car from) :email)) ; Corrected email extraction
+                                                 (cert-dir (expand-file-name "~/Mail/Certificates/"))
+                                                 (filename (and email (expand-file-name (concat email ".crt") cert-dir)))
+                                                 (original-message-path (mu4e-message-field msg :path)) ; Path to the raw message file
+                                                 )
+                                            (unless (and email original-message-path cert-dir filename)
+                                              (error "S/MIME import Error: Missing data. Check sender email, message path, or cert directory."))
+                                            (unwind-protect
+                                                (progn
+                                                  (make-directory cert-dir t)
+                                                  ;; Directly verify and extract certs from the original message file
+                                                  ;; This command expects a signed message, not necessarily encrypted.
+                                                  (let ((command (format "openssl cms -verify -inform SMIME -in %s -noverify -certsout %s"
+                                                                         (shell-quote-argument original-message-path) ; Use original raw message file
+                                                                         (shell-quote-argument filename))))
+                                                    (message "DEBUG: Running verify command for import...")
+                                                    (if (zerop (shell-command command))
+                                                        (progn
+                                                          (shell-command (format "openssl rehash %s" (shell-quote-argument cert-dir)))
+                                                          (message "S/MIME certificate for %s imported." email))
+                                                      (message "Failed to extract certificate. Is the email S/MIME signed? (Was it perhaps only encrypted?)"))))
+                                              ;; No temp file to clean up in this version
+                                              )))))
+
+  
+  (defun my-mu4e-ask-crypto ()
+    "Ask whether to sign or encrypt the message."
+    (unless (message-mail-p)
+      (let ((sign (y-or-n-p "Sign message? "))
+            (encrypt (y-or-n-p "Encrypt message? ")))
+        (if (and sign encrypt)
+            (mml-secure-message-sign-and-encrypt-pgpmime)
+          (if sign (mml-secure-message-sign-pgpmime))
+          (if encrypt (mml-secure-message-encrypt-pgpmime))))))
+
+  (add-hook 'message-send-hook 'my-mu4e-ask-crypto)
+
   (setq mu4e-maildir "~/Mail"
         mu4e-mu-binary (executable-find "mu")
         mu4e-attachment-dir  "~/Mail/Downloads"
@@ -2207,7 +2281,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         mu4e-change-filenames-when-moving t
         )
 
-  (setq mu4e-split-view 'vertical) 
+  (setq mu4e-split-view 'vertical)
   (setq mu4e-user-mail-address-list '(
                                       "sethamin.7@gmail.com"
                                       "seth.figueroa@focusae.com"
@@ -2222,38 +2296,10 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
             ("/Gmail/[Gmail]/Sent Mail" . ?G)
             ))
 
-  
+
   (setq mu4e-html2text-command 'mu4e-shr2text)
   (when (fboundp 'xwidget-webkit-browse-url)
     (setq mu4e-display-html-method 'xwidgets))
-  (add-to-list 'mu4e-view-actions
-               '("Import S/MIME cert" . (lambda (msg)
-                                          (shell-command (format "gpgsm --import %s" 
-                                                                 (shell-quote-argument (mu4e-message-field msg :path))))
-                                          (message "S/MIME certificate imported."))))
-
-
-  ;; (setq mu4e-compose-signature-auto-include nil
-  ;;       mu4e-sent-messages-behavior 'delete)
-  
-  ;; (setq epg-debug t)
-  (setq mu4e-view-auto-decrypt t)
-  
-  (require 'epg)
-  (setq mml-smime-use 'epg                 ; Use EasyPG for S/MIME
-        mml-default-sign-method "smime"    ; Set default signature to S/MIME
-        ;; Use the fingerprint you found with 'gpgsm --list-keys'
-        smime-keys '(("seth.figueroa@focusae.com" "900DE5BC28610178AF63A9B299CA27445972C35D" nil))
-        )
-
-  
-  ;; Automatically sign all outgoing mu4e messages
-  ;; (add-hook 'mu4e-compose-mode-hook 'mml-secure-message-sign-smime)
-  
-  ;; gpg encryptiom & decryption:
-  ;; this can be left alone
-  (require 'epa-file)
-  (epa-file-enable)
 
   (setq epa-pinentry-mode 'loopback)
   (auth-source-forget-all-cached)
@@ -2279,8 +2325,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         message-sendmail-envelope-from 'header)
 
 
-  ;; mu4e cc & bcc
-  ;; this is custom as well
   (add-hook 'mu4e-compose-mode-hook
             (defun timu/add-cc-and-bcc ()
               "My Function to automatically add Cc & Bcc: headers.
@@ -2290,7 +2334,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
   ;; mu4e address completion
   (add-hook 'mu4e-compose-mode-hook 'corfu-mode)
-  
+
   ;; ;; store link to message if in header view, not to header query:
   ;; (setq org-mu4e-link-query-in-headers-mode nil)
 
@@ -2340,13 +2384,12 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                     (message-sendmail-extra-arguments . ("-a" "focus"))
                     (mu4e-drafts-folder . "/Focus/INBOX") ; Adjust these paths to match your actual maildir
                     (mu4e-trash-folder . "/Focus/[Gmail]/Trash")
-                    (mu4e-sent-folder . "/Focus/Sent Messages")))))
+                    (mu4e-sent-folder . "/Focus/Sent Messages")
+                    ))))
 
 
   (setq mu4e-context-policy 'pick-first) ;; start with the first (default) context;
   (setq mu4e-compose-context-policy 'ask) ;; ask for context if no context matches;
-
-
   )
 
 (use-package mu4e-views
