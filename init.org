@@ -2236,10 +2236,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                                           (let* ((from (mu4e-message-field msg :from))
                                                  (email (plist-get (car from) :email)) ; Corrected email extraction
                                                  (cert-dir (expand-file-name "~/Mail/Certificates/"))
-                                                 (filename (and email (expand-file-name (concat email ".crt") cert-dir)))
+                                                 (filename-crt (and email (expand-file-name (concat email ".crt") cert-dir)))
+                                                 (filename-pem (and email (expand-file-name (concat email ".pem") cert-dir)))
                                                  (original-message-path (mu4e-message-field msg :path)) ; Path to the raw message file
                                                  )
-                                            (unless (and email original-message-path cert-dir filename)
+                                            (unless (and email original-message-path cert-dir filename-crt filename-pem)
                                               (error "S/MIME import Error: Missing data. Check sender email, message path, or cert directory."))
                                             (unwind-protect
                                                 (progn
@@ -2248,12 +2249,16 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                                                   ;; This command expects a signed message, not necessarily encrypted.
                                                   (let ((command (format "openssl cms -verify -inform SMIME -in %s -noverify -certsout %s"
                                                                          (shell-quote-argument original-message-path) ; Use original raw message file
-                                                                         (shell-quote-argument filename))))
+                                                                         (shell-quote-argument filename-crt))))
                                                     (message "DEBUG: Running verify command for import...")
                                                     (if (zerop (shell-command command))
                                                         (progn
+                                                          ;; Convert/Extract the first cert (sender's cert) as .pem for smime encryption
+                                                          (shell-command (format "openssl x509 -in %s -out %s -outform PEM"
+                                                                                 (shell-quote-argument filename-crt)
+                                                                                 (shell-quote-argument filename-pem)))
                                                           (shell-command (format "openssl rehash %s" (shell-quote-argument cert-dir)))
-                                                          (message "S/MIME certificate for %s imported." email))
+                                                          (message "S/MIME certificate for %s imported as .crt and .pem." email))
                                                       (message "Failed to extract certificate. Is the email S/MIME signed? (Was it perhaps only encrypted?)"))))
                                               ;; No temp file to clean up in this version
                                               )))))
