@@ -2198,6 +2198,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
      ;; --- S/MIME Configuration ---
      (setq smime-keys '(("seth.figueroa@focusae.com" "~/Mail/Certificates/seth.figueroa@focusae.com.pem")))
      (setq mml-smime-use 'openssl)
+     (setq smime-CA-file (expand-file-name "~/Mail/Certificates/SSL.com_chain.pem"))
 
      ;; If your S/MIME key is unencrypted, the passphrase should be an empty string.
      ;; This prevents prompts for a non-existent passphrase.
@@ -2225,6 +2226,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :config
   (require 'smtpmail)
   (require 'smime)
+  (require 'mml-sec)
 
   ;; Tell mu4e not to use the broken EPG backend
   (setq mu4e-crypt-use-epg nil)
@@ -2257,19 +2259,31 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                                               )))))
 
   
-  (defun my-mu4e-ask-crypto ()
-    "Ask whether to sign or encrypt the message."
+  (defun my-mu4e-auto-crypto-for-focus ()
+    "Automatically sign messages using S/MIME when in the 'focus' mu4e context."
     (unless (message-mail-p)
-      (let ((sign (y-or-n-p "Sign message? "))
-            (encrypt (y-or-n-p "Encrypt message? ")))
-        (if (and sign encrypt)
-            (mml-secure-message-sign-and-encrypt-pgpmime)
-          (if sign (mml-secure-message-sign-pgpmime))
-          (if encrypt (mml-secure-message-encrypt-pgpmime))))))
+      (let ((current-context (mu4e-context-current)))
+        (when (and current-context (string= (mu4e-context-name current-context) "focus"))  
+          (mml-secure-message-sign-smime)
+          )))
+    )
+  (add-hook 'mu4e-compose-mode-hook 'my-mu4e-auto-crypto-for-focus)
 
-  (add-hook 'message-send-hook 'my-mu4e-ask-crypto)
+  (defun my-mu4e-encrypt-check ()
+
+    (let ((current-context (mu4e-context-current)))
+      (when (and current-context
+                 (string= (mu4e-context-name current-context) "focus")
+                 (not (mml-secure-is-encrypted-p))
+                 (y-or-n-p "Encrypt before sending? ")
+                 )  
+        (mml-secure-message-encrypt-smime)
+        ))
+    )
+  (add-hook 'message-send-hook 'my-mu4e-encrypt-check)
 
   (setq mu4e-maildir "~/Mail"
+        smime-certificate-directory "/home/user/.gnupg/certs/"
         mu4e-mu-binary (executable-find "mu")
         mu4e-attachment-dir  "~/Mail/Downloads"
         mu4e-get-mail-command (concat (executable-find "mbsync") " -a")
@@ -2302,11 +2316,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
   ;; don't keep message compose buffers around after sending:
   (setq message-kill-buffer-on-exit t)
-
-  ;; send function:
-  ;; (setq send-mail-function 'sendmail-send-it
-  ;;       message-send-mail-function 'sendmail-send-it)
-
   (setq send-mail-function 'message-send-mail-with-sendmail
         message-send-mail-function 'message-send-mail-with-sendmail)
 
@@ -2319,7 +2328,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         sendmail-program (executable-find "msmtp")
         message-sendmail-f-is-evil t
         message-sendmail-envelope-from 'header)
-
 
   (add-hook 'mu4e-compose-mode-hook
             (defun timu/add-cc-and-bcc ()
