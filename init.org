@@ -2322,6 +2322,18 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 
   (setq mu4e-html2text-command 'mu4e-shr2text)
+  
+  ;; Make HTML emails much easier to read inside Emacs
+  (with-eval-after-load 'shr
+    (setq shr-use-colors nil        ; Don't let HTML dictate text/background colors
+          shr-use-fonts nil         ; Stick to your default Emacs font (monospace)
+          shr-width 80              ; Restrict the width to 80 characters for readability
+          shr-max-image-proportion 0.7 ; Don't let images take over the whole screen
+          shr-image-animate nil))   ; Disable distracting animated GIFs in emails
+          
+  ;; Wrap text nicely in the view window
+  (add-hook 'mu4e-view-mode-hook #'visual-line-mode)
+
   (when (fboundp 'xwidget-webkit-browse-url)
     (setq mu4e-display-html-method 'xwidgets))
 
