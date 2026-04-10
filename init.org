@@ -2193,8 +2193,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t
 (eval-after-load 'smime
   '(progn
-     (message "DEBUG: smime loaded, applying caching config.")
-
      ;; --- S/MIME Configuration ---
      (setq smime-keys '(("seth.figueroa@focusae.com" "~/Mail/Certificates/seth.figueroa@focusae.com.pem")))
      (setq mml-smime-use 'openssl)
@@ -2216,8 +2214,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
      (advice-add 'password-read :around #'my/password-read-smime-auto-enter-advice)))
 
 
-
 (use-package mu4e
+  ;; :elpaca (:host github :repo "djcb/mu4e")
   :delight
   :defer t
   :ensure nil ; Don't try to download it; it's already on the system
@@ -2227,7 +2225,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (require 'smtpmail)
   (require 'smime)
   (require 'mml-sec)
-
   ;; Tell mu4e not to use the broken EPG backend
   (setq mu4e-crypt-use-epg nil)
 
@@ -2239,19 +2236,29 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                                                  (filename-crt (and email (expand-file-name (concat email ".crt") cert-dir)))
                                                  (filename-pem (and email (expand-file-name (concat email ".pem") cert-dir)))
                                                  (original-message-path (mu4e-message-field msg :path)) ; Path to the raw message file
+                                                 (user-cert (and smime-keys (expand-file-name (cadr (car smime-keys)))))
                                                  )
                                             (unless (and email original-message-path cert-dir filename-crt filename-pem)
                                               (error "S/MIME import Error: Missing data. Check sender email, message path, or cert directory."))
                                             (unwind-protect
                                                 (progn
                                                   (make-directory cert-dir t)
-                                                  ;; Directly verify and extract certs from the original message file
-                                                  ;; This command expects a signed message, not necessarily encrypted.
-                                                  (let ((command (format "openssl cms -verify -inform SMIME -in %s -noverify -certsout %s"
-                                                                         (shell-quote-argument original-message-path) ; Use original raw message file
-                                                                         (shell-quote-argument filename-crt))))
-                                                    (message "DEBUG: Running verify command for import...")
-                                                    (if (zerop (shell-command command))
+                                                  ;; Try to verify and extract from signed-only message
+                                                  (let* ((verify-cmd (format "openssl cms -verify -inform SMIME -in %s -noverify -certsout %s -out /dev/null 2>/dev/null"
+                                                                             (shell-quote-argument original-message-path)
+                                                                             (shell-quote-argument filename-crt)))
+                                                         (decrypt-verify-cmd (when user-cert
+                                                                               (format "openssl cms -decrypt -inform SMIME -in %s -recip %s -inkey %s 2>/dev/null | openssl cms -verify -inform SMIME -noverify -certsout %s -out /dev/null 2>/dev/null"
+                                                                                       (shell-quote-argument original-message-path)
+                                                                                       (shell-quote-argument user-cert)
+                                                                                       (shell-quote-argument user-cert)
+                                                                                       (shell-quote-argument filename-crt)))))
+                                                    
+                                                    (if (or (zerop (shell-command verify-cmd))
+                                                            (and decrypt-verify-cmd
+                                                                 (progn
+                                                                   
+                                                                   (zerop (shell-command decrypt-verify-cmd)))))
                                                         (progn
                                                           ;; Convert/Extract the first cert (sender's cert) as .pem for smime encryption
                                                           (shell-command (format "openssl x509 -in %s -out %s -outform PEM"
@@ -2259,7 +2266,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                                                                                  (shell-quote-argument filename-pem)))
                                                           (shell-command (format "openssl rehash %s" (shell-quote-argument cert-dir)))
                                                           (message "S/MIME certificate for %s imported as .crt and .pem." email))
-                                                      (message "Failed to extract certificate. Is the email S/MIME signed? (Was it perhaps only encrypted?)"))))
+                                                      (message "Failed to extract certificate. Is the email signed?"))))
                                               ;; No temp file to clean up in this version
                                               )))))
 
@@ -2296,6 +2303,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         mu4e-change-filenames-when-moving t
         )
 
+  (setq mu4e-view-prefer-html t)
+  (setq mu4e-view-auto-decrypt t)
   (setq mu4e-split-view 'vertical)
   (setq mu4e-user-mail-address-list '(
                                       "sethamin.7@gmail.com"
@@ -2315,7 +2324,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq mu4e-html2text-command 'mu4e-shr2text)
   (when (fboundp 'xwidget-webkit-browse-url)
     (setq mu4e-display-html-method 'xwidgets))
-
 
   (auth-source-forget-all-cached)
 
@@ -2398,45 +2406,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 
   (setq mu4e-context-policy 'pick-first) ;; start with the first (default) context;
-  (setq mu4e-compose-context-policy 'ask) ;; ask for context if no context matches;
+  (setq mu4e-compose-context-policy 'ask) ;; ask for context if no context matches;  
   )
 
-;; (use-package mu4e-views
-;;   :after mu4e
-;;   :defer nil  
-;;   :bind (:map mu4e-headers-mode-map
-;; 	          ("v" . mu4e-views-mu4e-select-view-msg-method) ;; select viewing method
-;; 	          ("M-n" . mu4e-views-cursor-msg-view-window-down) ;; from headers window scroll the email view
-;; 	          ("M-p" . mu4e-views-cursor-msg-view-window-up) ;; from headers window scroll the email view
-;;               ("f" . mu4e-views-toggle-auto-view-selected-message) ;; toggle opening messages automatically when moving in the headers view
-;;               ("i" . mu4e-views-mu4e-view-as-nonblocked-html) ;; show currently selected email with all remote content
-;; 	          )
-;;   :init
-;;   (require 'goto-addr) ; Ensures goto-address-url-regexp is defined
-;;   :config
-;;   (setq mu4e-views-completion-method 'ivy) ;; use ivy for completion
-;;   (setq mu4e-views-default-view-method "html") ;; make xwidgets default
-;;   (mu4e-views-mu4e-use-view-msg-method "html-nonblock") ;; select the default
-;;   (setq mu4e-views-next-previous-message-behaviour 'stick-to-current-window) ;; when pressing n and p stay in the current window
-;;   (setq mu4e-views-auto-view-selected-message t) ;; automatically open messages when moving in the headers view
-;;   )
-
-(use-package consult-mu
-  :straight (consult-mu :type git :host github :repo "armindarvish/consult-mu" :branch "main")
-  :after mu4e
-  :defer nil
-  :custom
-  ;;maximum number of results shown in minibuffer
-  (consult-mu-maxnum 200)
-  ;;show preview when pressing any keys
-  (consult-mu-preview-key 'any)
-  ;;do not mark email as read when previewed
-  (consult-mu-mark-previewed-as-read nil)
-  ;;do not amrk email as read when selected. This is a good starting point to ensure you would not miss important emails marked as read by mistake especially when trying this package out. Later you can change this to t.
-  (consult-mu-mark-viewed-as-read nil)
-  ;; open the message in mu4e-view-buffer when selected.
-  (consult-mu-action #'consult-mu--view-action)
-  )
 
 #+end_src
 
@@ -2928,7 +2900,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :defer t
   :config
   (setq agent-shell-sidebar-default-config
-      (agent-shell-google-make-gemini-config))
+        (agent-shell-google-make-gemini-config))
   (setq agent-shell-sidebar-locked nil)
   (setq agent-shell-sidebar-width "1%")
   (setq agent-shell-sidebar-minimum-width "5%")
