@@ -2325,6 +2325,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (when (fboundp 'xwidget-webkit-browse-url)
     (setq mu4e-display-html-method 'xwidgets))
 
+  (setq mu4e-modeline-support nil)
+
   (defun my/mu4e-action-view-in-browser-advice (old-fn msg &optional skip-headers)
     "Advice to reuse already decrypted MIME handles when viewing in browser/xwidget.
 This prevents S/MIME decryption prompts from appearing again."
@@ -2405,6 +2407,51 @@ This prevents S/MIME decryption prompts from appearing again."
 (use-package mu4e-column-faces
   :after mu4e
   :config (mu4e-column-faces-mode))
+
+(use-package mu4e-alert
+  :after mu4e
+  :config
+  
+  ;; Set the style to use the alert library's built-in native macOS notification
+  (mu4e-alert-set-default-style 'osx-notifier)
+
+  ;; Enable desktop notifications
+  (add-hook 'after-init-hook #'mu4e-alert-enable-notifications)
+
+  ;; Enable the unread email icon/count in the mode-line
+  (add-hook 'after-init-hook #'mu4e-alert-enable-mode-line-display)
+
+  ;; Define which maildirs to monitor for notifications (optional, monitors all unread by default)
+  ;; (setq mu4e-alert-interesting-maildirs '("/Focus/INBOX" "/Gmail/INBOX"))
+
+  ;; Group notifications by Maildir so each account (Focus vs Gmail) gets its own notification
+  (setq mu4e-alert-group-by :maildir)
+
+  ;; ;; Custom formatter to make the separated notifications look nice
+  ;; (setq mu4e-alert-grouped-mail-notification-formatter
+  ;;       (lambda (mail-group all-mails)
+  ;;         (let* ((mail-count (length mail-group))
+  ;;                (first-mail (car mail-group))
+  ;;                (maildir (plist-get first-mail :maildir))
+  ;;                ;; Extract the account name (e.g. "Focus" or "Gmail") from the maildir path
+  ;;                (account-name (if (string-match "^/\\([^/]+\\)" maildir)
+  ;;                                  (match-string 1 maildir)
+  ;;                                "Account"))
+  ;;                (title (format "%s: %d New Message%s" 
+  ;;                               account-name 
+  ;;                               mail-count 
+  ;;                               (if (> mail-count 1) "s" "")))
+  ;;                (body (mapconcat
+  ;;                       (lambda (mail)
+  ;;                         (format "• %s: %s"
+  ;;                                 (car-safe (car-safe (plist-get mail :from)))
+  ;;                                 (truncate-string-to-width (plist-get mail :subject) 40 nil nil "...")))
+  ;;                       (seq-take mail-group 5) "\n"))) ; Show max 5 messages in the banner
+  ;;           (list :title title :body body))))
+
+  (mu4e-alert-enable-notifications)
+  (mu4e-alert-enable-mode-line-display)
+  )
 
 
 #+end_src
