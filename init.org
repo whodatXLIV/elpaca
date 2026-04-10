@@ -2325,6 +2325,26 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (when (fboundp 'xwidget-webkit-browse-url)
     (setq mu4e-display-html-method 'xwidgets))
 
+  (defun my/mu4e-action-view-in-browser-advice (old-fn msg &optional skip-headers)
+    "Advice to reuse already decrypted MIME handles when viewing in browser/xwidget.
+This prevents S/MIME decryption prompts from appearing again."
+    (require 'gnus-art)
+    (let* ((view-buf (mu4e-get-view-buffer))
+           (handles (when (buffer-live-p view-buf)
+                      (with-current-buffer view-buf
+                        (or (bound-and-true-p gnus-article-mime-handles)
+                            (bound-and-true-p mu4e~gnus-article-mime-handles))))))
+      (if handles
+          (let ((parts (if (and (bufferp (car-safe handles))
+                                (stringp (car-safe (mm-handle-type handles))))
+                           (list handles)
+                         handles)))
+            (unless (gnus-article-browse-html-parts parts nil)
+              (mu4e-warn "Message does not contain a \"text/html\" part")))
+        (funcall old-fn msg skip-headers))))
+
+  (advice-add 'mu4e-action-view-in-browser :around #'my/mu4e-action-view-in-browser-advice)
+
   (auth-source-forget-all-cached)
 
   ;; don't keep message compose buffers around after sending:
@@ -2332,11 +2352,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq send-mail-function 'message-send-mail-with-sendmail
         message-send-mail-function 'message-send-mail-with-sendmail)
 
-  ;; chose from account before sending
-  ;; this is a custom function that works for me.
-  ;; well I stole it somewhere long ago.
-  ;; I suggest using it to make matters easy
-  ;; of course adjust the email adresses and account descriptions
   (setq message-send-mail-function 'message-send-mail-with-sendmail
         sendmail-program (executable-find "msmtp")
         message-sendmail-f-is-evil t
@@ -2348,36 +2363,13 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     This is in the mu4e compose mode."
               (save-excursion (message-add-header "Cc:\n"))
               (save-excursion (message-add-header "Bcc:\n"))))
-
+  
   ;; mu4e address completion
   (add-hook 'mu4e-compose-mode-hook 'corfu-mode)
-
-  ;; ;; store link to message if in header view, not to header query:
-  ;; (setq org-mu4e-link-query-in-headers-mode nil)
-
-  ;; ;; don't have to confirm when quitting:
-  ;; (setq mu4e-confirm-quit nil)
-
-  ;; ;; number of visible headers in horizontal split view:
-  ;; (setq mu4e-headers-visible-lines 20)
-
-  ;; ;; don't show threading by default:
-  ;; (setq mu4e-headers-show-threads nil)
-
-  ;; ;; hide annoying "mu4e Retrieving mail..." msg in mini buffer:
-  ;; (setq mu4e-hide-index-messages t)
-
-  ;; ;; customize the reply-quote-string:
-  ;; (setq message-citation-line-format "%N @ %Y-%m-%d %H:%M :\n")
-
-  ;; ;; M-x find-function RET message-citation-line-format for docs:
-  ;; (setq message-citation-line-function 'message-insert-formatted-citation-line)
-
-  ;; ;; by default do not show related emails:
-  ;; (setq mu4e-headers-include-related nil)
-
-  ;; ;; by default do not show threads:
-  ;; (setq mu4e-headers-show-threads nil)
+  ;; don't show threading by default:
+  (setq mu4e-headers-show-threads nil)
+  ;; by default do not show related emails:
+  (setq mu4e-headers-include-related nil)
   (setq mu4e-contexts
         `(,(make-mu4e-context
             :name "gmail"
@@ -2403,11 +2395,16 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                     (mu4e-trash-folder . "/Focus/[Gmail]/Trash")
                     (mu4e-sent-folder . "/Focus/Sent Messages")
                     ))))
-
-
   (setq mu4e-context-policy 'pick-first) ;; start with the first (default) context;
   (setq mu4e-compose-context-policy 'ask) ;; ask for context if no context matches;  
   )
+#+end_src
+
+#+begin_src emacs-lisp :lexical t
+
+(use-package mu4e-column-faces
+  :after mu4e
+  :config (mu4e-column-faces-mode))
 
 
 #+end_src
