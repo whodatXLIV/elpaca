@@ -871,6 +871,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :bind (:map vertico-map
           ("M-S" . my-vertico-cycle-sort))
   :config
+  (vertico-mode 1)
   (setq vertico-cycle nil)
   (setq vertico-resize nil)
   (setq enable-recursive-minibuffers t)
@@ -978,7 +979,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     :ensure t
     :defer t
     :delight t
-    :hook (emacs-startup . ivy-mode)
+    ;; :hook (emacs-startup . ivy-mode)
     :bind (:map ivy-minibuffer-map
                 ("RET" . ivy-alt-done)
                 ("DEL" . ivy-backward-delete-char)
@@ -1003,6 +1004,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     (setq ivy-initial-inputs-alist nil)
     (setq ivy-use-selectable-prompt t)
     (setq ivy-magic-slash-non-match-action 'ivy-magic-slash-non-match-create)
+
+    (setq ivy-completing-read-handlers-alist 
+      '((consult-mu . nil)
+        (consult-line . nil)
+        (consult-buffer . nil)))
    )
 
   (use-package swiper
@@ -1019,7 +1025,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     :ensure t
     :defer t
     :delight t
-    :hook (ivy-mode . counsel-mode)
+    :bind* (("C-x C-f" . counsel-find-file))
     :config
     ;; Delay for live preview to avoid severe lag over TRAMP
     (setq ivy-dynamic-exhibit-delay-ms 10)
@@ -1041,18 +1047,18 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;;   :init
   ;;   (nerd-icons-ivy-rich-mode 1))
 
-  (use-package ivy-prescient
-    :ensure t
-    :delight t
-    :after counsel
-    :config
-    (setq ivy-prescient-sort-commands '(:not swiper swiper-isearch counsel-find-file))
-    (add-to-list 'ivy-sort-functions-alist '(counsel-find-file . nil))
-    (setq ivy-prescient-retain-classic-highlighting nil)
-    :init
-    (ivy-prescient-mode 1)
-    (prescient-persist-mode 1)
-    )
+  ;; (use-package ivy-prescient
+  ;;   :ensure t
+  ;;   :delight t
+  ;;   :after counsel
+  ;;   :config
+  ;;   (setq ivy-prescient-sort-commands '(:not swiper swiper-isearch counsel-find-file))
+  ;;   (add-to-list 'ivy-sort-functions-alist '(counsel-find-file . nil))
+  ;;   (setq ivy-prescient-retain-classic-highlighting nil)
+  ;;   :init
+  ;;   (ivy-prescient-mode 1)
+  ;;   (prescient-persist-mode 1)
+  ;;   ) 
 #+end_src
 
 *** Marginalia
@@ -2299,9 +2305,31 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         mu4e-mu-binary (executable-find "mu")
         mu4e-attachment-dir  "~/Mail/Downloads"
         mu4e-get-mail-command (concat (executable-find "mbsync") " -a")
-        mu4e-update-interval 300
+        mu4e-update-interval 180
         mu4e-change-filenames-when-moving t
+        mu4e-headers-auto-update t
+        mu4e-view-show-images t
         )
+
+  (add-hook 'mu4e-headers-mode-hook
+            (defun my/mu4e-change-headers ()
+	          (interactive)
+	          (setq mu4e-headers-fields
+	                `((:human-date . 25) ;; alternatively, use :date
+		              (:flags . 6)
+		              (:from . 22)
+		              (:thread-subject . ,(- (window-body-width) 70)) ;; alternatively, use :subject
+		              (:size . 7)))))
+
+  ;; spell check
+  (add-hook 'mu4e-compose-mode-hook
+            (defun my-do-compose-stuff ()
+              "My settings for message composition."
+              (visual-line-mode)
+              (org-mu4e-compose-org-mode)
+              (use-hard-newlines -1)
+              (flyspell-mode)))
+
 
   (setq mu4e-view-prefer-html t)
   (setq mu4e-view-auto-decrypt t)
@@ -2326,11 +2354,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;; Make HTML emails much easier to read inside Emacs
   (with-eval-after-load 'shr
     (setq shr-use-colors nil        ; Don't let HTML dictate text/background colors
-          shr-use-fonts nil         ; Stick to your default Emacs font (monospace)
-          shr-width 80              ; Restrict the width to 80 characters for readability
+          shr-use-fonts t         ; Stick to your default Emacs font (monospace)
+          shr-width 160              ; Restrict the width to 80 characters for readability
           shr-max-image-proportion 0.7 ; Don't let images take over the whole screen
           shr-image-animate nil))   ; Disable distracting animated GIFs in emails
-          
+  
   ;; Wrap text nicely in the view window
   (add-hook 'mu4e-view-mode-hook #'visual-line-mode)
 
@@ -2381,7 +2409,7 @@ This prevents S/MIME decryption prompts from appearing again."
   ;; mu4e address completion
   (add-hook 'mu4e-compose-mode-hook 'corfu-mode)
   ;; don't show threading by default:
-  (setq mu4e-headers-show-threads nil)
+  (setq mu4e-headers-show-threads t)
   ;; by default do not show related emails:
   (setq mu4e-headers-include-related nil)
   (setq mu4e-contexts
@@ -2410,7 +2438,8 @@ This prevents S/MIME decryption prompts from appearing again."
                     (mu4e-sent-folder . "/Focus/Sent Messages")
                     ))))
   (setq mu4e-context-policy 'pick-first) ;; start with the first (default) context;
-  (setq mu4e-compose-context-policy 'ask) ;; ask for context if no context matches;  
+  (setq mu4e-compose-context-policy 'ask) ;; ask for context if no context matches;
+  (require 'consult-mu)
   )
 #+end_src
 
@@ -2433,33 +2462,8 @@ This prevents S/MIME decryption prompts from appearing again."
   ;; Enable the unread email icon/count in the mode-line
   (add-hook 'after-init-hook #'mu4e-alert-enable-mode-line-display)
 
-  ;; Define which maildirs to monitor for notifications (optional, monitors all unread by default)
-  ;; (setq mu4e-alert-interesting-maildirs '("/Focus/INBOX" "/Gmail/INBOX"))
-
   ;; Group notifications by Maildir so each account (Focus vs Gmail) gets its own notification
   (setq mu4e-alert-group-by :maildir)
-
-  ;; ;; Custom formatter to make the separated notifications look nice
-  ;; (setq mu4e-alert-grouped-mail-notification-formatter
-  ;;       (lambda (mail-group all-mails)
-  ;;         (let* ((mail-count (length mail-group))
-  ;;                (first-mail (car mail-group))
-  ;;                (maildir (plist-get first-mail :maildir))
-  ;;                ;; Extract the account name (e.g. "Focus" or "Gmail") from the maildir path
-  ;;                (account-name (if (string-match "^/\\([^/]+\\)" maildir)
-  ;;                                  (match-string 1 maildir)
-  ;;                                "Account"))
-  ;;                (title (format "%s: %d New Message%s" 
-  ;;                               account-name 
-  ;;                               mail-count 
-  ;;                               (if (> mail-count 1) "s" "")))
-  ;;                (body (mapconcat
-  ;;                       (lambda (mail)
-  ;;                         (format "• %s: %s"
-  ;;                                 (car-safe (car-safe (plist-get mail :from)))
-  ;;                                 (truncate-string-to-width (plist-get mail :subject) 40 nil nil "...")))
-  ;;                       (seq-take mail-group 5) "\n"))) ; Show max 5 messages in the banner
-  ;;           (list :title title :body body))))
 
   (mu4e-alert-enable-notifications)
   (mu4e-alert-enable-mode-line-display)
@@ -2467,6 +2471,51 @@ This prevents S/MIME decryption prompts from appearing again."
 
 
 #+end_src
+
+#+begin_src emacs-lisp :lexical t :tangle yes
+
+(use-package consult-mu
+  :elpaca (consult-mu :type git :host github :repo "armindarvish/consult-mu" :branch "develop" :files (:defaults "extras/*.el"))
+  :custom
+  ;;maximum number of results shown in minibuffer
+  (consult-mu-maxnum 200)
+  ;;show preview when pressing any keys
+  (consult-mu-preview-key 'any)
+  ;;do not mark email as read when previewed. If you turn this to t, be aware that the auto-loaded preview if the preview-key above is 'any would also get marked as read!
+  (consult-mu-mark-previewed-as-read nil)
+  ;;mark email as read when selected.
+  (consult-mu-mark-viewed-as-read t)
+  ;;use reply to all when composing reply emails
+  (consult-mu-use-wide-reply t)
+  ;; define a template for headers view in minibuffer. The example below adjusts the width based on the width of the screen.
+  (consult-mu-headers-template (lambda () (concat "%f" (number-to-string (floor (* (frame-width) 0.15))) "%s" (number-to-string (floor (* (frame-width) 0.5))) "%d13" "%g" "%x")))
+  
+  :config
+  ;;create a list of saved searches for quick access using `histroy-next-element' with `M-n' in minibuffer. Note the "#" character at the beginning of each query! Change these according to
+  (setq consult-mu-saved-searches-dynamics '("#flag:unread"))
+  (setq consult-mu-saved-searches-async '("#flag:unread"))
+  ;; ;; require embark actions for marking, replying, forwarding, etc. directly from minibuffer
+  ;; (require 'consult-mu-embark)
+  ;; ;; require extra module for composing (e.g. for interactive attachment) as well as embark actions
+  ;; (require 'consult-mu-compose)
+  ;; (require 'consult-mu-compose-embark)
+  ;; ;; require extra module for searching contacts and runing embark actions on contacts
+  ;; (require 'consult-mu-contacts)
+  ;; (require 'consult-mu-contacts-embark)
+  ;; ;; change the prefiew key for compose so you don't open a preview of every file when selecting files to attach
+  ;; (setq consult-mu-compose-preview-key "M-o")
+  ;; ;; pick a key to bind to consult-mu-compose-attach in embark-file-map
+  ;; (setq consult-mu-embark-attach-file-key "C-a")
+  ;; (setq consult-mu-contacts-ignore-list '("^.*no.*reply.*"))
+  ;; (setq consult-mu-contacts-ignore-case-fold-search t)
+  ;; (consult-mu-compose-embark-bind-attach-file-key)
+  ;; ;; choose if you want to use dired for attaching files (choice of 'always, 'in-dired, or nil)
+  ;; (setq consult-mu-compose-use-dired-attachment 'in-dired)
+  )
+
+
+#+end_src
+
 
 
 *** Org-mode
