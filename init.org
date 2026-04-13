@@ -1475,7 +1475,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (run-at-time nil (* 5 60) 'recentf-save-list)
   (add-to-list 'recentf-exclude "\\.png$")
   (add-to-list 'recentf-exclude "/var/folders")
-  (add-to-list 'recentf-exclude "~/Mail/Focus/")
+  (add-to-list 'recentf-exclude "~/Mail/")
   ;; (recentf-cleanup)
   ;; (setq recentf-auto-cleanup t)
   ;; :defer t
@@ -2223,6 +2223,29 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
      (advice-add 'password-read :around #'my/password-read-smime-auto-enter-advice)))
 
+(eval-after-load 'mml-smime
+  '(progn
+     (defun my/mml-smime-openssl-encrypt-query-advice (orig-fun &rest args)
+       "Automatically find S/MIME certificates based on recipient emails."
+       (let* ((recips (mapconcat #'identity
+                                 (delq nil (list (message-fetch-field "to")
+                                                 (message-fetch-field "cc")
+                                                 (message-fetch-field "bcc")))
+                                 ", "))
+              (addresses (delete-dups (delq nil (mapcar #'cadr (mail-extract-address-components recips t)))))
+              (all-certs nil)
+              (missing-certs nil))
+         (dolist (addr addresses)
+           (let* ((cert-file (expand-file-name (concat addr ".pem") smime-certificate-directory)))
+             (if (file-exists-p cert-file)
+                 (setq all-certs (append all-certs (list 'certfile cert-file)))
+               (push addr missing-certs))))
+         (if (or missing-certs (null addresses))
+             (apply orig-fun args)
+           all-certs)))
+
+     (advice-add 'mml-smime-openssl-encrypt-query :around #'my/mml-smime-openssl-encrypt-query-advice)))
+
 
 (use-package mu4e
   ;; :elpaca (:host github :repo "djcb/mu4e")
@@ -2238,9 +2261,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (require 'smtpmail)
   (require 'smime)
   (require 'mml-sec)
+
+
+  (setq mail-user-agent 'mu4e-user-agent)
   ;; Tell mu4e not to use the broken EPG backend
   (setq mu4e-crypt-use-epg nil)
-
   (add-to-list 'mu4e-view-actions
                '("Import S/MIME cert" . (lambda (msg)
                                           (let* ((from (mu4e-message-field msg :from))
@@ -2284,7 +2309,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                                               )))))
 
 
-  (defun my-mu4e-auto-crypto-for-focus ()
+  (defun my-mu4e-auto-sign-for-focus ()
     "Automatically sign messages using S/MIME when in the 'focus' mu4e context."
     (unless (message-mail-p)
       (let ((current-context (mu4e-context-current)))
@@ -2292,7 +2317,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
           (mml-secure-message-sign-smime)
           )))
     )
-  (add-hook 'mu4e-compose-mode-hook 'my-mu4e-auto-crypto-for-focus)
+  (add-hook 'mu4e-compose-mode-hook 'my-mu4e-auto-sign-for-focus)
 
   (defun my-mu4e-encrypt-check ()
     (let ((current-context (mu4e-context-current)))
@@ -2334,7 +2359,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
               (visual-line-mode)
               (use-hard-newlines -1)
               (flyspell-mode)))
-
 
   (setq mu4e-view-prefer-html t)
   (setq mu4e-view-auto-decrypt t)
@@ -2445,6 +2469,7 @@ This prevents S/MIME decryption prompts from appearing again."
   (setq mu4e-context-policy 'pick-first) ;; start with the first (default) context;
   (setq mu4e-compose-context-policy 'ask) ;; ask for context if no context matches;
   (require 'consult-mu)
+  (require 'org-msg)
   )
 #+end_src
 
@@ -2457,22 +2482,44 @@ This prevents S/MIME decryption prompts from appearing again."
 (use-package mu4e-alert
   :after mu4e
   :config
-
   ;; Set the style to use the alert library's built-in native macOS notification
   (mu4e-alert-set-default-style 'osx-notifier)
-
   ;; Enable desktop notifications
   (add-hook 'after-init-hook #'mu4e-alert-enable-notifications)
-
   ;; Enable the unread email icon/count in the mode-line
   (add-hook 'after-init-hook #'mu4e-alert-enable-mode-line-display)
-
   ;; Group notifications by Maildir so each account (Focus vs Gmail) gets its own notification
   (setq mu4e-alert-group-by :maildir)
-
   (mu4e-alert-enable-notifications)
   (mu4e-alert-enable-mode-line-display)
   )
+
+(use-package htmlize
+  :after mu4e
+  )
+
+(use-package org-msg
+  :after mu4e
+  :config
+  (setq org-msg-options "html-postamble:nil H:5 num:nil ^:{} toc:nil author:nil email:nil \\n:t"
+        org-msg-startup "hidestars indent inlineimages"
+ ;;    org-msg-greeting-fmt "\nHi%s,\n\n"
+ ;;    org-msg-recipient-names '(("jeremy.compostella@gmail.com" . "Jérémy"))
+ ;;    org-msg-greeting-name-limit 3
+    org-msg-default-alternatives '((new		. (text html))
+                               (reply-to-html	. (text html))
+                               (reply-to-text	. (text)))
+    org-msg-convert-citation t
+    org-msg-signature "
+ ,#+begin_signature
+ ---
+ Best,
+ ,*Seth Figueroa*
+ ,#+end_signature"
+    )
+ (org-msg-mode)
+  )
+
 
 
 #+end_src
