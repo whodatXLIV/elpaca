@@ -610,7 +610,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                       (sql-user "fds")
                       (sql-password "WnJSuqmND9i0ePYw")
                       (sql-database "elcano"))
-       
+
       (mysql-deploy (sql-product 'mysql)
                       (sql-port 0)
                       (sql-server "db.internal.focusvq.com")
@@ -770,9 +770,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq global-hl-line-modes '(not vterm-mode))
   (global-hl-line-mode 1)
   ;; (set-face-attribute 'hl-line nil :inherit nil :background "gray90")
-  
+
   (add-to-list 'default-frame-alist
-               '(font . "Hack-12")) 
+               '(font . "Hack-12"))
   (tool-bar-mode -1)
   (menu-bar-mode -1)
   (color-theme-sanityinc-tomorrow-night)
@@ -788,14 +788,14 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq ns-command-modifier 'meta ;; for emacs-plus
         ns-option-modifier 'hyper
         ns-right-option-modifier 'super)
-  
+
   (if (file-exists-p "/opt/homebrew/bin/brew")
-      (let ((my-paths '("/opt/homebrew/bin" 
-                        "/opt/homebrew/sbin" 
-                        "/usr/local/bin" 
-                        "/usr/bin" 
-                        "/bin" 
-                        "/usr/sbin" 
+      (let ((my-paths '("/opt/homebrew/bin"
+                        "/opt/homebrew/sbin"
+                        "/usr/local/bin"
+                        "/usr/bin"
+                        "/bin"
+                        "/usr/sbin"
                         "/sbin")))
         (setenv "PATH" (string-join my-paths ":"))
         (setq exec-path (append my-paths (list exec-directory))))
@@ -988,7 +988,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     :config
     ;; Enable recursive minibuffers, similar to Vertico
     (setq enable-recursive-minibuffers t)
-    
+
     (setq ivy-use-virtual-buffers nil)
     (setq ivy-virtual-abbreviate 'full)
     (setq ivy-re-builders-alist '(
@@ -1005,7 +1005,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     (setq ivy-use-selectable-prompt t)
     (setq ivy-magic-slash-non-match-action 'ivy-magic-slash-non-match-create)
 
-    (setq ivy-completing-read-handlers-alist 
+    (setq ivy-completing-read-handlers-alist
       '((consult-mu . nil)
         (consult-line . nil)
         (consult-buffer . nil)))
@@ -1058,7 +1058,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;;   :init
   ;;   (ivy-prescient-mode 1)
   ;;   (prescient-persist-mode 1)
-  ;;   ) 
+  ;;   )
 #+end_src
 
 *** Marginalia
@@ -1152,47 +1152,50 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
            )
   :defer t
   :after (msgpack tramp)
+  :config
+  (tramp-rpc-magit-disable)
   )
 
-(use-package tramp 
+(use-package tramp
   :defer t
   :config
-  
-  (setq shell-file-name "/bin/bash") 
+
+  (setq shell-file-name "/bin/bash")
   (setq tramp-default-method "rpc")
   (with-eval-after-load 'tramp (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
   (with-eval-after-load 'tramp '(setenv "SHELL" "/bin/bash"))
 
-  ;; (setq vc-handled-backends '(Git)) ; Disable all VC checks globally (fastest)
-  ;; ;; OR, just for remote files:
-  ;; (setq tramp-vc-handled-backends '(Git))
-  ;; (setq remote-file-name-inhibit-cache nil)
-  ;; (setq tramp-completion-reread-directory-timeout 60) ; Cache directory listings longer
-  ;; (setq auto-revert-remote-files nil) ; Stop Emacs from polling for file changes
-    
+  (setq vc-handled-backends '(Git)) ; Disable all VC checks globally (fastest)
+  ;; OR, just for remote files:
+  (setq tramp-vc-handled-backends '(Git))
+  ;; (setq remote-file-name-inhibit-cache nil) ;; Keep default, usually fine.
+  (setq tramp-completion-reread-directory-timeout 60) ; Cache directory listings longer
+  (setq auto-revert-remote-files nil) ; Stop Emacs from polling for file changes
+
   ;; Set a shorter timeout for TRAMP connections
-  ;; (setq tramp-connection-timeout 120)
+  ;; (setq tramp-connection-timeout 120) ;; This is often irrelevant for performance
 
   ;; Prevent TRAMP from hanging the modeline during disconnects
-  ;; (setq vc-ignore-dir-regexp "")
-  ;; (setq vc-ignore-dir-regexp
-  ;;       (format "\\(%s\\)\\|\\(%s\\)"
-  ;;               vc-ignore-dir-regexp
-  ;;               tramp-file-name-regexp))
+  (setq vc-ignore-dir-regexp "")
+  (setq vc-ignore-dir-regexp
+        (format "\\(%s\\)\\|\\(%s\\)"
+                vc-ignore-dir-regexp
+                tramp-file-name-regexp))
 
-  ;; ;; Aggressive performance options
-  ;; (setq remote-file-name-inhibit-locks t)
-  ;; (setq remote-file-name-inhibit-auto-save-visited t)
-  ;; (setq remote-file-name-inhibit-cache nil)
-  ;; (setq tramp-auto-save-directory (expand-file-name "tramp-autosave" user-emacs-directory))
-  ;; (setq tramp-use-scp-direct-remote-copying t)
-  ;; (setq tramp-copy-size-limit (* 1024 1024 1024))
-  ;; (setq tramp-verbose 1) ; Reduce logging overhead significantly
-  ;; (setq tramp-chunksize 2000)
-  ;; (setq tramp-use-ssh-controlmaster-options t) ; Use ssh multiplexing
-
-
+  ;; Aggressive performance options
+  (setq remote-file-name-inhibit-locks t)
+  (setq remote-file-name-inhibit-auto-save-visited t)
+  ;; (setq remote-file-name-inhibit-cache nil) ;; Keep default, usually fine.
+  (setq tramp-auto-save-directory (expand-file-name "tramp-autosave" user-emacs-directory))
+  (setq tramp-use-scp-direct-remote-copying t)
+  (setq tramp-copy-size-limit (* 1024 1024 1024))
+  (setq tramp-verbose 1) ; Reduce logging overhead significantly
+  (setq tramp-chunksize 2000)
+  (setq tramp-use-ssh-controlmaster-options nil) ; Use ssh multiplexing
   )
+
+;; (setq magit-remote-set-if-missing nil)
+;; (setq magit-refresh-verbose t) ; Keep this on to see if the next refresh drops below 30s
 #+end_src
 
 *** TRAMP Utilities
@@ -1205,7 +1208,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq counsel-tramp-custom-connections '(/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/ /rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/elcano/ ))
   (setq counsel-tramp-default-method "rpc")
   (setq make-backup-files nil)
-  (setq create-lockfiles nil) 
+  (setq create-lockfiles nil)
   )
 #+end_src
 
@@ -1246,7 +1249,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
       )
     )
   )
-#+end_src 
+#+end_src
 
 ** File Management
 *** Dired
@@ -1278,11 +1281,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
               ("/ s r n" . dired-sort-by-name-reverse)
               ("/ s d" . dired-sort-by-date)
               ("/ s r d" . dired-sort-by-date-reverse)
-              ("/ s x" . dired-sort-by-extension)	
+              ("/ s x" . dired-sort-by-extension)
               ("/ s r x" . dired-sort-by-extension-reverse)
-              ("/ f h" . dired-sort-toggle-hidden)	
-              ("/ s m" . dired-sort-show-menu)	
-              ("/ s c" . dired-sort-show-completion)              
+              ("/ f h" . dired-sort-toggle-hidden)
+              ("/ s m" . dired-sort-show-menu)
+              ("/ s c" . dired-sort-show-completion)
               )
   :config
   (dired-sort-mode 1)
@@ -1302,8 +1305,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :bind (
          (:map dired-preview-mode-map
                ("<tab>" . dired-preview-toggle))
-         
-         
+
+
          )
   :config
   ;; Default values for demo purposes
@@ -1321,7 +1324,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                 "zip\\|"
                 "iso\\|"
                 "epub"
-                "\\)")) 
+                "\\)"))
   )
 
 (use-feature dired
@@ -1329,12 +1332,12 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :delight
   :bind* (("C-x C-d" . dired))
   :custom-face
-  (dired-directory ((t (:foreground "#3375a8" :extend t)))) 
-  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
+  (dired-directory ((t (:foreground "#3375a8" :extend t))))
+  (dired-marked    ((t (:foreground "#e78c45" :extend t))))
   :config
   ;; (require 'dired-subtree)
-  (when (string= system-type "darwin")       
-    (setq dired-use-ls-dired nil))    
+  (when (string= system-type "darwin")
+    (setq dired-use-ls-dired nil))
   )
 #+end_src
 
@@ -1344,13 +1347,13 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :delight
   :defer t
   :custom-face
-  (neo-dir-link-face ((t (:foreground "#97c8f7" :extend t)))) 
-  (dired-marked    ((t (:foreground "#e78c45" :extend t)))) 
+  (neo-dir-link-face ((t (:foreground "#97c8f7" :extend t))))
+  (dired-marked    ((t (:foreground "#e78c45" :extend t))))
   :bind* ("C-x d" . neotree)
   :custom
   (neo-theme 'arrow)
   )
-#+end_src 
+#+end_src
 
 *** Buffer & Window Management
 #+begin_src emacs-lisp :lexical t
@@ -1433,7 +1436,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
            ;; logs and out stuff
            (mode-match "*Fundamental*" (rx bos "fundamental-mode"))
            )
-          
+
           (auto-directory)
           (auto-mode))
         )
@@ -1453,7 +1456,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
           ("H-b *" . buffer-expose-stars)
           )
   :config
-  (buffer-expose-mode 1)  
+  (buffer-expose-mode 1)
   )
 #+end_src
 
@@ -1465,13 +1468,14 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq recentf-auto-cleanup nil) ;; disable before we start recentf!
   (setq recentf-max-menu-items 25)
   (setq recentf-max-saved-items 25)
-  
+
   :hook (emacs-startup . recentf-mode)
   :config
   (savehist-mode 1)
   (run-at-time nil (* 5 60) 'recentf-save-list)
   (add-to-list 'recentf-exclude "\\.png$")
   (add-to-list 'recentf-exclude "/var/folders")
+  (add-to-list 'recentf-exclude "~/Mail/Focus/")
   ;; (recentf-cleanup)
   ;; (setq recentf-auto-cleanup t)
   ;; :defer t
@@ -1499,12 +1503,12 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
          ("H-<right>" . python-indent-shift-right)
          )
   :config
-  
+
   (setq python-indent-offset 4)
   (setq python-indent-guess-indent-offset nil)
 
   (defun python-indent-dedent-line-backspace (arg)
-   
+
     (interactive "*p")
     (when (or
            (and (use-region-p) (= arg 1))
@@ -1542,7 +1546,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
       (if var
           (code-cells-forward-cell 1)
         )
-      )      
+      )
     )
 
   (defun seth-code-cells/clear-timestamps ()
@@ -1577,10 +1581,10 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (defun seth-code-cells/add-cell (&rest arg)
     (interactive)
     (let (
-          (bounds (code-cells--bounds 1))   
+          (bounds (code-cells--bounds 1))
           )
       (cond
-       (arg 
+       (arg
         (goto-char (car bounds))
         (open-line 2)
         (insert "# %%")
@@ -1644,7 +1648,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t
 (use-package flymake
   :defer t)
-(use-feature eglot 
+(use-feature eglot
   :defer t
   :init
   (setq-default eglot-workspace-configuration
@@ -1686,12 +1690,12 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (eglot-send-changes-idle-time 0.5)  ;; Snappier feedback (standard is 0.5)
   (eglot-connect-timeout 120)
   (eldoc-echo-area-use-multiline-p nil)
-  
+
   ;; Optimizations
   (eglot-ignored-server-capabilities '(:documentHighlightProvider)) ;; Kept :hoverProvider for eldoc-box
   (eglot-extend-to-xref t)            ;; Find definitions across project
   (fset #'jsonrpc--log-event #'ignore)
-  (setq jsonrpc-event-hook nil)  
+  (setq jsonrpc-event-hook nil)
 
   :config
   (defun my/eglot-capf ()
@@ -1716,17 +1720,17 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
       (dolist (line (split-string raw-output "\n" t))
         (when (string-match "^[[:space:]]*- \\([[:alnum:]_-]+\\)" line)
           (push (match-string 1 line) envs)))
-      
+
       (if (and project-root envs)
           (let* ((choice (completing-read "Select Environment: " (reverse envs)))
                  ;; Construct the path: <root>/.pixi/envs/<choice>/bin
-                 (env-path (file-local-name (expand-file-name 
-                            (concat ".pixi/envs/" choice "/bin/") 
+                 (env-path (file-local-name (expand-file-name
+                            (concat ".pixi/envs/" choice "/bin/")
                             project-root))))
             ;; (message "Path: %s" env-path)
             env-path)
         (message "Not in a pixi project or no environments found."))))
-  
+
   (defun start-eglot-python ()
     (interactive)
     (let* (
@@ -1746,7 +1750,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
       (apply 'eglot (list managed-modes project class (list contact) language-ids))
       ;; (call-interactively 'eglot)
       )
-    )  
+    )
   )
 
 (use-package eglot-booster
@@ -1803,7 +1807,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 ;;   :delight
 ;;   :defer t
 ;;   :hook (
-;;          (flycheck-mode . sideline-mode)  
+;;          (flycheck-mode . sideline-mode)
 ;;          (flymake-mode  . sideline-mode)
 ;;          )
 
@@ -1818,7 +1822,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 ;;         sideline-display-backend-name t)             ; display the backend name
 ;;   (setq sideline-backends-right '(sideline-flycheck)
 ;;         )
-  
+
 ;;   )
 ;; (use-package sideline-flycheck
 ;;   :defer t
@@ -1836,7 +1840,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
          (lisp-mode . tree-sitter-hl-mode)
          (json-mode . tree-sitter-hl-mode)
          (sql-mode . tree-sitter-hl-mode)
-         )  
+         )
   )
 
 
@@ -1883,7 +1887,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+end_src
 
 *** CSV
-#+begin_src emacs-lisp :lexical t 
+#+begin_src emacs-lisp :lexical t
 (use-package csv-mode
   :defer t
   :mode "\\.csv\\'"
@@ -1895,7 +1899,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t
 
 (use-package smartparens
-  :delight  
+  :delight
   :config
   (require 'smartparens-config)
   (smartparens-global-mode t)
@@ -1924,7 +1928,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t
 (use-package multiple-cursors
   :defer t
-  :bind* (         
+  :bind* (
          ("H-<return> e" . mc/edit-lines)
          ("H-<return> m" . mc/mark-more-like-this-extended)
          ("H-<return> a" . mc/mark-all-like-this)
@@ -1933,7 +1937,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
          :map mc/keymap
          ("C-;" . mc-hide-unmatched-lines-mode)
          )
-  ) 
+  )
 
 (use-package ace-mc
   :delight
@@ -2005,7 +2009,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 #+begin_src emacs-lisp :lexical t
 
 (use-package undo-tree
-  :delight  
+  :delight
   :hook (emacs-startup . global-undo-tree-mode)
   :custom
   (undo-tree-history-directory-alist `(("." . "~/.emacs.d/.saves")))
@@ -2014,9 +2018,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (delete-old-versions nil)
   (kept-new-versions 20)
   (kept-old-versions 60)
-  (version-control t)       ; use versioned backups 
+  (version-control t)       ; use versioned backups
   (undo-tree-enable-undo-in-region t)
-  
+
   :config
   (add-to-list 'undo-tree-incompatible-major-modes #'magit-status-mode)
   (global-undo-tree-mode)
@@ -2056,7 +2060,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (drag-stuff-global-mode 1)
   :bind* (
           ("C-M-<down>" . drag-stuff-down)
-          ("C-M-<up>" . drag-stuff-up)  
+          ("C-M-<up>" . drag-stuff-up)
           )
   )
 
@@ -2067,7 +2071,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (("C-." . embark-act)         ;; pick some comfortable binding
    ("C-;" . embark-dwim)        ;; good alternative: M-.
    ("C-h B" . embark-bindings)  ;; alternative for `describe-bindings'
-   ) 
+   )
 
   :init
   ;; Optionally replace the key help with a completing-read interface
@@ -2162,7 +2166,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :delight
   :defer t
   :bind* ("C-x g" . magit-status)
-  :config 
+  :config
   (setq split-height-threshold nil)
   (setq split-width-threshold 0)
   (setq magit-completing-read-function 'magit-builtin-completing-read)
@@ -2192,7 +2196,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :defer t
   :hook (emacs-startup . google-this-mode)
   :config
-  (google-this-mode 1))  
+  (google-this-mode 1))
 #+end_src
 
 *** MU4E
@@ -2210,13 +2214,13 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
        "Return an empty string for unencrypted S/MIME keys."
        "")
      (setq smime-passphrase-function 'my-smime-unencrypted-passphrase-function)
-     
+
      (defun my/password-read-smime-auto-enter-advice (old-fn prompt &rest args)
        "Advice `password-read` to automatically return empty string for S/MIME prompts."
        (if (string-match-p "Passphrase for secret key (RET for no passphrase): " prompt)
            "" ;; Automatically return empty string
          (apply old-fn prompt args)))
-     
+
      (advice-add 'password-read :around #'my/password-read-smime-auto-enter-advice)))
 
 
@@ -2227,6 +2231,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :ensure nil ; Don't try to download it; it's already on the system
   :load-path "/opt/homebrew/share/emacs/site-lisp/mu/mu4e/"
   :commands mu4e
+  :bind* (
+          ("H-m" . 'mu4e)
+          )
   :config
   (require 'smtpmail)
   (require 'smime)
@@ -2259,11 +2266,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                                                                                        (shell-quote-argument user-cert)
                                                                                        (shell-quote-argument user-cert)
                                                                                        (shell-quote-argument filename-crt)))))
-                                                    
+
                                                     (if (or (zerop (shell-command verify-cmd))
                                                             (and decrypt-verify-cmd
                                                                  (progn
-                                                                   
+
                                                                    (zerop (shell-command decrypt-verify-cmd)))))
                                                         (progn
                                                           ;; Convert/Extract the first cert (sender's cert) as .pem for smime encryption
@@ -2276,32 +2283,31 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                                               ;; No temp file to clean up in this version
                                               )))))
 
-  
+
   (defun my-mu4e-auto-crypto-for-focus ()
     "Automatically sign messages using S/MIME when in the 'focus' mu4e context."
     (unless (message-mail-p)
       (let ((current-context (mu4e-context-current)))
-        (when (and current-context (string= (mu4e-context-name current-context) "focus"))  
+        (when (and current-context (string= (mu4e-context-name current-context) "focus"))
           (mml-secure-message-sign-smime)
           )))
     )
   (add-hook 'mu4e-compose-mode-hook 'my-mu4e-auto-crypto-for-focus)
 
   (defun my-mu4e-encrypt-check ()
-
     (let ((current-context (mu4e-context-current)))
       (when (and current-context
                  (string= (mu4e-context-name current-context) "focus")
                  (not (mml-secure-is-encrypted-p))
                  (y-or-n-p "Encrypt before sending? ")
-                 )  
+                 )
         (mml-secure-message-encrypt-smime)
         ))
     )
   (add-hook 'message-send-hook 'my-mu4e-encrypt-check)
 
   (setq mu4e-maildir "~/Mail"
-        smime-certificate-directory "/home/user/.gnupg/certs/"
+        smime-certificate-directory "~/Mail/Certificates/"
         mu4e-mu-binary (executable-find "mu")
         mu4e-attachment-dir  "~/Mail/Downloads"
         mu4e-get-mail-command (concat (executable-find "mbsync") " -a")
@@ -2313,20 +2319,19 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
   (add-hook 'mu4e-headers-mode-hook
             (defun my/mu4e-change-headers ()
-	          (interactive)
-	          (setq mu4e-headers-fields
-	                `((:human-date . 25) ;; alternatively, use :date
-		              (:flags . 6)
-		              (:from . 22)
-		              (:thread-subject . ,(- (window-body-width) 70)) ;; alternatively, use :subject
-		              (:size . 7)))))
+                  (interactive)
+                  (setq mu4e-headers-fields
+                        `((:human-date . 25) ;; alternatively, use :date
+                              (:flags . 6)
+                              (:from . 22)
+                              (:thread-subject . ,(- (window-body-width) 70)) ;; alternatively, use :subject
+                              (:size . 7)))))
 
   ;; spell check
   (add-hook 'mu4e-compose-mode-hook
             (defun my-do-compose-stuff ()
               "My settings for message composition."
               (visual-line-mode)
-              (org-mu4e-compose-org-mode)
               (use-hard-newlines -1)
               (flyspell-mode)))
 
@@ -2350,7 +2355,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 
   (setq mu4e-html2text-command 'mu4e-shr2text)
-  
+
   ;; Make HTML emails much easier to read inside Emacs
   (with-eval-after-load 'shr
     (setq shr-use-colors nil        ; Don't let HTML dictate text/background colors
@@ -2358,7 +2363,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
           shr-width 160              ; Restrict the width to 80 characters for readability
           shr-max-image-proportion 0.7 ; Don't let images take over the whole screen
           shr-image-animate nil))   ; Disable distracting animated GIFs in emails
-  
+
   ;; Wrap text nicely in the view window
   (add-hook 'mu4e-view-mode-hook #'visual-line-mode)
 
@@ -2405,7 +2410,7 @@ This prevents S/MIME decryption prompts from appearing again."
     This is in the mu4e compose mode."
               (save-excursion (message-add-header "Cc:\n"))
               (save-excursion (message-add-header "Bcc:\n"))))
-  
+
   ;; mu4e address completion
   (add-hook 'mu4e-compose-mode-hook 'corfu-mode)
   ;; don't show threading by default:
@@ -2452,7 +2457,7 @@ This prevents S/MIME decryption prompts from appearing again."
 (use-package mu4e-alert
   :after mu4e
   :config
-  
+
   ;; Set the style to use the alert library's built-in native macOS notification
   (mu4e-alert-set-default-style 'osx-notifier)
 
@@ -2489,7 +2494,7 @@ This prevents S/MIME decryption prompts from appearing again."
   (consult-mu-use-wide-reply t)
   ;; define a template for headers view in minibuffer. The example below adjusts the width based on the width of the screen.
   (consult-mu-headers-template (lambda () (concat "%f" (number-to-string (floor (* (frame-width) 0.15))) "%s" (number-to-string (floor (* (frame-width) 0.5))) "%d13" "%g" "%x")))
-  
+
   :config
   ;;create a list of saved searches for quick access using `histroy-next-element' with `M-n' in minibuffer. Note the "#" character at the beginning of each query! Change these according to
   (setq consult-mu-saved-searches-dynamics '("#flag:unread"))
@@ -2542,7 +2547,7 @@ This prevents S/MIME decryption prompts from appearing again."
          ("s-l" . org-babel-remove-result)
          ("s-<tab>" . completion-at-point)
          ("s-z" . org-babel-switch-to-session)
-         ) 
+         )
   :init
   (setq org-src-fontify-natively t
         org-src-window-setup 'current-window ;; edit in current window
@@ -2550,7 +2555,7 @@ This prevents S/MIME decryption prompts from appearing again."
         org-src-preserve-indentation t ;; do not put two spaces on the left
         org-src-tab-acts-natively t)
 
-  
+
   :config
   )
 
@@ -2626,7 +2631,7 @@ This prevents S/MIME decryption prompts from appearing again."
   (require 'dash)
   (require 'cl-lib)
   (require 'org-table)
-  
+
   (pretty-hydra-define d20-hydra (:color blue :hint nil)
     (
      "Initiative"
@@ -2635,14 +2640,14 @@ This prevents S/MIME decryption prompts from appearing again."
       ("n" org-d20-initiative-dwim "next initiative" :exit nil)
       ("p" org-d20-initiative-back "prev initiative" :exit nil)
       )
-     
+
      "Roll"
      (
       ("r" org-d20-roll "roll" :exit nil)
       ("P" org-d20-roll-at-point "roll at point" :exit nil)
       ("a" org-d20-d20 "Advantage/Disadvatage" :exit nil)
       )
-     
+
      "Edit"
      (
       ("d" org-d20-damage "damage" :exit nil)
@@ -2672,16 +2677,16 @@ This prevents S/MIME decryption prompts from appearing again."
   :defer t
   :config
   (setq vterm-timer-delay 0.01)
-  ;; (add-hook 'vterm-mode-hook (lambda () 
+  ;; (add-hook 'vterm-mode-hook (lambda ()
   ;;                              (flycheck-mode -1)
   ;;                              ))
   (add-hook 'vterm-mode-hook
             (lambda ()
               ;; Prevent Emacs from trying to 'sync' point or window on every switch
               (setq-local window-configuration-change-hook nil)
-              (setq-local post-command-hook 
+              (setq-local post-command-hook
                           (remove 'vterm--post-command-hook post-command-hook))))
-  
+
   ;; (add-hook 'vterm-mode-hook (lambda () (setq-local tab-line-format t)))
 
   ;; (defun my/disable-tab-line-in-vterm ()
@@ -2698,15 +2703,15 @@ This prevents S/MIME decryption prompts from appearing again."
   ;;             (add-hook 'window-configuration-change-hook #'my/disable-tab-line-in-vterm nil t)
   ;;             ;; 3. Run after every command (the ultimate guarantee)
   ;;             (add-hook 'post-command-hook #'my/disable-tab-line-in-vterm nil t)))
-  
+
   )
 
 (use-package multi-vterm
-  :defer t  
+  :defer t
   :bind* (
           ("C-x t" . seth/vterm-project-toggle)
           )
-  
+
   :config
   (defun seth/vterm-project-rpc-tmux ()
     "Open vterm using 'rpc' method in the correct remote directory."
@@ -2723,8 +2728,8 @@ This prevents S/MIME decryption prompts from appearing again."
            (project-name (directory-file-name remote-path))
            (session-name (replace-regexp-in-string "\\." "_" project-name))
            ;; 4. Build command with -c to set the starting directory
-           (tmux-cmd (format "tmux new-session -A -s %s -c %s" 
-                             session-name 
+           (tmux-cmd (format "tmux new-session -A -s %s -c %s"
+                             session-name
                              (shell-quote-argument remote-path))))
       (hl-line-mode 0)
       (if (and host (string= (file-remote-p default-directory 'method) "rpc"))
@@ -2739,7 +2744,7 @@ This prevents S/MIME decryption prompts from appearing again."
     (if (derived-mode-p 'vterm-mode)
         (quit-window)
       (seth/vterm-project-rpc-tmux)))
-  
+
   (defun my-vterm-hl-line-handler ()
     "Enable hl-line-mode in vterm-copy-mode, disable it otherwise."
     (if vterm-copy-mode
@@ -2792,7 +2797,7 @@ This prevents S/MIME decryption prompts from appearing again."
                   ("\\*jupyter-display\\*" . hide)
                   "\\*jupyter-traceback\\*"
                   ("\\*jupyter-output\\*" . hide)
-                  "\\*jupyter-error\\*"                  
+                  "\\*jupyter-error\\*"
                   )))
   :custom
   (popper-group-function #'popper-group-by-project)
@@ -2827,7 +2832,7 @@ This prevents S/MIME decryption prompts from appearing again."
 #+end_src
 
 *** tab-line
-#+begin_src emacs-lisp :lexical t 
+#+begin_src emacs-lisp :lexical t
 (use-package tab-config
   :ensure (tab-config
            :type git
@@ -2844,7 +2849,7 @@ This prevents S/MIME decryption prompts from appearing again."
           ("M-S-<right>" . seth-switch-highlighted-tab-or-buffer)
           ("M-S-<down>" . tab-line-mode)
           )
-  
+
   :config
   (defun tab-rotate-list-left (li)
     (nconc (last li) (butlast li))
@@ -2959,7 +2964,7 @@ This prevents S/MIME decryption prompts from appearing again."
   :config
   (global-tab-line-mode t)
   ;; (setq tab-line-exclude-modes '(vterm-mode))
-  
+
   )
 
 #+end_src
@@ -2978,7 +2983,7 @@ This prevents S/MIME decryption prompts from appearing again."
           ("H-f a" . rotate-frame-anti-clockwise)
           )
   )
-#+end_src 
+#+end_src
 
 ** Agent Shell
 #+begin_src emacs-lisp :lexical t
@@ -2986,8 +2991,8 @@ This prevents S/MIME decryption prompts from appearing again."
   :config
   (setq agent-shell-google-authentication
         (agent-shell-google-make-authentication :login t))
-  
-  (setq agent-shell-google-gemini-environment 
+
+  (setq agent-shell-google-gemini-environment
         '("PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"))
 
   (setq agent-shell-session-strategy 'prompt)
