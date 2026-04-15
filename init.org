@@ -2340,6 +2340,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         mu4e-change-filenames-when-moving t
         mu4e-headers-auto-update t
         mu4e-view-show-images t
+        mu4e-bookmarks
+        '((:name "Unread messages" :query "flag:unread AND NOT flag:trashed AND NOT maildir:/.*[Tt]rash.*/" :key ?u)
+          (:name "Today's messages" :query "date:today..now AND NOT flag:trashed AND NOT maildir:/.*[Tt]rash.*/" :key ?t)
+          (:name "Last 7 days" :query "date:7d..now AND NOT flag:trashed AND NOT maildir:/.*[Tt]rash.*/" :key ?w)
+          (:name "Messages with images" :query "mime:image/* AND NOT flag:trashed AND NOT maildir:/.*[Tt]rash.*/" :key ?p))
         )
 
   (add-hook 'mu4e-headers-mode-hook
@@ -2512,6 +2517,7 @@ This prevents S/MIME decryption prompts from appearing again."
     org-msg-convert-citation t
     org-msg-signature "
  ,#+begin_signature
+\\
  ---
  Best,
  ,*Seth Figueroa*
