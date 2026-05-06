@@ -1153,6 +1153,14 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :defer t
   :after (msgpack tramp)
   :config
+  (defun fix-tramp-rpc-coding (args)
+    "Fix `set-process-coding-system` symbolp error in `tramp-rpc` by ensuring `:coding` is a symbol."
+    (let ((coding (plist-get args :coding)))
+      (if (consp coding)
+          (plist-put (copy-sequence args) :coding (car coding))
+        args)))
+  (advice-add 'tramp-rpc-handle-make-process :filter-args #'fix-tramp-rpc-coding)
+  (setq tramp-rpc-deploy-git-build-policy 'release)
   (tramp-rpc-magit-disable)
   )
 
@@ -2114,11 +2122,21 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 ** Navigation & Movement
 *** Ace Family
 #+begin_src emacs-lisp :lexical t
-(use-package ace-jump-mode
+(use-feature avy
   :delight
-  :bind* ("H-j" . ace-jump-mode)
+  :bind* (
+          ("M-g w" . avy-goto-word-1)
+          ("M-g g" . avy-goto-line)
+          ("M-g r" . avy-resume)
+          )
   :defer t
   )
+
+;; (use-package ace-jump-mode
+;;   :delight
+;;   :bind* ("H-j" . ace-jump-mode)
+;;   :defer t
+;;   )
 
 (use-package ace-window
   :delight
@@ -2489,6 +2507,7 @@ This prevents S/MIME decryption prompts from appearing again."
   :config
   ;; Set the style to use the alert library's built-in native macOS notification
   (mu4e-alert-set-default-style 'osx-notifier)
+  (setq mu4e-alert-interesting-mail-query "flag:unread AND NOT flag:trashed AND NOT maildir:/.*[Tt]rash.*/")
   ;; Enable desktop notifications
   (add-hook 'after-init-hook #'mu4e-alert-enable-notifications)
   ;; Enable the unread email icon/count in the mode-line
@@ -2517,7 +2536,7 @@ This prevents S/MIME decryption prompts from appearing again."
     org-msg-convert-citation t
     org-msg-signature "
  ,#+begin_signature
-\\
+
  ---
  Best,
  ,*Seth Figueroa*
@@ -3023,7 +3042,7 @@ This prevents S/MIME decryption prompts from appearing again."
 #+end_src
 
 *** transpose-frame
-#+begin_src emacs-lisp :lexical t :tangle no
+#+begin_src emacs-lisp :lexical t :tangle yes
 (use-package transpose-frame
   :delight
   :defer t
