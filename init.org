@@ -936,7 +936,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :bind* (
           ("C-x b" . consult-buffer)
           ("M-y" . consult-yank-pop)
-          ("M-g M-g" . consult-goto-line)
           ("C-c C-SPC" . consult-mark)
           ("M-g i" . consult-imenu)
           ("C-x C-a" . consult-grep)
@@ -994,8 +993,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq ivy-use-virtual-buffers nil)
   (setq ivy-virtual-abbreviate 'full)
   (setq ivy-re-builders-alist
-        '((swiper . ivy--regex-plus)                  ; Use plus for manual ^ support
-          (counsel-find-file . ivy--regex-plus)      ; Same for files
+        '((swiper . ivy--regex-ignore-order)                  ; Use plus for manual ^ support
+          (counsel-find-file . ivy--regex-ignore-order)      ; Same for files
           (t . orderless-ivy-re-builder)))           ; Everything else uses Orderless
 
   (setq ivy-height 12)
@@ -1011,10 +1010,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
           (consult-buffer . nil)))
 
   (setq ivy-preferred-re-builders
-        '(ivy--regex-plus
-          orderless-ivy-re-builder
-          ivy--regex-fuzzy
-          ivy--regex-ignore-order))
+        '((ivy--regex-plus . "plus")
+          (orderless-ivy-re-builder . "orderless")        
+          (ivy--regex-ignore-order . "ignore-order")))
 
   (with-eval-after-load 'orderless
     ;; The third 't' here appends to the end of the list
@@ -1047,9 +1045,37 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :config
   ;; Delay for live preview to avoid severe lag over TRAMP
   (setq ivy-dynamic-exhibit-delay-ms 10)
+
+  (defvar my-ivy-preview-buffers nil)
+
+  (defun my-ivy-track-previews (orig-fun &rest args)
+    "Keep track of buffers opened during ivy-call for later cleanup."
+    (let ((before-buffers (buffer-list)))
+      (apply orig-fun args)
+      (let ((after-buffers (buffer-list)))
+        (setq my-ivy-preview-buffers 
+              (append my-ivy-preview-buffers 
+                      (cl-set-difference after-buffers before-buffers))))))
+
+  (defun my-ivy-cleanup-previews ()
+    "Kill buffers opened during preview that are not the current buffer."
+    (let ((current (current-buffer)))
+      (dolist (buf my-ivy-preview-buffers)
+        (when (and (buffer-live-p buf) (not (eq buf current)))
+          (kill-buffer buf)))
+      (setq my-ivy-preview-buffers nil)))
+
+  ;; Track buffers opened via C-M-n or auto-calling
+  (advice-add 'ivy-call :around #'my-ivy-track-previews)
+
+  ;; Clean up when the minibuffer closes
+  (add-hook 'minibuffer-exit-hook #'my-ivy-cleanup-previews)
+  
   )
 
-#+end_src
+#+end_src 
+
+
 
 *** Marginalia
 #+begin_src emacs-lisp :lexical t :tangle yes
@@ -1075,6 +1101,8 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;; (nerd-icons-completion-mode)
   (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup)
   )
+
+
 #+end_src
 
 *** Completion Backends
@@ -2118,6 +2146,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
           ("M-g w" . avy-goto-word-1)
           ("M-g g" . avy-goto-line)
           ("M-g r" . avy-resume)
+          ("M-g c" . avy-goto-char)
           )
   :defer t
   )
