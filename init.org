@@ -922,7 +922,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
       `(orderless-regexp . ,(concat (substring pattern 0 -1) "[\x100000-\x10FFFD]*$")))
      ;; Ignore character (!)
      ((string-prefix-p "!" pattern)
-      `(orderless-without-literal . ,(substring pattern 1))))))
+      `(orderless-without-literal . ,(substring pattern 1)))))
+  
+  )
 #+end_src
 
 *** Consult
@@ -972,93 +974,81 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 *** Ivy / Counsel / Swiper
 #+begin_src emacs-lisp :lexical t :tangle yes
-  ;; Ivy, Counsel, and Swiper are an alternative completion framework to Vertico and Consult.
-  ;; We apply the same keybindings and general settings as found in the Vertico/Consult setup.
+;; Ivy, Counsel, and Swiper are an alternative completion framework to Vertico and Consult.
+;; We apply the same keybindings and general settings as found in the Vertico/Consult setup.
 
-  (use-package ivy
-    :ensure t
-    :defer t
-    :delight t
-    ;; :hook (emacs-startup . ivy-mode)
-    :bind (:map ivy-minibuffer-map
-                ("RET" . ivy-alt-done)
-                ("DEL" . ivy-backward-delete-char)
-                ("M-DEL" . ivy-backward-kill-word)
-                ("M-S" . ivy-rotate-sort))
-    :config
-    ;; Enable recursive minibuffers, similar to Vertico
-    (setq enable-recursive-minibuffers t)
+(use-package ivy
+  :ensure t
+  :defer t
+  :delight t
+  ;; :hook (emacs-startup . ivy-mode)
+  :bind (:map ivy-minibuffer-map
+              ("RET" . ivy-alt-done)
+              ("DEL" . ivy-backward-delete-char)
+              ("M-DEL" . ivy-backward-kill-word)
+              ("M-S" . ivy-rotate-sort))
+  :config
+  ;; Enable recursive minibuffers, similar to Vertico
+  (setq enable-recursive-minibuffers t)
 
-    (setq ivy-use-virtual-buffers nil)
-    (setq ivy-virtual-abbreviate 'full)
-    (setq ivy-re-builders-alist '(
-                                  (t . ivy--regex-ignore-order)
-                                  (t . ivy--regex-plus)
-                                  (t . ivy--regex-fuzzy)
-                                  (t . ivy--regex)
-                                  (t . regexp-quote)
-                                  ))
-    (setq ivy-height 12)
-    (setq ivy-display-style 'fancy)
-    (setq ivy-count-format "[%d/%d] ")
-    (setq ivy-initial-inputs-alist nil)
-    (setq ivy-use-selectable-prompt t)
-    (setq ivy-magic-slash-non-match-action 'ivy-magic-slash-non-match-create)
+  (setq ivy-use-virtual-buffers nil)
+  (setq ivy-virtual-abbreviate 'full)
+  (setq ivy-re-builders-alist
+        '((swiper . ivy--regex-plus)                  ; Use plus for manual ^ support
+          (counsel-find-file . ivy--regex-plus)      ; Same for files
+          (t . orderless-ivy-re-builder)))           ; Everything else uses Orderless
 
-    (setq ivy-completing-read-handlers-alist
-      '((consult-mu . nil)
-        (consult-line . nil)
-        (consult-buffer . nil)))
-   )
+  (setq ivy-height 12)
+  (setq ivy-display-style 'fancy)
+  (setq ivy-count-format "[%d/%d] ")
+  (setq ivy-initial-inputs-alist nil)
+  (setq ivy-use-selectable-prompt t)
+  (setq ivy-magic-slash-non-match-action 'ivy-magic-slash-non-match-create)
 
-  (use-package swiper
-    :ensure t
-    :defer t
-    :delight t
-    :bind* (
-            ("C-s" . swiper)
-            ;; ("H-s" . swiper-all)
-            )
-    )
+  (setq ivy-completing-read-handlers-alist
+        '((consult-mu . nil)
+          (consult-line . nil)
+          (consult-buffer . nil)))
 
-  (use-package counsel
-    :ensure t
-    :defer t
-    :delight t
-    :bind* (("C-x C-f" . counsel-find-file))
-    :config
-    ;; Delay for live preview to avoid severe lag over TRAMP
-    (setq ivy-dynamic-exhibit-delay-ms 10)
-    )
+  (setq ivy-preferred-re-builders
+        '(ivy--regex-plus
+          orderless-ivy-re-builder
+          ivy--regex-fuzzy
+          ivy--regex-ignore-order))
 
-  ;; (use-package ivy-rich
-  ;;   :ensure t
-  ;;   :after ivy
-  ;;   :init
-  ;;   (ivy-rich-mode 1)
-  ;;   :config
-  ;;     (setq ivy-rich-parse-remote-file-path t) ; Enable remote parsing
-  ;;     (setcdr (assq t ivy-format-functions-alist) #'ivy-format-function-line)
-  ;;   )
+  (with-eval-after-load 'orderless
+    ;; The third 't' here appends to the end of the list
+    (add-to-list 'ivy-re-builders-alist '(t . orderless-ivy-re-builder) t)
+    (add-to-list 'ivy-highlight-functions-alist
+                 '(orderless-ivy-re-builder . orderless-ivy-highlight)))
 
-  ;; (use-package nerd-icons-ivy-rich
-  ;;   :ensure t
-  ;;   :after ivy-rich
-  ;;   :init
-  ;;   (nerd-icons-ivy-rich-mode 1))
 
-  ;; (use-package ivy-prescient
-  ;;   :ensure t
-  ;;   :delight t
-  ;;   :after counsel
-  ;;   :config
-  ;;   (setq ivy-prescient-sort-commands '(:not swiper swiper-isearch counsel-find-file))
-  ;;   (add-to-list 'ivy-sort-functions-alist '(counsel-find-file . nil))
-  ;;   (setq ivy-prescient-retain-classic-highlighting nil)
-  ;;   :init
-  ;;   (ivy-prescient-mode 1)
-  ;;   (prescient-persist-mode 1)
-  ;;   )
+  )
+
+(use-package ivy-hydra
+  :ensure t
+  :after (ivy hydra))
+
+(use-package swiper
+  :ensure t
+  :defer t
+  :delight t
+  :bind* (
+          ("C-s" . swiper)
+          ;; ("H-s" . swiper-all)
+          )
+  )
+
+(use-package counsel
+  :ensure t
+  :defer t
+  :delight t
+  :bind* (("C-x C-f" . counsel-find-file))
+  :config
+  ;; Delay for live preview to avoid severe lag over TRAMP
+  (setq ivy-dynamic-exhibit-delay-ms 10)
+  )
+
 #+end_src
 
 *** Marginalia
@@ -1094,7 +1084,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :defer t
   ;; Bind dedicated completion commands
   ;; Alternative prefix keys: C-c p, M-p, M-+, ...
-  :bind* ("C-c c" . hydra-cape/body)
+  :bind* ("H-<tab>" . hydra-cape/body)
   :config
   (defhydra hydra-cape (:color blue :hint nil)
     "

@@ -49,6 +49,7 @@
         ace-window
         counsel-M-x
         counsel-ag
+        delete-window
         embark-dwim
         ivy-switch-buffer
         seth-tab-config-tab2-select-filter-button
