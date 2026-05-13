@@ -1158,7 +1158,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         args)))
   (advice-add 'tramp-rpc-handle-make-process :filter-args #'fix-tramp-rpc-coding)
   (setq tramp-rpc-deploy-git-build-policy 'release)
-  (tramp-rpc-magit-disable)
+  
+  (setq tramp-rpc-magit-optimize t) ;; Ensure optimization is ON
+  (advice-add 'tramp-rpc--auto-watch-git-worktree :override #'ignore)
+
+
   )
 
 (use-package tramp
@@ -3076,9 +3080,6 @@ This prevents S/MIME decryption prompts from appearing again."
   :config
   (setq agent-shell-google-authentication
         (agent-shell-google-make-authentication :login t))
-
-  (setq agent-shell-google-gemini-environment
-        '("PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"))
 
   (setq agent-shell-session-strategy 'prompt)
   (setq agent-shell-prefer-viewport-interaction nil)
