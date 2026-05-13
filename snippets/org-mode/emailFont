@@ -1,0 +1,5 @@
+# -*- mode: snippet -*-
+# name: html-font
+# key: <font
+# --
+@@html:<span style="color:${1:red}; font-size:${2:12px}; font-style:${3:italic}; font-weight:${4:bold}; text-decoration:${5:underline}; background-color:${6:yellow};">$7</span>@@

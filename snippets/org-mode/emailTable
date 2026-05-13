@@ -1,0 +1,22 @@
+# -*- mode: snippet -*-
+# name: html-table
+# key: <table
+# --
+<table border="1" style="border-collapse: collapse; width: 100%;">
+  <thead>
+    <tr>
+      <th>$1</th>
+      <th>$2</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>$3</td>
+      <td>$4</td>
+    </tr>
+    <tr>
+      <td>$5</td>
+      <td>$6</td>
+    </tr>
+  </tbody>
+</table>

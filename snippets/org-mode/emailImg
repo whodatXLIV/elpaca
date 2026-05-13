@@ -1,0 +1,13 @@
+# -*- mode: snippet -*-
+# name: local-html-image
+# key: <img
+# --
+#+ATTR_HTML: :width ${1:1000}px :alt "${2:}"
+[[file:${3:$$(let ((default-directory (expand-file-name "~/Desktop/")))
+    (expand-file-name
+     (consult--read
+      #'read-file-name-internal
+      :prompt "Select Image: "
+      :preview-key "M-."
+      :state (consult--file-preview)
+      :require-match t)))}]]
