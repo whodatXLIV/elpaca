@@ -3107,15 +3107,15 @@ This prevents S/MIME decryption prompts from appearing again."
   (setq agent-shell-sidebar-minimum-width "5%")
   (setq agent-shell-sidebar-maximum-width "100%")
 
-  :bind* (
-          ("H-a t" . agent-shell-sidebar-toggle)
-          ("H-a c" . agent-shell-prompt-compose-toggle)
-          )
+  ;; :bind* (
+  ;;         ("H-a t" . agent-shell-sidebar-toggle)
+  ;;         ("H-a c" . agent-shell-prompt-compose-toggle)
+  ;;         )
   )
 #+end_src
 
 ** ECA
-#+begin_src emacs-lisp :lexical t :tangle no
+#+begin_src emacs-lisp :lexical t :tangle yes
 (use-package eca
   :ensure (:host github :repo "editor-code-assistant/eca-emacs")
   :defer t
@@ -3129,11 +3129,42 @@ This prevents S/MIME decryption prompts from appearing again."
   (eca-chat-use-side-window t)
   
   :config
+  (defun my-eca-chat-toggle ()
+    "Show or hide the ECA chat buffer for the current project.
+If the chat window is visible, hide it.
+If not, ensure a session is running, find/create the chat buffer,
+rename it to a project-specific name, and display it."
+    (interactive)
+    (let* ((project (project-current))
+           (project-root (if project (project-root project) default-directory))
+           (project-name (file-name-nondirectory (directory-file-name project-root)))
+           (buffer-name (format "*eca-chat-%s*" project-name))
+           (buffer (get-buffer buffer-name))
+           (window (and buffer (get-buffer-window buffer))))
+      (if window
+          (quit-window nil window)
+        (if (not (eca-session))
+            (eca) ; Starts session and opens chat with default name
+          (unless buffer
+            ;; Try to find an existing ECA buffer for this session and rename it
+            (if-let ((last-buf (eca-chat--get-last-buffer (eca-session))))
+                (with-current-buffer last-buf
+                  (rename-buffer buffer-name t)
+                  (setq buffer last-buf))
+              ;; No buffer exists yet, create one
+              (eca-chat-new)
+              (setq buffer (eca-chat--get-last-buffer (eca-session)))
+              (with-current-buffer buffer
+                (rename-buffer buffer-name t))))
+          (eca-chat-open (eca-session))))))
+  
   ;; Adjust the side window layout to match your preference (e.g., right side)
-  (setq eca-chat-side-window-parameters
-        '((side . right)
-          (slot . 0)
-          (window-width . 0.35)))
+  ;; (setq eca-chat-side-window-parameters
+  ;;       '((side . right)
+  ;;         (slot . 0)
+  ;;         (window-width . 0.35)))
+  
+  (setq eca-extra-args '("--log-level" "warn"))
 
   ;; Make sure :format is NOT set to "json"
   ;; (setq eca-ollama-options '(:format nil)) 
@@ -3162,7 +3193,7 @@ This prevents S/MIME decryption prompts from appearing again."
             (push buf valid-buffers))))
       
       ;; Call interactive session wrapper with your target Gemini 3 Flash agent
-      (eca-chat-new :agent "py-brainstorm-3-flash")
+      (eca-chat-new :agent "py-brainstorm")
       
       ;; Inject the clean active buffer context straight into the prompt line
       (with-current-buffer (eca-chat-buffer)
@@ -3183,43 +3214,43 @@ This prevents S/MIME decryption prompts from appearing again."
         (unless (and (fboundp 'eca-process-live-p) (eca-process-live-p))
           (eca))
         ;; Initialize session
-        (eca-chat-new :agent "py-fixer-3-flash")
+        (eca-chat-new :agent "py-fixer-light")
         ;; Pre-populate the action command with the isolated file context
         (with-current-buffer (eca-chat-buffer)
           (goto-char (point-max))
           (insert (format "Run tests on ${file:%s}, analyze any bugs, and patch any failing logic." file-name))))))
 
-  ;; Custom Function: Session Memory Scratchpad Snapshot
-  (defun my/eca-save-to-project-memory ()
-    "Appends the selected region or current buffer contents to the project's local memory file."
-    (interactive)
-    (let* ((proj-root (or (and (fboundp 'project-root) (project-current) (project-root (project-current)))
-                          default-directory))
-           (memory-file (expand-file-name ".eca-memory.md" proj-root))
-           (buf-name (buffer-name))
-           (start (if (use-region-p) (region-beginning) (point-min)))
-           (end (if (use-region-p) (region-end) (point-max)))
-           (content (buffer-substring-no-properties start end))
-           (timestamp (format-time-string "%Y-%m-%d %H:%M:%S")))
-      
-      ;; Append code snippet to local project memory
-      (with-temp-buffer
-        (insert (format "\n\n## Session Snapshot: %s\n" timestamp))
-        (insert (format "### Source Buffer: `%s`\n" buf-name))
-        (insert "```python\n")
-        (insert content)
-        (insert "\n```\n")
-        (append-to-file (point-min) (point-max) memory-file))
-      
-      (message "Snapshot saved to project memory scratchpad: %s" (file-name-nondirectory memory-file))))
+  ;; ;; Custom Function: Session Memory Scratchpad Snapshot
+  ;; (defun my/eca-save-to-project-memory ()
+  ;;   "Appends the selected region or current buffer contents to the project's local memory file."
+  ;;   (interactive)
+  ;;   (let* ((proj-root (or (and (fboundp 'project-root) (project-current) (project-root (project-current)))
+  ;;                         default-directory))
+  ;;          (memory-file (expand-file-name ".eca-memory.md" proj-root))
+  ;;          (buf-name (buffer-name))
+  ;;          (start (if (use-region-p) (region-beginning) (point-min)))
+  ;;          (end (if (use-region-p) (region-end) (point-max)))
+  ;;          (content (buffer-substring-no-properties start end))
+  ;;          (timestamp (format-time-string "%Y-%m-%d %H:%M:%S")))
+  
+  ;;     ;; Append code snippet to local project memory
+  ;;     (with-temp-buffer
+  ;;       (insert (format "\n\n## Session Snapshot: %s\n" timestamp))
+  ;;       (insert (format "### Source Buffer: `%s`\n" buf-name))
+  ;;       (insert "```python\n")
+  ;;       (insert content)
+  ;;       (insert "\n```\n")
+  ;;       (append-to-file (point-min) (point-max) memory-file))
+  
+  ;;     (message "Snapshot saved to project memory scratchpad: %s" (file-name-nondirectory memory-file))))
 
   :bind* (
           ;; Opens default agent configuration session
-          ("H-a t" . (lambda () (interactive) (unless (and (fboundp 'eca-process-live-p) (eca-process-live-p)) (eca)) (eca-chat-new)))
+          ("H-a t" . my-eca-chat-toggle)
           ;; Specialized local workspace shortcuts
           ("H-a b" . my/eca-brainstorm-active-buffers)
           ("H-a f" . my/eca-fix-current-file)
-          ("H-a m" . my/eca-save-to-project-memory)
+          ;; ("H-a m" . my/eca-save-to-project-memory)
           ;; Quick keybinding to pull up model/agent switching transient menu
           ("H-a c" . eca-transient-menu)
           ;; Instantly wipe history and reset token costs
