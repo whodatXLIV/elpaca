@@ -2736,19 +2736,80 @@ This prevents S/MIME decryption prompts from appearing again."
       "Set the current table field to VAL."
       (org-table-get-field nil val)))
 
+  (defun org-d20-get-pc-names ()
+    "Get PC names from 'PC Notes' section and `org-d20-party`."
+    (let* ((base-buf (or (org-capture-get :base-buffer) (current-buffer)))
+           (party (if (and base-buf (buffer-live-p base-buf))
+                      (buffer-local-value 'org-d20-party base-buf)
+                    (when (boundp 'org-d20-party) org-d20-party)))
+           (party-names (mapcar #'car party))
+           (existing-names (when (and base-buf (buffer-live-p base-buf))
+                             (with-current-buffer base-buf
+                               (save-excursion
+                                 (org-with-wide-buffer
+                                  (goto-char (point-min))
+                                  (if (re-search-forward "^\\*+ PC Notes" nil t)
+                                      (let* ((level (length (match-string 0)))
+                                             (sub-stars (make-string (1+ level) ?*))
+                                             (end (save-excursion
+                                                    (goto-char (match-beginning 0))
+                                                    (org-end-of-subtree t t)))
+                                             (results '()))
+                                        (while (re-search-forward (concat "^" (regexp-quote sub-stars) " \\(.+\\)") end t)
+                                          (push (match-string-no-properties 1) results))
+                                        results)
+                                    nil)))))))
+      (delete-dups (append party-names existing-names))))
+
+  (defun org-d20-pc-note-target ()
+    "Find or create the PC's headline under 'PC Notes' for capture."
+    (let* ((names (org-d20-get-pc-names))
+           (pc-name (completing-read "Note for which PC?: " names))
+           (base-buf (or (org-capture-get :base-buffer) (current-buffer)))
+           target-pos)
+      (set-buffer base-buf)
+      (save-restriction
+        (widen)
+        (goto-char (point-min))
+        (if (re-search-forward "^\\(\\*+\\) PC Notes" nil t)
+            (let* ((level (length (match-string 1)))
+                   (sub-stars (make-string (1+ level) ?*))
+                   (end (save-excursion (goto-char (match-beginning 0)) (org-end-of-subtree t t))))
+              (if (re-search-forward (concat "^" (regexp-quote sub-stars) " " (regexp-quote pc-name) "$") end t)
+                  (progn
+                    (org-end-of-subtree t t)
+                    ;; Ensure we are on a blank line at the end of the subtree
+                    (unless (bolp) (insert "\n"))
+                    (when (looking-at-p "^\\*") (forward-line -1))
+                    (setq target-pos (point)))
+                (goto-char end)
+                (unless (bolp) (insert "\n"))
+                (insert sub-stars " " pc-name "\n")
+                (setq target-pos (point))))
+          ;; Create PC Notes if not found
+          (goto-char (point-max))
+          (unless (bolp) (insert "\n"))
+          (insert "* PC Notes\n** " pc-name "\n")
+          (setq target-pos (point))))
+      (goto-char target-pos)))
+
   (setq org-capture-templates
         '(("d" "D&D")
           ("dn" "NPC" entry (file+headline buffer-file-name "NPCs")
            "** %^{Name}\n- Appearance: %?\n- Notes: ")
           ("de" "Event" item (file+headline buffer-file-name "Session Log")
            "- %U: %?")
-          ("dp" "PC Note" entry (file+headline buffer-file-name "PC Notes")
-           "** %(org-d20-read-pc-name)\n- %U: %?")))
+          ("dp" "PC Note" item (function org-d20-pc-note-target)
+           "- %U: %?")))
 
 
   (defvar org-d20-monster-alist nil
     "Alist of monsters for quick initiative setup.
-Each element is (NAME INIT-MOD AC HP-DICE).")
+  Each element is (NAME INIT-MOD AC HP-DICE).")
+
+  (defvar org-d20-party nil
+    "Alist of PCs for initiative and notes.
+  Each element is (NAME . MODIFIER).")
 
   (pretty-hydra-define d20-hydra (:color blue :hint nil)
     (
@@ -2759,7 +2820,7 @@ Each element is (NAME INIT-MOD AC HP-DICE).")
       ("p" org-d20-initiative-back "prev" :exit nil)
       ("S" (org-table-sort-lines nil ?N) "sort" :exit nil)
       )
-     
+
      "Roll"
      (
       ("r" org-d20-roll "roll" :exit nil)
@@ -2767,7 +2828,7 @@ Each element is (NAME INIT-MOD AC HP-DICE).")
       ("a" org-d20-d20 "adv/dis" :exit nil)
       ("L" org-d20-roll-loot "roll loot" :exit nil)
       )
-     
+
      "Edit"
      (
       ("d" org-d20-damage "damage" :exit nil)
@@ -2780,10 +2841,6 @@ Each element is (NAME INIT-MOD AC HP-DICE).")
       )
      )
     )
-
-  (defun org-d20-read-pc-name ()
-    "Select a PC name from `org-d20-party` using `completing-read`."
-    (completing-read "Note for which PC? " (mapcar #'car org-d20-party)))
 
   (defvar org-d20-active-turn-overlay nil
     "Overlay used to highlight the current active row in the initiative table.")
@@ -3159,6 +3216,7 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
 
     :bind (:map org-mode-map
                 ("H-h d" . d20-hydra/body)
+                ("C-c c" . org-capture)
                 ("H-d i" . org-d20-initiative-add)
                 ("H-d n" . org-d20-initiative-dwim)
                 ("H-d p" . org-d20-initiative-back)
