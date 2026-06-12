@@ -2713,6 +2713,9 @@ This prevents S/MIME decryption prompts from appearing again."
    )
   )
 
+#+end_src
+
+#+begin_src emacs-lisp :lexical t
 (use-package org-d20
   :delight
   :defer t
@@ -2849,14 +2852,38 @@ This prevents S/MIME decryption prompts from appearing again."
     '((t :background "dark slate blue" :weight bold))
     "Face used to highlight the active creature's row.")
 
+  (defun org-d20--get-next-monster-number (name)
+    "Find the next available monster number for NAME (or any monster if global) in the current table."
+    (let ((max-num 0)
+          (is-global (bound-and-true-p org-d20-continue-monster-numbering)))
+      (save-excursion
+        (goto-char (org-table-begin))
+        (forward-line 2)
+        (while (org-at-table-p)
+          (org-table-goto-column 2)
+          (let ((cell (string-trim (org-table-get-field))))
+            (when (string-match "^~?\\(.*?\\) \\([A-Z0-9]+\\)~?$" cell)
+              (let ((c-name (match-string 1 cell))
+                    (c-num-str (match-string 2 cell)))
+                (when (or is-global (string= c-name name))
+                  (let ((c-num (if (string-match-p "^[0-9]+$" c-num-str)
+                                   (string-to-number c-num-str)
+                                 (let ((pos (cl-position c-num-str '("A" "B" "C" "D" "E" "F" "G" "H" "I" "J" "K" "L" "M"
+                                                                     "N" "O" "P" "Q" "R" "S" "T" "U" "V" "W" "X" "Y" "Z")
+                                                          :test 'string=)))
+                                   (if pos (1+ pos) 0)))))
+                    (setq max-num (max max-num c-num)))))))
+          (forward-line 1)))
+      (1+ max-num)))
+
   (defun org-d20-initiative ()
     "Generate an Org-mode table with initiative order and monster/NPC HP."
     (interactive)
-    (let ((rows '()))
+    (let ((rows '())
+          (monster-counts '()) ;; Track next number per monster name
+          (global-monster-num 1))
       ;; Monster/NPC generation loop
-      ;; FIX: Corrected outer list nesting for let variables
-      (let ((name-input nil)
-            (monster 1))
+      (let ((name-input nil))
         (while (progn
                  (setq name-input (completing-read "Monster/NPC name (blank when done): " 
                                                    (mapcar #'car org-d20-monster-alist)))
@@ -2875,16 +2902,17 @@ This prevents S/MIME decryption prompts from appearing again."
                            (if (symbolp v) (symbol-name v) v))
                        (read-string (concat name-input "\\s hit points: "))))
                  (num (cdr (org-d20--roll (read-string (concat "How many " name-input "? ") "1"))))
-                 ;; FIX: Cleaned up ensuring init-mod is evaluated correctly for the d20 roll
                  (init (number-to-string (org-d20--d20-plus (if (stringp init-mod) (string-to-number init-mod) init-mod))))
-                 (monsters-left num))
+                 (monsters-left num)
+                 (start-num (if (bound-and-true-p org-d20-continue-monster-numbering)
+                                global-monster-num
+                              (or (cdr (assoc name-input monster-counts)) 1))))
             
             (while (>= monsters-left 1)
               (let ((hp (number-to-string (cdr (org-d20--roll hd))))
                     (ac-str (number-to-string (if (stringp ac) (string-to-number ac) ac))))
                 (push (list "" 
-                            (concat name-input (org-d20--monster-number monster)) 
-                            ;; FIX: Passes a string modifier safely or defaults
+                            (concat name-input " " (org-d20--monster-number start-num)) 
                             (org-d20--num-to-term (if (numberp init-mod) init-mod (string-to-number init-mod))) 
                             init 
                             ac-str 
@@ -2893,12 +2921,15 @@ This prevents S/MIME decryption prompts from appearing again."
                             "" 
                             "") 
                       rows))
-              ;; FIX: Moved these inside the while block to prevent infinite loop
               (setq monsters-left (1- monsters-left) 
-                    monster (1+ monster))))
-          
-          (unless (bound-and-true-p org-d20-continue-monster-numbering)
-            (setq monster 1))))
+                    start-num (1+ start-num)))
+            
+            ;; Update counts for next group
+            (if (bound-and-true-p org-d20-continue-monster-numbering)
+                (setq global-monster-num start-num)
+              (if (assoc name-input monster-counts)
+                  (setcdr (assoc name-input monster-counts) start-num)
+                (push (cons name-input start-num) monster-counts))))))
 
       ;; PC initiative input loop
       (dolist (pc org-d20-party)
@@ -3156,63 +3187,41 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
 
   (defun org-d20--initiative-add-records (name init-mod ac hd num)
   "Internal function to build and properly inject mid-combat rows safely."
-  (let ((monster 1)
-        (num-val (if (stringp num) (cdr (org-d20--roll num)) num)))
-    
-    ;; Safe Table Scanning (No Infinite Loop)
-    (when (bound-and-true-p org-d20-continue-monster-numbering)
-      (save-excursion
-        (goto-char (org-table-begin))
-        ;; Skip table headers safely
-        (forward-line 2)
-        (while (org-at-table-p)
-          (org-table-goto-column 2)
-          ;; FIX: re-search-forward moves point past match to avoid infinite loop
-          (when (re-search-forward "[^|]+ \\([A-Z]\\|[0-9]+\\)~? *|" (line-end-position) t)
-            (setq monster (1+ monster)))
-          (forward-line 1))))
-          
+  (let ((monster (org-d20--get-next-monster-number name))
+        (num-val (if (stringp num) (cdr (org-d20--roll num)) num))
+        (init (number-to-string (org-d20--d20-plus (if (stringp init-mod) (string-to-number init-mod) init-mod))))
+        (rows '()))
+    (dotimes (i num-val)
+      (push (list "" 
+                  (concat name " " (org-d20--monster-number (+ monster i))) 
+                  (org-d20--num-to-term (if (numberp init-mod) init-mod (string-to-number init-mod))) 
+                  init 
+                  (number-to-string (if (stringp ac) (string-to-number ac) ac))
+                  (number-to-string (cdr (org-d20--roll hd)))
+                  "0"
+                  ""
+                  "")
+            rows))
+    (setq rows (nreverse rows))
     (save-excursion
-      (let ((init (number-to-string (org-d20--d20-plus (if (stringp init-mod) (string-to-number init-mod) init-mod))))
-            (monsters-left num-val))
-        
-        ;; Move to the end of the table to safely append rows
-        (goto-char (org-table-end))
-        (forward-line -1)
-        
-        (while (>= monsters-left 1)
-          (org-table-insert-row)
-          (forward-line 1) ;; FIX: Step into the newly created row
-          
-          ;; FIX: Swapped raw 'insert' for safe 'org-table-set-field' calls
-          (org-table-goto-column 2)
-          (org-table-set-field (concat name " " (org-d20--monster-number monster)))
-          
-          (org-table-goto-column 3)
-          ;; FIX: Safely passes an actual integer to the term translator
-          (org-table-set-field (org-d20--num-to-term (if (stringp init-mod) (string-to-number init-mod) init-mod)))
-          
-          (org-table-goto-column 4)
-          (org-table-set-field init)
-          
-          (org-table-goto-column 5)
-          (org-table-set-field (number-to-string (if (stringp ac) (string-to-number ac) ac)))
-          
-          (org-table-goto-column 6)
-          (org-table-set-field (number-to-string (cdr (org-d20--roll hd))))
-          
-          (org-table-goto-column 7)
-          (org-table-set-field "0")
-          
-          (setq monsters-left (1- monsters-left) 
-                monster (1+ monster))))
-                
-      ;; Resort and format the table cleanly
+      (goto-char (org-table-end))
+      (dolist (row rows)
+        (insert "|" (mapconcat #'identity row "|") "|\n"))
+      (org-table-align)
       (goto-char (org-table-begin))
       (forward-line 2)
       (org-table-goto-column 4)
       (org-table-sort-lines nil ?N)
-      (org-table-align))))
+      (org-table-align)
+      
+      ;; Update active turn highlight if it exists
+      (save-excursion
+        (goto-char (org-table-begin))
+        (when (search-forward ">>>>" (org-table-end) t)
+          (if (bound-and-true-p org-d20-active-turn-overlay)
+              (move-overlay org-d20-active-turn-overlay (line-beginning-position) (line-end-position))
+            (setq org-d20-active-turn-overlay (make-overlay (line-beginning-position) (line-end-position))))
+          (overlay-put org-d20-active-turn-overlay 'face 'org-d20-active-turn-face))))))
 
     :bind (:map org-mode-map
                 ("H-h d" . d20-hydra/body)
@@ -3224,7 +3233,7 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
                 ("H-d h" . org-d20-heal)
                 ("H-d s" . org-d20-status)
                 ("H-d r" . org-d20-roll)
-                ("H-d e" . org-d20-roll-at-point)
+                ("H-d P" . org-d20-roll-at-point)
                 ("H-d a" . org-d20-d20)))
 #+end_src
 
