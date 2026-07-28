@@ -1661,33 +1661,33 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :defer t
   :init
   (setq-default eglot-workspace-configuration
-              '((:pylsp . (:plugins (
-                                     ;; 1. Disable ALL slow Python-based linters
-                                     :pycodestyle (:enabled :json-false)
-                                     :mccabe (:enabled :json-false)
-                                     :pyflakes (:enabled :json-false)
-                                     :flake8 (:enabled :json-false)
-                                     :pylint (:enabled :json-false)
-                                     :autopep8 (:enabled :json-false)
-                                     :yapf (:enabled :json-false)
-                                     :black (:enabled :json-false) ;; Disable black plugin (Ruff handles this)
+                '((:pylsp . (:plugins (
+                                       ;; 1. Disable ALL slow Python-based linters
+                                       :pycodestyle (:enabled :json-false)
+                                       :mccabe (:enabled :json-false)
+                                       :pyflakes (:enabled :json-false)
+                                       :flake8 (:enabled :json-false)
+                                       :pylint (:enabled :json-false)
+                                       :autopep8 (:enabled :json-false)
+                                       :yapf (:enabled :json-false)
+                                       :black (:enabled :json-false) ;; Disable black plugin (Ruff handles this)
 
-                                     ;; 2. Enable Ruff for everything
-                                     :ruff (:enabled t
-                                            :formatEnabled t       ;; Ruff handles formatting
-                                            :ignore ["E402"]
-                                            :lineLength 88)
+                                       ;; 2. Enable Ruff for everything
+                                       :ruff (:enabled t
+                                                       :formatEnabled t       ;; Ruff handles formatting
+                                                       :ignore ["E402"]
+                                                       :lineLength 88)
 
-                                     ;; 3. Configure Jedi for Completions (the only Python part left)
-                                     :jedi_completion (:enabled t
-                                                       :fuzzy t
-                                                       :include_params t
-                                                       :include_class_objects t
-                                                       :include_function_objects t
-                                                       :eager :json-false
-                                                       :cache_for ["pandas" "numpy" "matplotlib" "polars" "jax"])
-                                     :jedi_hover (:enabled t)
-                                     )))))
+                                       ;; 3. Configure Jedi for Completions (the only Python part left)
+                                       :jedi_completion (:enabled t
+                                                                  :fuzzy t
+                                                                  :include_params t
+                                                                  :include_class_objects t
+                                                                  :include_function_objects t
+                                                                  :eager :json-false
+                                                                  :cache_for ["pandas" "numpy" "matplotlib" "polars" "jax"])
+                                       :jedi_hover (:enabled t)
+                                       )))))
 
   :bind (
          ("C-c p" . start-eglot-python)
@@ -1715,9 +1715,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
                        #'cape-dabbrev))))
 
   (add-hook 'eglot-managed-mode-hook
-          (lambda ()
-            (add-hook 'before-save-hook 'eglot-format-buffer nil t)
-            (my/eglot-capf)))
+            (lambda ()
+              (add-hook 'before-save-hook 'eglot-format-buffer nil t)
+              (my/eglot-capf)))
 
   (defun pixi-get-environment ()
     "Interactively select a pixi environment and return its bin path."
@@ -1734,12 +1734,12 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
           (let* ((choice (completing-read "Select Environment: " (reverse envs)))
                  ;; Construct the path: <root>/.pixi/envs/<choice>/bin
                  (env-path (file-local-name (expand-file-name
-                            (concat ".pixi/envs/" choice "/bin/")
-                            project-root))))
+                                             (concat ".pixi/envs/" choice "/bin/")
+                                             project-root))))
             ;; (message "Path: %s" env-path)
             env-path)
         (message "Not in a pixi project or no environments found."))))
-
+  
   (defun start-eglot-python ()
     (interactive)
     (let* (
@@ -1761,6 +1761,47 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
       )
     )
   )
+
+
+(defun tmux-send-region-via-vterm (start end)
+  "Send the text in the active region directly into your project's active vterm workspace.
+Assumes you have manually activated your correct environment inside the terminal."
+  (interactive "r")
+  (let ((selected-text (buffer-substring-no-properties start end)))
+    ;; Temporarily hop into the project terminal layout to insert text, then instantly hop back
+    (save-window-excursion
+      (call-interactively #'seth/vterm-project-toggle)
+      (if (not (derived-mode-p 'vterm-mode))
+          (message "Could not find an active project vterm buffer to target.")
+        ;; Stream the highlighted block raw into vterm
+        (vterm-send-string selected-text)
+        ;; Append a return character if the code fragment doesn't have an explicit final newline
+        (unless (string-suffix-p "\n" selected-text)
+          (vterm-send-return))))
+    (message "Sent region to project vterm.")))
+
+(defun tmux-send-line-or-region-via-vterm ()
+  "Send the active region or the current line straight into your project's vterm layout."
+  (interactive)
+  (if (use-region-p)
+      (call-interactively #'tmux-send-region-via-vterm)
+    (let ((current-line (buffer-substring-no-properties 
+                         (line-beginning-position) 
+                         (line-end-position))))
+      (save-window-excursion
+        (call-interactively #'seth/vterm-project-toggle)
+        (when (derived-mode-p 'vterm-mode)
+          (vterm-send-string current-line)
+          (vterm-send-return)))
+      (message "Sent current line to project vterm.")
+      ;; Automatically step down to the next code row for rapid execution loops
+      (forward-line 1))))
+
+(with-eval-after-load 'python
+  ;; C-c C-c handles everything: sends highlighted blocks or steps row-by-row
+  (define-key python-mode-map (kbd "C-c C-c") #'tmux-send-line-or-region-via-vterm))
+
+
 
 (use-package eglot-booster
   :defer t
@@ -1801,13 +1842,13 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq eldoc-box-max-pixel-width 600
         eldoc-box-max-pixel-height 400)
   (with-eval-after-load 'eldoc-box
-  ;; Don't show the doc box while the Corfu completion menu is open
-  (add-hook 'eldoc-box-buffer-hook
-            (lambda ()
-              (when (and (bound-and-true-p corfu-mode)
-                         (frame-live-p corfu--frame)
-                         (frame-visible-p corfu--frame))
-                (eldoc-box-quit)))))
+    ;; Don't show the doc box while the Corfu completion menu is open
+    (add-hook 'eldoc-box-buffer-hook
+              (lambda ()
+                (when (and (bound-and-true-p corfu-mode)
+                           (frame-live-p corfu--frame)
+                           (frame-visible-p corfu--frame))
+                  (eldoc-box-quit)))))
   (add-hook 'eldoc-box-buffer-setup-hook #'eldoc-box-prettify-ts-errors 0 t)
   )
 
@@ -1874,6 +1915,15 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
         TeX-source-correlate-start-server t)
   (add-hook 'TeX-after-compilation-finished-functions #'TeX-revert-document-buffer)
 )
+(use-package pdf-tools
+  :ensure t
+  :magic ("%PDF" . pdf-view-mode)
+  :config
+    (pdf-tools-install :no-query)
+
+    ;; (add-hook 'pdf-view-mode-hook #'pdf-view-roll-minor-mode)
+    ;; (add-hook 'pdf-view-mode-hook 'pdf-links-minor-mode)
+)
 #+end_src
 
 *** YAML
@@ -1911,7 +1961,19 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :delight
   :config
   (require 'smartparens-config)
+    
+  ;; FIX: Prevent over-the-wire escape configurations from filtering brackets
+  (setq sp-escape-wrapped-region nil)
+  (setq sp-base-key-bindings 'standard)
+  
+  ;; Global active enforcement
   (smartparens-global-mode t)
+  (show-smartparens-global-mode t)
+  
+  ;; Explicitly bind brackets to terminal environments
+  (add-hook 'vterm-mode-hook #'turn-on-smartparens-mode)
+  (add-hook 'python-mode-hook #'turn-on-smartparens-mode)
+
   :bind* (
           ("M-<up>"  . sp-beginning-of-sexp)
           ("M-<down>"  . sp-end-of-sexp)
