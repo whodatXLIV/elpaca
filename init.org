@@ -1506,11 +1506,25 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   :defer t
   :mode ("\\.py\\'" . python-mode)
   :interpreter ("python" . python-mode)
-  :bind (
-         :map python-mode-map
-         ("H-<left>" . python-indent-shift-left)
-         ("H-<right>" . python-indent-shift-right)
-         )
+  :bind ( :map python-mode-map 
+          ("H-<left>" . python-indent-shift-left) 
+          ("H-<right>" . python-indent-shift-right)
+
+          ;; --- FUNCTION LEVEL NAVIGATION (C-M-) ---
+          ("C-M-a" . python-nav-backward-defun)  ; Go to BEGINNING of current/previous function
+          ("C-M-e" . python-nav-end-of-defun)   ; Go to END of current/next function
+          ;; We use a negative/positive argument to force defun jumping with p and n
+          ("C-M-p" . (lambda () (interactive) (python-nav-backward-defun 1))) ; Move to PREVIOUS function
+          ("C-M-n" . (lambda () (interactive) (python-nav-forward-defun 1)))  ; Move to NEXT function
+
+          ;; --- BLOCK LEVEL NAVIGATION (M-) ---
+          ("M-a" . python-nav-beginning-of-block) ; Go to BEGINNING of current structural block
+          ("M-e" . python-nav-end-of-block)       ; Go to END of current structural block
+          ("M-p" . python-nav-backward-block)     ; Move to PREVIOUS block at same level
+          ("M-n" . python-nav-forward-block)      ; Move to NEXT block at same level
+          )
+
+
   :config
 
   (setq python-indent-offset 4)
@@ -1526,6 +1540,24 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
   (put 'python-indent-dedent-line-backspace 'delete-selection 'supersede)
 
+  (defun my-preserve-line-wrapper (orig-fun &rest args)
+    "Execute ORIG-FUN and scroll so the cursor stays on the same screen line."
+    (let ((target-row (- (line-number-at-pos (point)) 
+                         (line-number-at-pos (window-start)))))
+      (apply orig-fun args)
+      (recenter target-row)))
+
+
+  ;; Apply the visual lock to Python's structural navigation commands
+  ;; Apply visual screen-line lock to your custom navigation suite
+  (dolist (func '(python-nav-backward-defun
+                  python-nav-forward-defun
+                  python-nav-end-of-defun
+                  python-nav-beginning-of-block
+                  python-nav-end-of-block
+                  python-nav-backward-block
+                  python-nav-forward-block))
+    (advice-add func :around #'my-preserve-line-wrapper))
   )
 
 (use-package code-cells
