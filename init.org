@@ -969,7 +969,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (use-package embark-consult
   :ensure t
-  :defer t)
+  )
 
 (use-package wgrep
   :ensure t
@@ -1058,8 +1058,6 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   )
 
 #+end_src 
-
-
 
 *** Marginalia
 #+begin_src emacs-lisp :lexical t :tangle yes
@@ -1475,9 +1473,9 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
           ("H-b e" . buffer-expose)
           ("H-b b" . buffer-expose-no-stars)
           ("H-b c" . buffer-expose-current-mode)
-          ("H-b s" . buffer-expose-major-mode)
+          ("H-b m" . buffer-expose-major-mode)
           ("H-b d" . buffer-expose-dired-buffers)
-          ("H-b *" . buffer-expose-stars)
+          ("H-b s" . buffer-expose-stars)
           )
   :config
   (buffer-expose-mode 1)
@@ -2223,6 +2221,16 @@ Assumes you have manually activated your correct environment inside the terminal
 
   :config
 
+  (with-eval-after-load 'embark
+  ;; Force Embark to respect the remote connection context
+  (add-hook 'embark-pre-action-hook
+            (lambda ()
+              (when (tramp-tramp-file-p default-directory)
+                (setq-local file-name-handler-alist
+                            (cons (cons tramp-file-name-regexp 'tramp-file-name-handler)
+                                  file-name-handler-alist))))))
+
+
   ;; Hide the mode line of the Embark live/completions buffers
   (add-to-list 'display-buffer-alist
                '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
@@ -2744,7 +2752,6 @@ This prevents S/MIME decryption prompts from appearing again."
 
 
 #+end_src
-
 
 
 *** Org-mode
@@ -3383,6 +3390,13 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
               (setq-local post-command-hook
                           (remove 'vterm--post-command-hook post-command-hook))))
 
+  (add-hook 'vterm-mode-hook
+          (lambda ()
+            (setq-local company-backends nil)
+            (when (bound-and-true-p corfu-mode)
+              (corfu-mode -1))))
+
+
   ;; (add-hook 'vterm-mode-hook (lambda () (setq-local tab-line-format t)))
 
   ;; (defun my/disable-tab-line-in-vterm ()
@@ -3681,8 +3695,8 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
   )
 #+end_src
 
-** Agent Shell
-#+begin_src emacs-lisp :lexical t :tangle yes
+*** Agent Shell
+#+begin_src emacs-lisp :lexical t :tangle no
 (use-package agent-shell
   :config
   (setq agent-shell-google-authentication
@@ -3716,21 +3730,20 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
   )
 #+end_src
 
-** ECA
+*** ECA
 #+begin_src emacs-lisp :lexical t :tangle yes
+;; Enable lexical binding if not already present at the top of init.el
+;; -*- lexical-binding: t; -*-
+
 (use-package eca
   :ensure (:host github :repo "editor-code-assistant/eca-emacs")
   :defer t
-  :commands (eca eca-chat-new eca-chat-clear eca-transient-menu)
-  :init
-  ;; Automatically start the background ECA server when Emacs boots
-  (add-hook 'after-init-hook #'eca)
-  
+  :commands (eca eca-process-stop)
   :custom
-  ;; Keeps the chat locked to a side window, mirroring your sidebar workflow
   (eca-chat-use-side-window t)
   
   :config
+
   (defun my-eca-chat-toggle ()
     "Show or hide the ECA chat buffer for the current project.
 If the chat window is visible, hide it.
@@ -3767,102 +3780,41 @@ rename it to a project-specific name, and display it."
   ;;         (window-width . 0.35)))
   
   (setq eca-extra-args '("--log-level" "warn"))
-
-  ;; Make sure :format is NOT set to "json"
-  ;; (setq eca-ollama-options '(:format nil)) 
-
-  ;; Hide internal buffers, system logs, and mail buffers from AI context
   (setq eca-chat-buffer-ignore-regexp 
         (rx (or (seq bos " ")                    ; Hidden buffers starting with space
                 (seq bos "*" (any "a-z" "A-Z"))  ; Star buffers like *scratch*, *Messages*
                 (seq bos "magit")                ; Magit version control buffers
                 (seq bos "mu4e"))))              ; Mail client buffers
 
-  ;; Custom Function: Brainstorm Active Buffers
-  (defun my/eca-brainstorm-active-buffers ()
-    "Gathers active code buffers and boots straight into a read-only brainstorming session."
-    (interactive)
-    ;; Ensure the ECA server process is alive before initializing the window layout
-    (unless (and (fboundp 'eca-process-live-p) (eca-process-live-p))
-      (eca))
-    (let* ((all-buffers (mapcar #'window-buffer (window-list)))
-           (valid-buffers nil))
-      ;; Filter open windows against your exact ignore rules
-      (dolist (buf all-buffers)
-        (let ((name (buffer-name buf)))
-          (unless (or (string-match-p eca-chat-buffer-ignore-regexp name)
-                      (member buf valid-buffers))
-            (push buf valid-buffers))))
-      
-      ;; Call interactive session wrapper with your target Gemini 3 Flash agent
-      (eca-chat-new :agent "py-brainstorm")
-      
-      ;; Inject the clean active buffer context straight into the prompt line
-      (with-current-buffer (eca-chat-buffer)
-        (goto-char (point-max))
-        (insert "I am looking at these active buffers:\n")
-        (dolist (buf valid-buffers)
-          (insert (format "- ${buffer:%s}\n" (buffer-name buf))))
-        (insert "\n[Brainstorming Target]: Tell me why my architecture here might fail..."))))
+  (custom-theme-set-faces
+   'user
+   '(eca-chat-user-messages-face 
+     ((((background dark))  :foreground "#79bf73" :weight bold)
+      (((background light)) :foreground "ForestGreen" :weight bold))))
 
-  ;; Custom Function: Isolated Bug Fixer
-  (defun my/eca-fix-current-file ()
-    "Launches the autonomous py-fixer agent focused purely on the current buffer file."
-    (interactive)
-    (if (not (buffer-file-name))
-        (user-error "Current buffer is not visiting a file")
-      (let ((file-name (file-name-nondirectory (buffer-file-name))))
-        ;; Ensure the ECA server process is alive before invoking the session
-        (unless (and (fboundp 'eca-process-live-p) (eca-process-live-p))
-          (eca))
-        ;; Initialize session
-        (eca-chat-new :agent "py-fixer-light")
-        ;; Pre-populate the action command with the isolated file context
-        (with-current-buffer (eca-chat-buffer)
-          (goto-char (point-max))
-          (insert (format "Run tests on ${file:%s}, analyze any bugs, and patch any failing logic." file-name))))))
 
-  ;; ;; Custom Function: Session Memory Scratchpad Snapshot
-  ;; (defun my/eca-save-to-project-memory ()
-  ;;   "Appends the selected region or current buffer contents to the project's local memory file."
-  ;;   (interactive)
-  ;;   (let* ((proj-root (or (and (fboundp 'project-root) (project-current) (project-root (project-current)))
-  ;;                         default-directory))
-  ;;          (memory-file (expand-file-name ".eca-memory.md" proj-root))
-  ;;          (buf-name (buffer-name))
-  ;;          (start (if (use-region-p) (region-beginning) (point-min)))
-  ;;          (end (if (use-region-p) (region-end) (point-max)))
-  ;;          (content (buffer-substring-no-properties start end))
-  ;;          (timestamp (format-time-string "%Y-%m-%d %H:%M:%S")))
-  
-  ;;     ;; Append code snippet to local project memory
-  ;;     (with-temp-buffer
-  ;;       (insert (format "\n\n## Session Snapshot: %s\n" timestamp))
-  ;;       (insert (format "### Source Buffer: `%s`\n" buf-name))
-  ;;       (insert "```python\n")
-  ;;       (insert content)
-  ;;       (insert "\n```\n")
-  ;;       (append-to-file (point-min) (point-max) memory-file))
-  
-  ;;     (message "Snapshot saved to project memory scratchpad: %s" (file-name-nondirectory memory-file))))
+
 
   :bind* (
           ;; Opens default agent configuration session
           ("H-a t" . my-eca-chat-toggle)
-          ;; Specialized local workspace shortcuts
-          ("H-a b" . my/eca-brainstorm-active-buffers)
-          ("H-a f" . my/eca-fix-current-file)
-          ;; ("H-a m" . my/eca-save-to-project-memory)
           ;; Quick keybinding to pull up model/agent switching transient menu
-          ("H-a c" . eca-transient-menu)
-          ;; Instantly wipe history and reset token costs
-          ("H-a k" . eca-chat-clear)
+          ;; C-c .			eca-transient-menu
+          ;; C-c C-f		eca-chat-select
+          ;; C-c C-p		eca-chat-repeat-prompt
+          ;; C-c C-t		eca-chat-toggle-trust
+
+          ;; C-c C-<down>	        eca-chat-go-to-next-user-message
+          ;; C-c C-<up>		eca-chat-go-to-prev-user-message
+
+          ;; C-c <down>		eca-chat-go-to-next-expandable-block
+          ;; C-c <up>		eca-chat-go-to-prev-expandable-block
+
           )
   )
 
-
-
 #+end_src
+
 * Ending
 #+begin_src emacs-lisp :lexical t
 ;;; Load post-init.el

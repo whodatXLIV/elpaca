@@ -31,8 +31,10 @@
         sp-end-of-sexp
         sp-forward-slurp-sexp
         sp-kill-hybrid-sexp
+        sp-rewrap-sexp
         sp-unwrap-sexp
         tab-line-select-tab
+        transpose-words
         ultra-scroll
         vterm-end-of-line
         ))

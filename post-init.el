@@ -38,7 +38,7 @@
 
 (defun connect-focusvq-home ()
   (interactive)
-  (dired "/rpc:sfigueroa@dev.focusvq.com:/home/sfigueroa/"))
+  (dired "/rpc:dev:/home/sfigueroa/"))
 
 (setq sql-connection-alist
       '(
