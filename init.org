@@ -662,8 +662,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 (use-feature eldoc
   :defer t
   :init
-  (setq custom-delayed-init-variables '())
-  :config
+  (setq custom-delayed-init-variables '())  
   (global-eldoc-mode))
 
 (use-feature seq
@@ -823,29 +822,18 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 (use-package corfu
   :ensure t
-  :defer t
-  :delight t
   :hook (emacs-startup . global-corfu-mode)
-  :bind* (("C-<tab>" . completion-at-point))
+  :bind* (("C-<tab>" . completion-at-point)) ; This is your single manual trigger key
   :custom
-  (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
-  (corfu-auto t)                 ;; Enable auto completion
-  (corfu-auto-delay 0.5)         ;; Delay for auto-completion (snappy but TRAMP-safe)
-  (corfu-auto-prefix 2)          ;; Require 2 characters before auto-completion
-  (corfu-separator ?\s)          ;; Orderless field separator
-  (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
-  (corfu-quit-no-match t)        ;; Never quit, even if there is no match
-  (corfu-preview-current nil)    ;; Disable current candidate preview
-  (corfu-preselect 'prompt)      ;; Preselect the prompt
-  (corfu-on-exact-match nil)     ;; Configure handling of exact matches
-  (corfu-scroll-margin 5)        ;; Use scroll margin
-
+  (corfu-auto nil)                 ; FIX: Turn off automatic popups completely!
+  (corfu-cycle t)                  ; Cycle selections with arrow keys/Tab
+  (corfu-separator ?\s)            ; Allow Orderless space filtering
+  (corfu-preselect 'prompt)
+  (corfu-quit-no-match t)          ; Close instantly if nothing matches your typing
   :custom-face
-  (corfu-border (
-                 (((class color) (background light)) (:background "gold"))
-                 (((class color) (background dark))  (:background "gold"))
-                 ))
-  )
+  (corfu-border ((((class color) (background light)) (:background "gold"))
+                 (((class color) (background dark))  (:background "gold")))))
+
 
 (use-package corfu-popupinfo
   :ensure nil
@@ -1091,19 +1079,18 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 
 *** Completion Backends
 #+begin_src emacs-lisp :lexical t
+
 (use-package cape
   :ensure t
   :defer t
-  ;; Bind dedicated completion commands
-  ;; Alternative prefix keys: C-c p, M-p, M-+, ...
+  ;; H-<tab> is strictly used to select exact contextual lookup types via your Hydra
   :bind* ("H-<tab>" . hydra-cape/body)
   :config
   (defhydra hydra-cape (:color blue :hint nil)
     "
-  _d_ dabbrev    _f_ file      _k_ keyword    _s_ symbol
-  _l_ line       _i_ ispell    _h_ history    _w_ dict
-  _q_ quit
-  "
+   _d_ dabbrev  _f_ file    _k_ keyword  _s_ symbol
+   _l_ line     _i_ ispell  _h_ history  _w_ dict    _q_ quit
+    "
     ("d" cape-dabbrev)
     ("f" cape-file)
     ("k" cape-keyword)
@@ -1113,21 +1100,15 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
     ("h" cape-history)
     ("w" cape-dict)
     ("q" nil "quit"))
-
-
-  ;; (setq-local completion-at-point-functions
-  ;;             (list (cape-capf-choose #'cape-dabbrev #'cape-file #'cape-keyword)))
-
+  
   :init
-  ;; Create a "Super" completion backend that merges dabbrev, file, and keywords
-  (defalias 'cape-global-super
-    (cape-capf-super #'cape-dabbrev #'cape-file #'cape-keyword))
+  ;; Instead of polluting the global completion hook, we register standard
+  ;; text fallbacks cleanly so they stay completely out of Eglot's way.
+  (add-to-list 'completion-at-point-functions #'cape-dabbrev)
+  (add-to-list 'completion-at-point-functions #'cape-file))
 
-  ;; Add the super backend to the global completion list.
-  ;; Emacs will try the major-mode specific completions first (like elisp),
-  ;; and if they fail, it will fall back to showing this combined list.
-  (add-hook 'completion-at-point-functions #'cape-global-super)
-  )
+ 
+
 
 (use-package yasnippet-capf
   :ensure t
@@ -1710,7 +1691,7 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
 *** LSP & Linting
 #+begin_src emacs-lisp :lexical t
 ;; (use-package flymake
-  ;; :defer t)
+;; :defer t)
 (use-feature eglot
   :defer t
   :init
@@ -1761,17 +1742,20 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   (setq jsonrpc-event-hook nil)
 
   :config
-  (defun my/eglot-capf ()
+  
+  (defun seth/eglot-completion-setup ()
+    "Ensure Python code completion is handled cleanly by Eglot without external noise."
     (setq-local completion-at-point-functions
-                (list (cape-capf-super
-                       #'eglot-completion-at-point
-                       #'yasnippet-capf
+                (list (cape-capf-super 
+                       #'eglot-completion-at-point 
+                       #'yasnippet-capf 
                        #'cape-dabbrev))))
 
   (add-hook 'eglot-managed-mode-hook
             (lambda ()
               (add-hook 'before-save-hook 'eglot-format-buffer nil t)
-              (my/eglot-capf)))
+              ;; Isolate your Python completion buffer context entirely
+              (seth/eglot-completion-setup)))
 
   (defun pixi-get-environment ()
     "Interactively select a pixi environment and return its bin path."
@@ -1873,76 +1857,48 @@ Assumes you have manually activated your correct environment inside the terminal
 (use-package flycheck
   :ensure t
   :hook (prog-mode . flycheck-mode)
+  :bind (:map flycheck-mode-map
+              ("C-c ! l" . flycheck-list-errors)) ; Crisp manual error list dashboard
   :config
-  ;; Report Eglot's LSP diagnostics through Flycheck
-  (global-flycheck-mode)
-  (global-flycheck-eglot-mode)
-  (global-flycheck-annotate-mode)
-  )
+  ;; 1. QUIET MODE: Stop Flycheck from checking while you type
+  (setq flycheck-check-syntax-automatically '(save mode-enabled))
+  
+  ;; 2. Give remote TRAMP/RPC servers half a second to process if a check triggers
+  (setq flycheck-idle-change-delay 0.5)
+
+  ;; Report Eglot's LSP diagnostics cleanly through the core interface
+  (global-flycheck-mode t)
+  
+  ;; Ensure the bridge modules are safely loaded if present
+  (when (fboundp 'global-flycheck-eglot-mode)
+    (global-flycheck-eglot-mode t))
+  (when (fboundp 'global-flycheck-annotate-mode)
+    (global-flycheck-annotate-mode t)))
 
 
-;; (use-package flycheck-eglot
-;;   :ensure t
-;;   :defer t
-;;   :after (flycheck eglot)
-;;   :hook (eglot-managed-mode)
-;;   :config
-;;   (global-flycheck-eglot-mode 1)
-;;   :custom
-;;   (flycheck-help-echo-function nil)
-;;   (flycheck-display-errors-function nil)
-;;   )
-
-;; (use-package consult-eglot
-;;   :ensure t
-;;   :defer t
-;;   :after (consult eglot)
-;;   :bind (:map eglot-mode-map
-;;               ("M-g s" . consult-eglot-symbols)))
 
 (use-package eldoc-box
-  :hook (eglot-managed-mode . eldoc-box-hover-at-point-mode)
+  :defer t
+  :after eglot
+  :bind (
+         :map eglot-mode-map
+         ("H-n" . eldoc-box-scroll-up)
+         ("H-p" . eldoc-box-scroll-down)
+         ("C-c d" . eldoc-box-eglot-help-at-point)
+         )
   :config
-  (setq eldoc-idle-delay 0.5) ;; Give TRAMP half a second before asking for docs
-  ;; Customizing the look
+  (setq eldoc-box-clear-with-C-g t)
+  (setq eldoc-display-functions
+        '(eldoc-display-in-echo-area)
+        )
+
+  ;; Size of the floating documentation box.
   (setq eldoc-box-max-pixel-width 600
         eldoc-box-max-pixel-height 400)
-  (with-eval-after-load 'eldoc-box
-    ;; Don't show the doc box while the Corfu completion menu is open
-    (add-hook 'eldoc-box-buffer-hook
-              (lambda ()
-                (when (and (bound-and-true-p corfu-mode)
-                           (frame-live-p corfu--frame)
-                           (frame-visible-p corfu--frame))
-                  (eldoc-box-quit)))))
+
+  ;; Pretty-print TypeScript errors.
   (add-hook 'eldoc-box-buffer-setup-hook #'eldoc-box-prettify-ts-errors 0 t)
   )
-
-
-;; (use-package sideline
-;;   :delight
-;;   :defer t
-;;   :hook (
-;;          (flycheck-mode . sideline-mode)
-;;          (flymake-mode  . sideline-mode)
-;;          )
-
-;;   :init
-;;   (setq sideline-backends-left-skip-current-line nil   ; don't display on current line (left)
-;;         sideline-backends-right-skip-current-line nil  ; don't display on current line (right)
-;;         sideline-order-left 'down                    ; or 'up
-;;         sideline-order-right 'up                     ; or 'down
-;;         sideline-format-left "%s"                 ; format for left aligment
-;;         sideline-format-right "%s"                ; format for right aligment
-;;         sideline-priority 100                        ; overlays' priority
-;;         sideline-display-backend-name t)             ; display the backend name
-;;   (setq sideline-backends-right '(sideline-flycheck)
-;;         )
-
-;;   )
-;; (use-package sideline-flycheck
-;;   :defer t
-;;   :hook (flycheck-mode . sideline-flycheck-setup))
 #+end_src
 
 *** Tree-sitter
