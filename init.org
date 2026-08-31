@@ -3374,97 +3374,364 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
                 ("H-d a" . org-d20-d20)))
 #+end_src
 
-*** Vterm
+*** Ghostel
 #+begin_src emacs-lisp :lexical t
-(use-package vterm
+(use-package ghostel
+  :ensure t
   :defer t
+
+  :bind*
+  (("C-x t" . seth/ghostel-project-toggle))
+
   :config
-  (setq vterm-timer-delay 0.01)
-  ;; (add-hook 'vterm-mode-hook (lambda ()
-  ;;                              (flycheck-mode -1)
-  ;;                              ))
-  (add-hook 'vterm-mode-hook
+
+  ;; ==========================================================================
+  ;; GHOSTEL CORE
+  ;; ==========================================================================
+
+  ;; Use Ghostel's native PTY path for local terminals.
+  ;; Remote TRAMP terminals automatically use TRAMP/Emacs process machinery.
+  (setq ghostel-use-native-pty t)
+
+  ;; Advertise the full Ghostty terminal capability set.
+  ;;
+  ;; This is particularly useful with tmux, neovim, modern TUIs, etc.
+  (setq ghostel-term "xterm-ghostty")
+
+  ;; Local shell integration:
+  ;;   - OSC 7 directory tracking
+  ;;   - OSC 133 prompt/command tracking
+  ;;   - prompt navigation
+  ;;   - ghostel_cmd support
+  ;;
+  ;; Ghostel enables this by default, but keeping it explicit makes the
+  ;; configuration's intent clear.
+  (setq ghostel-shell-integration t)
+
+  ;; ==========================================================================
+  ;; TRAMP
+  ;; ==========================================================================
+
+  ;; Enable Ghostel's remote shell integration for TRAMP.
+  ;;
+  ;; This is important for your workflow because when the shell does:
+  ;;
+  ;;     cd /remote/project/src
+  ;;
+  ;; Ghostel can update Emacs' default-directory to the corresponding
+  ;; TRAMP path rather than losing the remote context.
+  (setq ghostel-tramp-shell-integration t)
+
+  ;; Your setup uses the custom `rpc' TRAMP method.
+  ;;
+  ;; When Ghostel receives a remote OSC 7 location without an existing TRAMP
+  ;; prefix, use rpc rather than the normal tramp-default-method.
+  (setq ghostel-tramp-default-method "rpc")
+
+  ;; Let Ghostel handle xterm-ghostty terminfo on remote machines.
+  ;;
+  ;; With `auto', this follows ghostel-tramp-shell-integration.
+  ;; This avoids the common:
+  ;;
+  ;;     Error opening terminal: xterm-ghostty
+  ;;
+  ;; problem on remote machines that do not already have the terminfo entry.
+  (setq ghostel-ssh-install-terminfo 'auto)
+
+  ;; ==========================================================================
+  ;; TERMINAL BUFFER BEHAVIOR
+  ;; ==========================================================================
+
+  ;; Same general behavior as your old vterm setup:
+  ;; don't keep dead terminal buffers around.
+  (setq ghostel-kill-buffer-on-exit t)
+
+  ;; Ask before killing a terminal while a command is actively running.
+  (setq ghostel-query-before-killing 'auto)
+
+
+
+  ;; ==========================================================================
+  ;; GHOSTEL INPUT
+  ;; ==========================================================================
+
+  ;; Ghostel's default input mode is `semi-char'.
+  ;;
+  ;; This is intentional.
+  ;;
+  ;; It gives terminal applications their normal key input while still
+  ;; allowing useful Emacs commands. Do NOT change this to char-mode globally:
+  ;; your requirement is that Emacs commands and terminal commands coexist.
+  ;;
+  ;; Useful built-in mode switches:
+  ;;
+  ;;   C-c C-j   semi-char mode
+  ;;   C-c M-d   char mode (send essentially everything to terminal)
+  ;;   C-c C-e   Emacs/read-only mode
+  ;;   C-c C-t   copy mode
+  ;;   C-c C-l   line mode
+  ;;
+  ;; M-RET exits char mode.
+  ;;
+  ;; In particular, char mode is available when a TUI needs a key that
+  ;; semi-char would otherwise intercept.
+
+
+  ;; ==========================================================================
+  ;; COMPLETION FRAMEWORKS
+  ;; ==========================================================================
+
+  ;; Do not let company/corfu attempt completion inside the terminal.
+  ;;
+  ;; This preserves the behavior you had in vterm.
+  (add-hook 'ghostel-mode-hook
             (lambda ()
-              ;; Prevent Emacs from trying to 'sync' point or window on every switch
-              (setq-local window-configuration-change-hook nil)
-              (setq-local post-command-hook
-                          (remove 'vterm--post-command-hook post-command-hook))))
-
-  (add-hook 'vterm-mode-hook
-          (lambda ()
-            (setq-local company-backends nil)
-            (when (bound-and-true-p corfu-mode)
-              (corfu-mode -1))))
+              (setq-local company-backends nil)
+              (when (bound-and-true-p corfu-mode)
+                (corfu-mode -1))))
 
 
-  ;; (add-hook 'vterm-mode-hook (lambda () (setq-local tab-line-format t)))
+  ;; ==========================================================================
+  ;; PROJECT / TMUX TERMINAL
+  ;; ==========================================================================
+  ;;     project.el
+  ;;         ↓
+  ;;     project root
+  ;;         ↓
+  ;;     TRAMP/local detection
+  ;;         ↓
+  ;;     your existing project-derived tmux session name
+  ;;         ↓
+  ;;     tmux new-session -A
+  ;;         ↓
+  ;;     Ghostel
+  ;;
+  ;; This keeps the behavior you already rely on.
 
-  ;; (defun my/disable-tab-line-in-vterm ()
-  ;;   "Forcefully disable tab-line-mode in the current buffer."
-  ;;   (setq-local tab-line-format nil)
-  ;;   (when (bound-and-true-p tab-line-mode)
-  ;;     (tab-line-mode -1)))
 
-  ;; (add-hook 'vterm-mode-hook
-  ;;           (lambda ()
-  ;;             ;; 1. Run once on startup
-  ;;             (my/disable-tab-line-in-vterm)
-  ;;             ;; 2. Run every time the window is selected/configured
-  ;;             (add-hook 'window-configuration-change-hook #'my/disable-tab-line-in-vterm nil t)
-  ;;             ;; 3. Run after every command (the ultimate guarantee)
-  ;;             (add-hook 'post-command-hook #'my/disable-tab-line-in-vterm nil t)))
+  (defun seth/ghostel--project-root ()
+    "Return the current project root, falling back to `default-directory'."
+    (if-let ((project (project-current)))
+        (project-root project)
+      default-directory))
 
-  )
 
-(use-package multi-vterm
-  :defer t
-  :bind* (
-          ("C-x t" . seth/vterm-project-toggle)
-          )
+  (defun seth/ghostel--tmux-session-name (root)
+    "Return the tmux session name used for project ROOT.
 
-  :config
-  (defun seth/vterm-project-rpc-tmux ()
-    "Open vterm using 'rpc' method in the correct remote directory."
+This intentionally preserves your existing naming scheme."
+    (let* ((remote-path (file-local-name root))
+           (project-name (directory-file-name remote-path)))
+      (replace-regexp-in-string
+       "\\."
+       "_"
+       project-name)))
+
+
+  (defun seth/ghostel--tmux-command (root)
+    "Return the tmux command for project ROOT.
+
+The command creates or attaches to the project's existing tmux session and
+starts it at the project root."
+    (let* ((remote-path (file-local-name root))
+           (session-name (seth/ghostel--tmux-session-name root)))
+      (format "tmux new-session -A -s %s -c %s"
+              (shell-quote-argument session-name)
+              (shell-quote-argument remote-path))))
+
+
+  (defun seth/ghostel--existing-project-terminal ()
+    "Return an existing Ghostel buffer belonging to the current project.
+
+Prefer a live Ghostel terminal whose `default-directory' is the current
+project. Return nil when none exists."
+    (when (derived-mode-p 'ghostel-mode)
+      (let ((current-root (seth/ghostel--project-root)))
+        (when (and current-root
+                   (string= (file-truename default-directory)
+                            (file-truename current-root)))
+          (current-buffer)))))
+
+
+  (defun seth/ghostel-project-tmux ()
+  "Open or select the current project's Ghostel terminal running tmux."
+  (interactive)
+
+  (let* ((root (seth/ghostel--project-root))
+         (session-name (seth/ghostel--tmux-session-name root))
+         (tmux-command (seth/ghostel--tmux-command root))
+         (existing (ghostel-project-buffer-list)))
+
+    ;; If this project already has a Ghostel terminal, use it.
+    (if existing
+        (pop-to-buffer (car existing))
+
+      ;; Otherwise create one at the project root.
+      (let ((default-directory root)
+            (ghostel-shell tmux-command))
+        (ghostel-create
+         (format "*ghostel-%s*" session-name))))))
+
+
+  (defun seth/ghostel-project-toggle ()
+    "Toggle the current project's Ghostel/tmux terminal.
+
+If the current buffer is the project's Ghostel terminal, bury it.
+Otherwise create/select the Ghostel terminal associated with the current
+project."
     (interactive)
-    (let* ((host (file-remote-p default-directory 'host))
-           ;; 1. Safely find the project root or use default-directory
-           (root (if-let ((project (project-current)))
-                     (project-root project)
-                   default-directory))
-           ;; 2. Get the LOCAL path on the remote server (strips /rpc:user@host:)
-           (remote-path (file-local-name root))
-           ;; 3. Get folder name and sanitize for session name
-           ;; (project-name (file-name-nondirectory (directory-file-name remote-path)))
-           (project-name (directory-file-name remote-path))
-           (session-name (replace-regexp-in-string "\\." "_" project-name))
-           ;; 4. Build command with -c to set the starting directory
-           (tmux-cmd (format "tmux new-session -A -s %s -c %s"
-                             session-name
-                             (shell-quote-argument remote-path))))
-      (hl-line-mode 0)
-      (if (and host (string= (file-remote-p default-directory 'method) "rpc"))
-          (let ((vterm-tramp-shells (cons `("rpc" ,tmux-cmd) vterm-tramp-shells)))
-            (multi-vterm-project))
-        (let ((vterm-shell tmux-cmd))
-          (multi-vterm-project)))))
 
-  (defun seth/vterm-project-toggle ()
-    "Toggle vterm project: bury if in vterm, otherwise launch with project-named tmux."
-    (interactive)
-    (if (derived-mode-p 'vterm-mode)
+    (if (derived-mode-p 'ghostel-mode)
         (quit-window)
-      (seth/vterm-project-rpc-tmux)))
+      (seth/ghostel-project-tmux)))
 
-  (defun my-vterm-hl-line-handler ()
-    "Enable hl-line-mode in vterm-copy-mode, disable it otherwise."
-    (if vterm-copy-mode
-        (hl-line-mode 1)
-      (hl-line-mode 0)))
 
-  ;; Disable hl-line by default when entering vterm
-  (add-hook 'vterm-mode-hook #'my-vterm-hl-line-handler)
-  ;; Toggle hl-line based on whether copy-mode is active
-  (add-hook 'vterm-copy-mode-hook #'my-vterm-hl-line-handler)
+  ;; ;; ==========================================================================
+  ;; ;; PROJECT COMMANDS
+  ;; ;; ==========================================================================
+
+  ;; ;; Keep Ghostel available through project.el in addition to your C-x t
+  ;; ;; toggle.
+  ;; ;;
+  ;; ;; `m' is deliberately chosen to avoid interfering with your existing
+  ;; ;; project-prefix bindings unless you already use it.
+  ;; (with-eval-after-load 'project
+  ;;   (define-key project-prefix-map
+  ;;               (kbd "m")
+  ;;               #'seth/ghostel-project-tmux)
+
+  ;;   (define-key project-prefix-map
+  ;;               (kbd "M")
+  ;;               #'ghostel-project-list-buffers))
+
+
+  ;; ==========================================================================
+  ;; SEND TEXT INTO PROJECT TERMINAL
+  ;; ==========================================================================
+  ;;
+  ;; This replaces:
+  ;;
+  ;;     vterm-send-string
+  ;;     vterm-send-return
+  ;;
+  ;; with Ghostel's public API:
+  ;;
+  ;;     ghostel-send-string
+  ;;
+  ;; This API is explicitly provided by Ghostel for external/custom
+  ;; integrations.
+  ;; ==========================================================================
+
+
+;;   (defun tmux-send-region-via-ghostel (start end)
+;;     "Send the active region directly into the project's Ghostel terminal.
+
+;; Assumes the correct environment has already been activated inside the
+;; terminal/tmux session."
+;;     (interactive "r")
+
+;;     (let ((selected-text
+;;            (buffer-substring-no-properties start end)))
+
+;;       ;; Temporarily display the project terminal, send the text, and return
+;;       ;; immediately to the original window configuration.
+;;       (save-window-excursion
+
+;;         ;; This opens/selects the correct project Ghostel terminal.
+;;         (seth/ghostel-project-tmux)
+
+;;         (if (not (derived-mode-p 'ghostel-mode))
+
+;;             (message
+;;              "Could not find an active project Ghostel terminal.")
+
+;;           ;; Send the selected block exactly as selected.
+;;           (ghostel-send-string selected-text)
+
+;;           ;; Execute it if the selected text does not already contain its
+;;           ;; terminating newline.
+;;           (unless (string-suffix-p "\n" selected-text)
+;;             (ghostel-send-string "\n")))))
+
+;;     (message "Sent region to project Ghostel."))
+
+
+;;   (defun tmux-send-line-or-region-via-ghostel ()
+;;     "Send the active region or current line to the project's Ghostel terminal.
+
+;; With an active region, send the entire region.
+
+;; Without a region, send the current line, execute it, and advance to the next
+;; line for rapid Python execution."
+;;     (interactive)
+
+;;     (if (use-region-p)
+
+;;         ;; --------------------------------------------------------------------
+;;         ;; REGION
+;;         ;; --------------------------------------------------------------------
+;;         (call-interactively #'tmux-send-region-via-ghostel)
+
+;;       ;; ----------------------------------------------------------------------
+;;       ;; SINGLE LINE
+;;       ;; ----------------------------------------------------------------------
+;;       (let ((current-line
+;;              (buffer-substring-no-properties
+;;               (line-beginning-position)
+;;               (line-end-position))))
+
+;;         (save-window-excursion
+
+;;           (seth/ghostel-project-tmux)
+
+;;           (when (derived-mode-p 'ghostel-mode)
+;;             (ghostel-send-string current-line)
+;;             (ghostel-send-string "\n")))
+
+;;         (message "Sent current line to project Ghostel.")
+
+;;         ;; Automatically advance to the next code row.
+;;         (forward-line 1))))
+
+
+  ;; ==========================================================================
+  ;; PYTHON
+  ;; ==========================================================================
+
+  ;; (with-eval-after-load 'python
+
+  ;;   ;; C-c C-c now means:
+  ;;   ;;
+  ;;   ;;     region active → send entire region
+  ;;   ;;
+  ;;   ;;     no region → send current line and move to next line
+  ;;   ;;
+  ;;   (define-key python-mode-map
+  ;;               (kbd "C-c C-c")
+  ;;               #'tmux-send-line-or-region-via-ghostel))
+
+
+  ;; ==========================================================================
+  ;; OPTIONAL: GHOSTEL EXTENSIONS
+  ;; ==========================================================================
+  ;;
+  ;; These are all part of Ghostel itself.
+  ;;
+  ;; Keep compile/comint integration disabled for now because your primary
+  ;; requirement is replacing vterm/multi-vterm without changing unrelated
+  ;; workflows. We can enable them later if desired.
+  ;;
+  ;; Examples:
+  ;;
+  ;; (use-package ghostel-compile
+  ;;   :after ghostel
+  ;;   :hook (after-init . ghostel-compile-global-mode))
+  ;;
+  ;; (use-package ghostel-comint
+  ;;   :after ghostel
+  ;;   :hook (after-init . ghostel-comint-global-mode))
+
+
   )
 #+end_src
 
