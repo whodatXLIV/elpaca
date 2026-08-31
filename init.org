@@ -3396,9 +3396,9 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
    )
   :bind (:map ghostel-mode-map
               ("H-t" . ghostel-copy-mode)       
-              ("H-s" . ghostel-semi-char-mode)  
+              ("H-j" . ghostel-semi-char-mode)  
               ("H-e" . ghostel-emacs-mode)      
-              ("H-l" . seth/ghostel-force-line-mode)       
+              ("H-l" . seth/ghostel-edit-line-popup)       
               ("H-d" . ghostel-char-mode)
               )
 
@@ -3446,14 +3446,71 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
   ;;             (setq-local company-backends nil)
   ;;             (when (bound-and-true-p corfu-mode)
   ;;               (corfu-mode -1))))
-  (defun seth/ghostel-force-line-mode ()
-    "Force Ghostel into line-mode immediately, bypassing TUI checks (like tmux)."
+  (defun seth/ghostel-edit-line-popup ()
+  "Grab the current line and open it in a fully editable popup buffer with TRAMP directory context."
+  (interactive)
+  (if (not (derived-mode-p 'ghostel-mode))
+      (message "Not in a Ghostel buffer.")
+    ;; Capture the current buffer and its remote/local default directory path
+    (let* ((ghostel-buf (current-buffer))
+           (ghostel-dir default-directory) 
+           (current-line (buffer-substring-no-properties 
+                          (line-beginning-position) 
+                          (line-end-position)))
+           (clean-initial (replace-regexp-in-string "^.*[>$%#] *" "" current-line))
+           (original-length (length clean-initial))
+           (popup-buf (get-buffer-create "*Ghostel Command Editor*")))
+      
+      (with-current-buffer popup-buf
+        (erase-buffer)
+        (insert clean-initial)
+        (text-mode)
+        
+        ;; CRUCIAL FIX: Force the popup buffer to inherit the remote TRAMP directory context
+        ;; This unlocks flawless remote file completion via Cape/Corfu!
+        (setq default-directory ghostel-dir)
+        
+        (setq-local seth/ghostel-target-buf ghostel-buf)
+        (setq-local seth/ghostel-orig-len original-length)
+        
+        (local-set-key (kbd "C-c C-c") #'seth/ghostel-popup-submit)
+        (local-set-key (kbd "C-c C-k") #'seth/ghostel-popup-cancel)
+        
+        (message "Editing command... Press C-c C-c to send, C-c C-k to cancel."))
+      
+      (pop-to-buffer popup-buf))))
+
+
+  (defun seth/ghostel-popup-submit ()
+    "Submit the edited text from the popup back to Ghostel and clean up."
     (interactive)
-    ;; Programmatically provide the C-u prefix to the native line-mode trigger
-    (let ((current-prefix-arg '(4))) 
-      (call-interactively #'ghostel-line-mode)))
+    (let ((edited-text (buffer-string))
+          (target-buf seth/ghostel-target-buf)
+          (orig-len seth/ghostel-orig-len))
+      ;; Close the popup window and kill its buffer
+      (quit-window t)
+      
+      ;; Return focus to your terminal and send the input downstream
+      (when (buffer-live-p target-buf)
+        (with-current-buffer target-buf
+          ;; 1. Send the backspaces to rub out what was originally on screen
+          (when (> orig-len 0)
+            (ghostel-send-string (make-string orig-len ?\x7f)))
+          ;; 2. Send the fully edited multi-line block cleanly with a newline
+          (ghostel-send-string (concat edited-text "\n"))))))
 
+  (defun seth/ghostel-popup-cancel ()
+    "Abruptly close the popup editor without changing anything in Ghostel."
+    (interactive)
+    (quit-window t)
+    (message "Command editing canceled."))
 
+  ;; Force the Command Editor popup to split directly below your terminal window
+  (add-to-list 'display-buffer-alist
+               '("\\*Ghostel Command Editor\\*"
+                 (display-buffer-below-selected)
+                 (window-height . 0.35)
+                 (dedicated . t)))
 
   (defun seth/ghostel-close-window-on-exit (buffer _status)
     "Kill the Ghostel buffer and cleanly close its split window on terminal exit."
