@@ -3378,9 +3378,12 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
 #+begin_src emacs-lisp :lexical t
 (use-package ghostel  
   :defer t
-  :hook ((eshell-load . ghostel-eshell-visual-command-mode)
+  :hook (
+         (eshell-load . ghostel-eshell-visual-command-mode)
          (after-init  . ghostel-compile-global-mode)
-         (after-init  . ghostel-comint-global-mode))
+         (after-init  . ghostel-comint-global-mode)
+         (ghostel-exit . seth/ghostel-close-window-on-exit)
+         )
   :init
   ;; Ensure the features are required so the hook functions exist
   (with-eval-after-load 'eshell (require 'ghostel-eshell))
@@ -3388,7 +3391,17 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
   (require 'ghostel-comint)
 
   :bind*
-  (("C-x t" . seth/ghostel-project-toggle))
+  (
+   ("C-x t" . seth/ghostel-project-toggle)
+   )
+  :bind (:map ghostel-mode-map
+              ("H-t" . ghostel-copy-mode)       
+              ("H-s" . ghostel-semi-char-mode)  
+              ("H-e" . ghostel-emacs-mode)      
+              ("H-l" . seth/ghostel-force-line-mode)       
+              ("H-d" . ghostel-char-mode)
+              )
+
 
   :config
   (setq ghostel-use-native-pty t)
@@ -3433,6 +3446,26 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
   ;;             (setq-local company-backends nil)
   ;;             (when (bound-and-true-p corfu-mode)
   ;;               (corfu-mode -1))))
+  (defun seth/ghostel-force-line-mode ()
+    "Force Ghostel into line-mode immediately, bypassing TUI checks (like tmux)."
+    (interactive)
+    ;; Programmatically provide the C-u prefix to the native line-mode trigger
+    (let ((current-prefix-arg '(4))) 
+      (call-interactively #'ghostel-line-mode)))
+
+
+
+  (defun seth/ghostel-close-window-on-exit (buffer _status)
+    "Kill the Ghostel buffer and cleanly close its split window on terminal exit."
+    ;; Find the window displaying this buffer BEFORE killing it
+    (let ((win (get-buffer-window buffer)))
+      ;; Kill the dead process buffer cleanly without prompting
+      (when (buffer-live-p buffer)
+        (kill-buffer buffer))
+      ;; If the buffer was sitting in a split window, shut the window down
+      (when (and win (window-live-p win))
+        (unless (one-window-p)
+          (delete-window win)))))
 
 
   (defun seth/ghostel--project-root ()
@@ -3443,8 +3476,9 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
 
   (defun seth/ghostel--tmux-session-name (root)
     "Return the tmux session name used for project ROOT.
-Preserves your exact old naming scheme."
-    (let* ((remote-path (file-local-name root))
+Guarantees absolute path expansion first so local '~' paths don't break."
+    (let* ((absolute-root (expand-file-name root))
+           (remote-path (file-local-name absolute-root))
            (project-name (directory-file-name remote-path)))
       (replace-regexp-in-string "\\." "_" project-name)))
 
@@ -3453,23 +3487,18 @@ Preserves your exact old naming scheme."
     (interactive)
     (let* ((root (seth/ghostel--project-root))
            (session-name (seth/ghostel--tmux-session-name root))
-           (remote-path (file-local-name root))
+           ;; Expand fully before extracting the local name to clear out any local tildes (~)
+           (remote-path (file-local-name (expand-file-name root)))
            (buffer-name (format "*ghostel: %s*" session-name))
            (existing (get-buffer buffer-name)))
       
       (if (and existing (buffer-live-p existing))
           (pop-to-buffer existing)
         (let ((default-directory root)
-              ;; Create the empty target buffer first
               (buf (get-buffer-create buffer-name)))
           (with-current-buffer buf
-            ;; Initialize ghostel-mode inside the blank buffer
             (ghostel-mode)
-            ;; Execute tmux inside it. 
-            ;; Argument 1: "tmux" (the binary)
-            ;; Argument 2: The rest of the flags as a list of strings
             (ghostel-exec buf "tmux" (list "new-session" "-A" "-s" session-name "-c" remote-path)))
-          ;; Bring the freshly baked buffer into view
           (pop-to-buffer buf)))))
 
 
@@ -3631,19 +3660,17 @@ Otherwise, create or switch to it."
   )
 
 
-;; (use-package consult-ghostel
-;;   :ensure (:host github :repo "dakra/ghostel" :files ("extensions/consult-ghostel/*.el")) ; Tells Elpaca where to find it  
-;;   :after (ghostel consult)
-;;   :demand t
-;;   :bind (("C-x m" . consult-ghostel)
-;;          :map project-prefix-map
-;;          ("m" . consult-ghostel-project)
-;;          :map ghostel-semi-char-mode-map
-;;          ("C-c h" . consult-ghostel-history))
-;;   :config
-;;   (setf (alist-get 'zsh ghostel-shell-history-commands)
-;;         "atuin history list --cmd-only --print0 --reverse false")
-;;   )
+(use-package consult-ghostel
+  :ensure (:host github :repo "dakra/ghostel" :files ("extensions/consult-ghostel/*.el")) ; Tells Elpaca where to find it  
+  :after (ghostel consult)
+  :demand t
+  :bind (("C-x m" . consult-ghostel)         
+         :map ghostel-semi-char-mode-map
+         ("C-x h" . consult-ghostel-history))
+  :config
+  (setf (alist-get 'zsh ghostel-shell-history-commands)
+        "atuin history list --cmd-only --print0 --reverse false")
+  )
 
 
 
