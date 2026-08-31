@@ -3454,19 +3454,23 @@ Preserves your exact old naming scheme."
     (let* ((root (seth/ghostel--project-root))
            (session-name (seth/ghostel--tmux-session-name root))
            (remote-path (file-local-name root))
-           ;; Ghostel takes command parameters as a list of individual strings
-           (tmux-command (list "tmux" "new-session" "-A" "-s" session-name "-c" remote-path))
-           ;; Use Ghostel's native project buffer tracker if it exists, or fall back to name checking
            (buffer-name (format "*ghostel: %s*" session-name))
            (existing (get-buffer buffer-name)))
       
       (if (and existing (buffer-live-p existing))
           (pop-to-buffer existing)
-        ;; Run Ghostel bound to the correct directory context (crucial for TRAMP/RPC)
-        (let ((default-directory root))
-          (let ((buf (ghostel :command tmux-command)))
-            (with-current-buffer buf
-              (rename-buffer buffer-name t)))))))
+        (let ((default-directory root)
+              ;; Create the empty target buffer first
+              (buf (get-buffer-create buffer-name)))
+          (with-current-buffer buf
+            ;; Initialize ghostel-mode inside the blank buffer
+            (ghostel-mode)
+            ;; Execute tmux inside it. 
+            ;; Argument 1: "tmux" (the binary)
+            ;; Argument 2: The rest of the flags as a list of strings
+            (ghostel-exec buf "tmux" (list "new-session" "-A" "-s" session-name "-c" remote-path)))
+          ;; Bring the freshly baked buffer into view
+          (pop-to-buffer buf)))))
 
 
 
@@ -3628,7 +3632,7 @@ Otherwise, create or switch to it."
 
 
 ;; (use-package consult-ghostel
-;;   :ensure (:host github :repo "dakra/consult-ghostel" :files ("extensions/consult-ghostel/*.el")) ; Tells Elpaca where to find it  
+;;   :ensure (:host github :repo "dakra/ghostel" :files ("extensions/consult-ghostel/*.el")) ; Tells Elpaca where to find it  
 ;;   :after (ghostel consult)
 ;;   :demand t
 ;;   :bind (("C-x m" . consult-ghostel)
