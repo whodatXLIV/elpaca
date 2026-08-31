@@ -1198,11 +1198,11 @@ Emacs 27.0 introduced an early-init file. It allows customization before package
   ;; (setq tramp-connection-timeout 120) ;; This is often irrelevant for performance
 
   ;; Prevent TRAMP from hanging the modeline during disconnects
-  (setq vc-ignore-dir-regexp "")
-  (setq vc-ignore-dir-regexp
-        (format "\\(%s\\)\\|\\(%s\\)"
-                vc-ignore-dir-regexp
-                tramp-file-name-regexp))
+  ;; (setq vc-ignore-dir-regexp "")
+  ;; (setq vc-ignore-dir-regexp
+  ;;       (format "\\(%s\\)\\|\\(%s\\)"
+  ;;               vc-ignore-dir-regexp
+  ;;               tramp-file-name-regexp))
 
   ;; Aggressive performance options
   (setq remote-file-name-inhibit-locks t)
@@ -3376,80 +3376,31 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
 
 *** Ghostel
 #+begin_src emacs-lisp :lexical t
-(use-package ghostel
-  :ensure t
+(use-package ghostel  
   :defer t
+  :hook ((eshell-load . ghostel-eshell-visual-command-mode)
+         (after-init  . ghostel-compile-global-mode)
+         (after-init  . ghostel-comint-global-mode))
+  :init
+  ;; Ensure the features are required so the hook functions exist
+  (with-eval-after-load 'eshell (require 'ghostel-eshell))
+  (require 'ghostel-compile)
+  (require 'ghostel-comint)
 
   :bind*
   (("C-x t" . seth/ghostel-project-toggle))
 
   :config
-
-  ;; ==========================================================================
-  ;; GHOSTEL CORE
-  ;; ==========================================================================
-
-  ;; Use Ghostel's native PTY path for local terminals.
-  ;; Remote TRAMP terminals automatically use TRAMP/Emacs process machinery.
   (setq ghostel-use-native-pty t)
-
-  ;; Advertise the full Ghostty terminal capability set.
-  ;;
-  ;; This is particularly useful with tmux, neovim, modern TUIs, etc.
   (setq ghostel-term "xterm-ghostty")
-
-  ;; Local shell integration:
-  ;;   - OSC 7 directory tracking
-  ;;   - OSC 133 prompt/command tracking
-  ;;   - prompt navigation
-  ;;   - ghostel_cmd support
-  ;;
-  ;; Ghostel enables this by default, but keeping it explicit makes the
-  ;; configuration's intent clear.
   (setq ghostel-shell-integration t)
 
-  ;; ==========================================================================
-  ;; TRAMP
-  ;; ==========================================================================
-
-  ;; Enable Ghostel's remote shell integration for TRAMP.
-  ;;
-  ;; This is important for your workflow because when the shell does:
-  ;;
-  ;;     cd /remote/project/src
-  ;;
-  ;; Ghostel can update Emacs' default-directory to the corresponding
-  ;; TRAMP path rather than losing the remote context.
   (setq ghostel-tramp-shell-integration t)
-
-  ;; Your setup uses the custom `rpc' TRAMP method.
-  ;;
-  ;; When Ghostel receives a remote OSC 7 location without an existing TRAMP
-  ;; prefix, use rpc rather than the normal tramp-default-method.
   (setq ghostel-tramp-default-method "rpc")
-
-  ;; Let Ghostel handle xterm-ghostty terminfo on remote machines.
-  ;;
-  ;; With `auto', this follows ghostel-tramp-shell-integration.
-  ;; This avoids the common:
-  ;;
-  ;;     Error opening terminal: xterm-ghostty
-  ;;
-  ;; problem on remote machines that do not already have the terminfo entry.
   (setq ghostel-ssh-install-terminfo 'auto)
 
-  ;; ==========================================================================
-  ;; TERMINAL BUFFER BEHAVIOR
-  ;; ==========================================================================
-
-  ;; Same general behavior as your old vterm setup:
-  ;; don't keep dead terminal buffers around.
   (setq ghostel-kill-buffer-on-exit t)
-
-  ;; Ask before killing a terminal while a command is actively running.
   (setq ghostel-query-before-killing 'auto)
-
-
 
   ;; ==========================================================================
   ;; GHOSTEL INPUT
@@ -3477,36 +3428,11 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
   ;; semi-char would otherwise intercept.
 
 
-  ;; ==========================================================================
-  ;; COMPLETION FRAMEWORKS
-  ;; ==========================================================================
-
-  ;; Do not let company/corfu attempt completion inside the terminal.
-  ;;
-  ;; This preserves the behavior you had in vterm.
-  (add-hook 'ghostel-mode-hook
-            (lambda ()
-              (setq-local company-backends nil)
-              (when (bound-and-true-p corfu-mode)
-                (corfu-mode -1))))
-
-
-  ;; ==========================================================================
-  ;; PROJECT / TMUX TERMINAL
-  ;; ==========================================================================
-  ;;     project.el
-  ;;         ↓
-  ;;     project root
-  ;;         ↓
-  ;;     TRAMP/local detection
-  ;;         ↓
-  ;;     your existing project-derived tmux session name
-  ;;         ↓
-  ;;     tmux new-session -A
-  ;;         ↓
-  ;;     Ghostel
-  ;;
-  ;; This keeps the behavior you already rely on.
+  ;; (add-hook 'ghostel-mode-hook
+  ;;           (lambda ()
+  ;;             (setq-local company-backends nil)
+  ;;             (when (bound-and-true-p corfu-mode)
+  ;;               (corfu-mode -1))))
 
 
   (defun seth/ghostel--project-root ()
@@ -3515,75 +3441,50 @@ Reduces tracked damage and automatically removes the dead '~' marker if they rev
         (project-root project)
       default-directory))
 
-
   (defun seth/ghostel--tmux-session-name (root)
     "Return the tmux session name used for project ROOT.
-
-This intentionally preserves your existing naming scheme."
+Preserves your exact old naming scheme."
     (let* ((remote-path (file-local-name root))
            (project-name (directory-file-name remote-path)))
-      (replace-regexp-in-string
-       "\\."
-       "_"
-       project-name)))
-
-
-  (defun seth/ghostel--tmux-command (root)
-    "Return the tmux command for project ROOT.
-
-The command creates or attaches to the project's existing tmux session and
-starts it at the project root."
-    (let* ((remote-path (file-local-name root))
-           (session-name (seth/ghostel--tmux-session-name root)))
-      (format "tmux new-session -A -s %s -c %s"
-              (shell-quote-argument session-name)
-              (shell-quote-argument remote-path))))
-
-
-  (defun seth/ghostel--existing-project-terminal ()
-    "Return an existing Ghostel buffer belonging to the current project.
-
-Prefer a live Ghostel terminal whose `default-directory' is the current
-project. Return nil when none exists."
-    (when (derived-mode-p 'ghostel-mode)
-      (let ((current-root (seth/ghostel--project-root)))
-        (when (and current-root
-                   (string= (file-truename default-directory)
-                            (file-truename current-root)))
-          (current-buffer)))))
-
+      (replace-regexp-in-string "\\." "_" project-name)))
 
   (defun seth/ghostel-project-tmux ()
-  "Open or select the current project's Ghostel terminal running tmux."
-  (interactive)
+    "Open or select the current project's Ghostel terminal running tmux."
+    (interactive)
+    (let* ((root (seth/ghostel--project-root))
+           (session-name (seth/ghostel--tmux-session-name root))
+           (remote-path (file-local-name root))
+           ;; Ghostel takes command parameters as a list of individual strings
+           (tmux-command (list "tmux" "new-session" "-A" "-s" session-name "-c" remote-path))
+           ;; Use Ghostel's native project buffer tracker if it exists, or fall back to name checking
+           (buffer-name (format "*ghostel: %s*" session-name))
+           (existing (get-buffer buffer-name)))
+      
+      (if (and existing (buffer-live-p existing))
+          (pop-to-buffer existing)
+        ;; Run Ghostel bound to the correct directory context (crucial for TRAMP/RPC)
+        (let ((default-directory root))
+          (let ((buf (ghostel :command tmux-command)))
+            (with-current-buffer buf
+              (rename-buffer buffer-name t)))))))
 
-  (let* ((root (seth/ghostel--project-root))
-         (session-name (seth/ghostel--tmux-session-name root))
-         (tmux-command (seth/ghostel--tmux-command root))
-         (existing (ghostel-project-buffer-list)))
-
-    ;; If this project already has a Ghostel terminal, use it.
-    (if existing
-        (pop-to-buffer (car existing))
-
-      ;; Otherwise create one at the project root.
-      (let ((default-directory root)
-            (ghostel-shell tmux-command))
-        (ghostel-create
-         (format "*ghostel-%s*" session-name))))))
 
 
   (defun seth/ghostel-project-toggle ()
     "Toggle the current project's Ghostel/tmux terminal.
-
-If the current buffer is the project's Ghostel terminal, bury it.
-Otherwise create/select the Ghostel terminal associated with the current
-project."
+If already inside that project's Ghostel terminal, bury it and clean up the window.
+Otherwise, create or switch to it."
     (interactive)
+    (let* ((root (seth/ghostel--project-root))
+           (session-name (seth/ghostel--tmux-session-name root))
+           (target-buffer-name (format "*ghostel: %s*" session-name)))
+      ;; Check if we are currently looking at this project's terminal buffer
+      (if (string= (buffer-name) target-buffer-name)
+          ;; If inside it, safely hide the buffer and delete the window if it's a split
+          (quit-window nil (selected-window))
+        ;; Otherwise, launch or jump to it
+        (seth/ghostel-project-tmux))))
 
-    (if (derived-mode-p 'ghostel-mode)
-        (quit-window)
-      (seth/ghostel-project-tmux)))
 
 
   ;; ;; ==========================================================================
@@ -3623,75 +3524,75 @@ project."
   ;; ==========================================================================
 
 
-;;   (defun tmux-send-region-via-ghostel (start end)
-;;     "Send the active region directly into the project's Ghostel terminal.
+  ;;   (defun tmux-send-region-via-ghostel (start end)
+  ;;     "Send the active region directly into the project's Ghostel terminal.
 
-;; Assumes the correct environment has already been activated inside the
-;; terminal/tmux session."
-;;     (interactive "r")
+  ;; Assumes the correct environment has already been activated inside the
+  ;; terminal/tmux session."
+  ;;     (interactive "r")
 
-;;     (let ((selected-text
-;;            (buffer-substring-no-properties start end)))
+  ;;     (let ((selected-text
+  ;;            (buffer-substring-no-properties start end)))
 
-;;       ;; Temporarily display the project terminal, send the text, and return
-;;       ;; immediately to the original window configuration.
-;;       (save-window-excursion
+  ;;       ;; Temporarily display the project terminal, send the text, and return
+  ;;       ;; immediately to the original window configuration.
+  ;;       (save-window-excursion
 
-;;         ;; This opens/selects the correct project Ghostel terminal.
-;;         (seth/ghostel-project-tmux)
+  ;;         ;; This opens/selects the correct project Ghostel terminal.
+  ;;         (seth/ghostel-project-tmux)
 
-;;         (if (not (derived-mode-p 'ghostel-mode))
+  ;;         (if (not (derived-mode-p 'ghostel-mode))
 
-;;             (message
-;;              "Could not find an active project Ghostel terminal.")
+  ;;             (message
+  ;;              "Could not find an active project Ghostel terminal.")
 
-;;           ;; Send the selected block exactly as selected.
-;;           (ghostel-send-string selected-text)
+  ;;           ;; Send the selected block exactly as selected.
+  ;;           (ghostel-send-string selected-text)
 
-;;           ;; Execute it if the selected text does not already contain its
-;;           ;; terminating newline.
-;;           (unless (string-suffix-p "\n" selected-text)
-;;             (ghostel-send-string "\n")))))
+  ;;           ;; Execute it if the selected text does not already contain its
+  ;;           ;; terminating newline.
+  ;;           (unless (string-suffix-p "\n" selected-text)
+  ;;             (ghostel-send-string "\n")))))
 
-;;     (message "Sent region to project Ghostel."))
+  ;;     (message "Sent region to project Ghostel."))
 
 
-;;   (defun tmux-send-line-or-region-via-ghostel ()
-;;     "Send the active region or current line to the project's Ghostel terminal.
+  ;;   (defun tmux-send-line-or-region-via-ghostel ()
+  ;;     "Send the active region or current line to the project's Ghostel terminal.
 
-;; With an active region, send the entire region.
+  ;; With an active region, send the entire region.
 
-;; Without a region, send the current line, execute it, and advance to the next
-;; line for rapid Python execution."
-;;     (interactive)
+  ;; Without a region, send the current line, execute it, and advance to the next
+  ;; line for rapid Python execution."
+  ;;     (interactive)
 
-;;     (if (use-region-p)
+  ;;     (if (use-region-p)
 
-;;         ;; --------------------------------------------------------------------
-;;         ;; REGION
-;;         ;; --------------------------------------------------------------------
-;;         (call-interactively #'tmux-send-region-via-ghostel)
+  ;;         ;; --------------------------------------------------------------------
+  ;;         ;; REGION
+  ;;         ;; --------------------------------------------------------------------
+  ;;         (call-interactively #'tmux-send-region-via-ghostel)
 
-;;       ;; ----------------------------------------------------------------------
-;;       ;; SINGLE LINE
-;;       ;; ----------------------------------------------------------------------
-;;       (let ((current-line
-;;              (buffer-substring-no-properties
-;;               (line-beginning-position)
-;;               (line-end-position))))
+  ;;       ;; ----------------------------------------------------------------------
+  ;;       ;; SINGLE LINE
+  ;;       ;; ----------------------------------------------------------------------
+  ;;       (let ((current-line
+  ;;              (buffer-substring-no-properties
+  ;;               (line-beginning-position)
+  ;;               (line-end-position))))
 
-;;         (save-window-excursion
+  ;;         (save-window-excursion
 
-;;           (seth/ghostel-project-tmux)
+  ;;           (seth/ghostel-project-tmux)
 
-;;           (when (derived-mode-p 'ghostel-mode)
-;;             (ghostel-send-string current-line)
-;;             (ghostel-send-string "\n")))
+  ;;           (when (derived-mode-p 'ghostel-mode)
+  ;;             (ghostel-send-string current-line)
+  ;;             (ghostel-send-string "\n")))
 
-;;         (message "Sent current line to project Ghostel.")
+  ;;         (message "Sent current line to project Ghostel.")
 
-;;         ;; Automatically advance to the next code row.
-;;         (forward-line 1))))
+  ;;         ;; Automatically advance to the next code row.
+  ;;         (forward-line 1))))
 
 
   ;; ==========================================================================
@@ -3723,16 +3624,26 @@ project."
   ;;
   ;; Examples:
   ;;
-  ;; (use-package ghostel-compile
-  ;;   :after ghostel
-  ;;   :hook (after-init . ghostel-compile-global-mode))
-  ;;
-  ;; (use-package ghostel-comint
-  ;;   :after ghostel
-  ;;   :hook (after-init . ghostel-comint-global-mode))
-
-
   )
+
+
+;; (use-package consult-ghostel
+;;   :ensure (:host github :repo "dakra/consult-ghostel" :files ("extensions/consult-ghostel/*.el")) ; Tells Elpaca where to find it  
+;;   :after (ghostel consult)
+;;   :demand t
+;;   :bind (("C-x m" . consult-ghostel)
+;;          :map project-prefix-map
+;;          ("m" . consult-ghostel-project)
+;;          :map ghostel-semi-char-mode-map
+;;          ("C-c h" . consult-ghostel-history))
+;;   :config
+;;   (setf (alist-get 'zsh ghostel-shell-history-commands)
+;;         "atuin history list --cmd-only --print0 --reverse false")
+;;   )
+
+
+
+
 #+end_src
 
 *** Hydra
@@ -3915,7 +3826,7 @@ project."
   (advice-add 'tab2-select-filter-button :after #'seth-add-to-tab-line-tab-buffer-plist)
 
   (setq tab2-white-list-modes
-        '(text-mode lisp-interaction-mode vterm-mode fundamental-mode magit-status-mode))
+        '(text-mode lisp-interaction-mode ghostel-mode fundamental-mode magit-status-mode))
 
   (defun seth-tab-config-tab2-select-filter-button ()
     (interactive)
